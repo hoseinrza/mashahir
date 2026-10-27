@@ -1,0 +1,553 @@
+openapi: 3.1.0
+info:
+  title: سامانه مدرسه مشاهیر آینده — API هسته (فاز ۱)
+  version: 0.1.0
+  description: >
+    قرارداد API مرحله هسته. احراز هویت فقط با کد یکبارمصرف پیامکی؛ پس از ورود
+    توکن «pending-role» صادر می‌شود و تا فراخوانی switch-role برای مسیرهای
+    محدود ۴۰۳ می‌گیرد. هر پاسخ خارج از محدوده نقش ۴۰۴ است (نه ۴۰۳) تا وجود
+    داده لو نرود. شناسه‌های بیرونی ULID هستند؛ شناسه عددی هرگز در API دیده
+    نمی‌شود. همه زمان‌ها UTC/timestamptz.
+servers:
+  - url: http://localhost:8000/api
+    description: محلی
+tags:
+  - name: auth
+  - name: users
+  - name: students
+  - name: academic
+  - name: family
+  - name: pickup
+
+paths:
+  /v1/auth/otp/request:
+    post:
+      tags: [auth]
+      summary: درخواست کد ورود
+      description: پاسخ همیشه یکسان است؛ وجود یا عدم وجود شماره فاش نمی‌شود. محدودیت نرخ بر اساس شماره و IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: "09121234567" }
+      responses:
+        "200":
+          description: پیام عمومی
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        "429": { description: بیش از حد مجاز }
+
+  /v1/auth/otp/verify:
+    post:
+      tags: [auth]
+      summary: تأیید کد ورود
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        "200":
+          description: توکن pending-role + فهرست نقش‌های فعال
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PendingSession" }
+        "422": { description: کد نامعتبر }
+
+  /v1/auth/switch-role:
+    post:
+      tags: [auth]
+      summary: انتخاب نقش فعال
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_role_id]
+              properties:
+                user_role_id: { type: integer }
+      responses:
+        "200":
+          description: توکن نقش‌دار + خلاصه نقش
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoleSession" }
+        "401": { description: توکن نامعتبر }
+        "422": { description: نقش در دسترس نیست }
+
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: خروج و ابطال توکن فعلی
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: ابطال شد }
+
+  /v1/auth/context:
+    get:
+      tags: [auth]
+      summary: کانتکست فعال (کاربر، مدرسه، نقش، مجوزها)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: خلاصه کانتکست برای bootstrap فرانت
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthContext" }
+        "403": { description: توکن بدون نقش فعال (pending) }
+        "404": { description: نقش فعال منقضی/لغو شده — بلافاصله بعد از ends_on }
+
+  /v1/users:
+    get:
+      tags: [users]
+      summary: فهرست کاربران مدرسه (users.view؛ ش۸ برای پشتیبان = حداقل داده)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: صفحه‌بندی‌شده
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserList" }
+        "403": { description: مجوز ندارد }
+    post:
+      tags: [users]
+      summary: ساخت کاربر (users.manage)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, phone]
+              properties:
+                first_name: { type: string }
+                last_name: { type: string }
+                phone: { type: string }
+      responses:
+        "201": { description: ساخته شد }
+        "422": { description: شماره تکراری }
+
+  /v1/users/{user}/phone:
+    post:
+      tags: [users]
+      summary: تغییر شماره ورود (ش۷/ش۱۰ — دلیل الزامی و ثبت در لاگ)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, reason]
+              properties:
+                phone: { type: string }
+                reason: { type: string, minLength: 5 }
+      responses:
+        "200": { description: تغییر کرد و لاگ شد }
+        "403": { description: مجوز ندارد }
+
+  /v1/users/{user}/roles:
+    post:
+      tags: [users]
+      summary: تخصیص نقش با محدوده (users.manage؛ ش۱ — مسئول دفتر نقش مدیریتی نمی‌دهد)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role_key, scope_type]
+              properties:
+                role_key: { type: string, example: teacher }
+                scope_type: { type: string, enum: [school, classroom, student] }
+                scope_id: { type: integer, nullable: true }
+                starts_on: { type: string, format: date, nullable: true }
+                ends_on: { type: string, format: date, nullable: true }
+      responses:
+        "201": { description: تخصیص یافت }
+        "403": { description: ش۱ یا مجوز نداشتن }
+
+  /v1/users/{user}/roles/{role}:
+    delete:
+      tags: [users]
+      summary: پایان نقش (users.manage؛ پایان فوری با ends_on دیروز مگر تاریخ صریح)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5 }
+                ends_on: { type: string, format: date, nullable: true }
+      responses:
+        "200": { description: بسته شد؛ دسترسی بلافاصله قطع می‌شود }
+
+  /v1/students:
+    get:
+      tags: [students]
+      summary: فهرست دانش‌آموزان در محدوده نقش (ش۲ معلم، ش۳ ولی، ش۴ دانش‌آموز)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: فیلترشده بر اساس ScopeResolver
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudentList" }
+    post:
+      tags: [students]
+      summary: ثبت دانش‌آموز (students.manage) — کد ملی رمزنگاری ذخیره می‌شود
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_code, first_name, last_name]
+              properties:
+                student_code: { type: string }
+                first_name: { type: string }
+                last_name: { type: string }
+                birth_date: { type: string, format: date, nullable: true }
+                national_code: { type: string, nullable: true }
+      responses:
+        "201":
+          description: ساخته شد؛ کد ملی در پاسخ هرگز برنمی‌گردد
+
+  /v1/students/{student}:
+    get:
+      tags: [students]
+      summary: نمایش دانش‌آموز — خارج از محدوده = ۴۰۴
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "200": { description: مجاز }
+        "404": { description: خارج از محدوده یا مدرسه دیگر }
+    patch:
+      tags: [students]
+      summary: ویرایش دانش‌آموز (students.manage)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "200": { description: ویرایش شد }
+
+  /v1/students/{student}/national-code:
+    post:
+      tags: [students]
+      summary: مشاهده کد ملی (ش۷ — دلیل الزامی + ثبت در لاگ)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5 }
+      responses:
+        "200":
+          description: کد ملی رمزگشایی‌شده + ردیف لاگ
+        "404": { description: مجوز students.view_national_code ندارد }
+
+  /v1/academic/grade-levels:
+    get: &gradeLevelsRead
+      tags: [academic]
+      summary: پایه‌های تحصیلی (academic.view)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: فهرست }
+    post:
+      <<: *gradeLevelsRead
+      summary: ساخت پایه (academic.manage)
+      responses:
+        "201": { description: ساخته شد }
+
+  /v1/academic/classrooms:
+    get:
+      tags: [academic]
+      summary: کلاس‌ها در محدوده نقش (معلم فقط کلاس‌های خودش — ش۲)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: فهرست }
+    post:
+      tags: [academic]
+      summary: ساخت کلاس (academic.manage)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: ساخته شد }
+
+  /v1/academic/classrooms/{classroom}/subjects:
+    post:
+      tags: [academic]
+      summary: تخصیص معلم به درس در کلاس (academic.manage؛ ریشه ش۲)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "201": { description: تخصیص یافت }
+
+  /v1/academic/enrollments:
+    post:
+      tags: [academic]
+      summary: ثبت‌نام دانش‌آموز در کلاس (enrollments.manage)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: ثبت‌نام شد }
+        "404": { description: دانش‌آموز/کلاس خارج از محدوده }
+
+  /v1/academic/enrollments/{enrollment}/end:
+    post:
+      tags: [academic]
+      summary: پایان/انتقال ثبت‌نام
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: بسته شد }
+
+  /v1/guardian-links:
+    get:
+      tags: [family]
+      summary: پیوندهای ولی–دانش‌آموز (ولی فقط پیوندهای خودش — ش۴)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: با effective_flags (پرچم × حکم دادگاه)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuardianLinkList" }
+
+  /v1/guardian-links/request:
+    post:
+      tags: [family]
+      summary: درخواست اتصال ولی به دانش‌آموز (ش۱۵ — منتظر تأیید مدرسه)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: در صف تأیید (status=pending) }
+
+  /v1/guardian-links/{link}/approve:
+    post:
+      tags: [family]
+      summary: تأیید و فعال‌سازی پیوند با پرچم‌ها (guardian_links.manage + دلیل)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: فعال شد و لاگ شد }
+
+  /v1/guardian-links/{link}:
+    patch:
+      tags: [family]
+      summary: ویرایش پرچم‌ها/نوع پیوند (دلیل الزامی — ش۷)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: تغییر شد و لاگ شد }
+
+  /v1/guardian-links/{link}/end:
+    post:
+      tags: [family]
+      summary: پایان پیوند — قطع فوری دسترسی، تاریخچه می‌ماند
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: بسته شد }
+
+  /v1/my/children:
+    get:
+      tags: [family]
+      summary: فرزندان ولیِ فعلی با پرچم‌های مؤثر (ش۳)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: فقط پیوندهای فعال }
+
+  /v1/court-orders:
+    get:
+      tags: [family]
+      summary: حکم دادگاه (ناظم فقط خلاصه محدودیت — ش۱۶)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: فهرست }
+    post:
+      tags: [family]
+      summary: ثبت حکم (ش۷ — مدیر/مسئول دفتر با دلیل)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: ثبت شد و لاگ شد }
+
+  /v1/pickup/{student}:
+    get:
+      tags: [pickup]
+      summary: لیست تحویل‌گیری (ولی فقط با can_pickup مؤثر — ش۳؛ حکم غالب است)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "200": { description: مجاز }
+        "404": { description: بدون پرچم مؤثر یا خارج از محدوده }
+    post:
+      tags: [pickup]
+      summary: افزودن فرد مجاز (ش۷ کارکنان؛ ناظم ش۱۳ = فقط پیشنهاد inactive)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "201": { description: ثبت شد و لاگ شد }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+
+  parameters:
+    UlidPath:
+      name: ulid
+      in: path
+      required: true
+      schema: { type: string, minLength: 26, maxLength: 26 }
+
+  schemas:
+    Message:
+      type: object
+      properties:
+        message: { type: string }
+
+    PendingSession:
+      type: object
+      properties:
+        token: { type: string }
+        token_kind: { type: string, const: pending-role }
+        roles:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              role_key: { type: string }
+              role_title: { type: string }
+              scope_type: { type: string }
+              school_ulid: { type: string }
+              school_name: { type: string }
+
+    RoleSession:
+      type: object
+      properties:
+        token: { type: string }
+        active_role:
+          type: object
+          properties:
+            id: { type: integer }
+            role_key: { type: string }
+            role_title: { type: string }
+            scope_type: { type: string }
+            school_ulid: { type: string }
+            school_name: { type: string }
+
+    AuthContext:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            ulid: { type: string }
+            first_name: { type: string }
+            last_name: { type: string }
+            phone: { type: string }
+        school:
+          type: object
+          nullable: true
+          properties:
+            ulid: { type: string }
+            name: { type: string }
+        active_role:
+          type: object
+          nullable: true
+          properties:
+            key: { type: string }
+            title: { type: string }
+            scope_type: { type: string }
+        permissions:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string, example: users.update_phone }
+              condition: { type: string, nullable: true, example: sh7 }
+
+    User:
+      type: object
+      properties:
+        ulid: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        status: { type: string, enum: [active, blocked] }
+        phone: { type: string, description: فقط برای نقش‌های بدون ش۸ }
+        last_login_at: { type: string, format: date-time, nullable: true }
+
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+        links: { type: object }
+        meta: { type: object }
+
+    Student:
+      type: object
+      description: کد ملی هرگز سریال نمی‌شود؛ فقط از endpoint اختصاصی ش۷
+      properties:
+        ulid: { type: string }
+        student_code: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        status: { type: string, enum: [active, left, graduated] }
+        birth_date: { type: string, format: date, nullable: true }
+
+    StudentList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Student" }
+        links: { type: object }
+        meta: { type: object }
+
+    GuardianLink:
+      type: object
+      properties:
+        id: { type: integer }
+        student_ulid: { type: string }
+        student_name: { type: string }
+        link_type:
+          type: string
+          enum: [primary, second, separated_joint, separated_limited, legal_guardian, temporary, pickup_only]
+        status: { type: string, enum: [pending, active, ended, rejected] }
+        ends_on: { type: string, format: date, nullable: true }
+        effective_flags:
+          type: object
+          properties:
+            can_view_grades: { type: boolean }
+            can_view_attendance: { type: boolean }
+            can_approve_consent: { type: boolean }
+            can_pickup: { type: boolean }
+            can_receive_sms: { type: boolean }
+
+    GuardianLinkList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/GuardianLink" }

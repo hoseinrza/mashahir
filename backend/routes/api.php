@@ -4,6 +4,9 @@ use App\Modules\Academic\Http\Controllers\Api\AcademicApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
 use App\Modules\Identity\Http\Controllers\Api\UsersApiController;
 use App\Modules\Identity\Http\Controllers\AuthContextController;
+use App\Modules\People\Http\Controllers\Api\CourtOrdersApiController;
+use App\Modules\People\Http\Controllers\Api\GuardianLinksApiController;
+use App\Modules\People\Http\Controllers\Api\PickupApiController;
 use App\Modules\People\Http\Controllers\Api\StudentsApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -45,4 +48,21 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/academic/classrooms/{classroom}/subjects', [AcademicApiController::class, 'assignSubject']);
     Route::post('/academic/enrollments', [AcademicApiController::class, 'storeEnrollment']);
     Route::post('/academic/enrollments/{enrollment}/end', [AcademicApiController::class, 'endEnrollment']);
+
+    // Guardian links & family
+    Route::get('/guardian-links', [GuardianLinksApiController::class, 'index']);
+    Route::post('/guardian-links/request', [GuardianLinksApiController::class, 'requestLink']);
+    Route::post('/guardian-links/{link}/approve', [GuardianLinksApiController::class, 'approve']);
+    Route::patch('/guardian-links/{link}', [GuardianLinksApiController::class, 'update']);
+    Route::post('/guardian-links/{link}/end', [GuardianLinksApiController::class, 'end']);
+    Route::get('/my/children', [GuardianLinksApiController::class, 'myChildren']);
+
+    // Court orders
+    Route::get('/court-orders', [CourtOrdersApiController::class, 'index']);
+    Route::post('/court-orders', [CourtOrdersApiController::class, 'store']);
+
+    // Pickup list
+    Route::get('/pickup/{student}', [PickupApiController::class, 'index']);
+    Route::post('/pickup/{student}', [PickupApiController::class, 'store']);
+    Route::patch('/pickup/authorizations/{authorization}', [PickupApiController::class, 'update']);
 });

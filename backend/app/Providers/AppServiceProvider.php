@@ -38,5 +38,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(\App\Modules\People\Models\Student::class, \App\Modules\People\Policies\StudentPolicy::class);
         Gate::policy(\App\Modules\Academic\Models\Classroom::class, \App\Modules\Academic\Policies\ClassroomPolicy::class);
         Gate::policy(\App\Modules\Academic\Models\Enrollment::class, \App\Modules\Academic\Policies\EnrollmentPolicy::class);
+        Gate::policy(\App\Modules\People\Models\GuardianLink::class, \App\Modules\People\Policies\GuardianLinkPolicy::class);
+        Gate::policy(\App\Modules\People\Models\CourtOrder::class, \App\Modules\People\Policies\CourtOrderPolicy::class);
+        Gate::policy(\App\Modules\People\Models\PickupAuthorization::class, \App\Modules\People\Policies\PickupPolicy::class);
     }
 }
