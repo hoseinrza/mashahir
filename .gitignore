@@ -1,0 +1,21 @@
+# Generated knowledge graph — rebuild with `graphify .`
+graphify-out/
+
+# Abandoned Node/TypeScript scaffold (Laravel backend lives in backend/)
+_legacy_node/
+
+/node_modules
+public/hot
+public/build
+storage/*.key
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
