@@ -1,0 +1,175 @@
+<?php
+
+namespace App\Modules\Academic\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Modules\Academic\Http\Resources\ClassroomResource;
+use App\Modules\Academic\Models\Classroom;
+use App\Modules\Academic\Models\Enrollment;
+use App\Modules\Academic\Models\GradeLevel;
+use App\Modules\Academic\Models\Subject;
+use App\Modules\People\Models\Student;
+use App\Support\Rbac\ScopeResolver;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class AcademicApiController extends Controller
+{
+    public function __construct(private readonly ScopeResolver $resolver)
+    {
+    }
+
+    public function gradeLevels(): AnonymousResourceCollection
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        return \App\Modules\Academic\Http\Resources\GradeLevelResource::collection(
+            GradeLevel::query()->orderBy('order')->get(),
+        );
+    }
+
+    public function storeGradeLevel(Request $request): GradeLevel
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            'order' => ['required', 'integer', 'min:1'],
+        ]);
+
+        if (GradeLevel::query()->where('order', $data['order'])->exists()) {
+            throw ValidationException::withMessages(['order' => 'این ترتیب قبلاً ثبت شده است.']);
+        }
+
+        return GradeLevel::query()->create($data);
+    }
+
+    public function storeSubject(Request $request): Subject
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            'code' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        return Subject::query()->create($data);
+    }
+
+    public function indexClassrooms(): AnonymousResourceCollection
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        $query = $this->resolver->applyClassroomScope(
+            Classroom::query()->with(['gradeLevel', 'academicYear'])->orderBy('title'),
+        );
+
+        return ClassroomResource::collection($query->get());
+    }
+
+    public function storeClassroom(Request $request): ClassroomResource
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            'academic_year_id' => ['required', 'integer'],
+            'grade_level_id' => ['required', 'integer'],
+        ]);
+
+        if (Classroom::query()->where('academic_year_id', $data['academic_year_id'])->where('title', $data['title'])->exists()) {
+            throw ValidationException::withMessages(['title' => 'کلاسی با این عنوان در این سال تحصیلی هست.']);
+        }
+
+        return new ClassroomResource(Classroom::query()->create($data));
+    }
+
+    /**
+     * Assign a teacher to a subject in a classroom (sh2 source of truth).
+     */
+    public function assignSubject(Request $request, Classroom $classroom): JsonResponse
+    {
+        $this->authorize('assignSubject', $classroom);
+
+        $data = $request->validate([
+            'subject_id' => ['required', 'integer'],
+            'teacher_ulid' => ['nullable', 'string'],
+        ]);
+
+        $subjectId = $data['subject_id'];
+        if (! Subject::query()->whereKey($subjectId)->exists()) {
+            throw ValidationException::withMessages(['subject_id' => 'درس یافت نشد.']);
+        }
+
+        $teacherId = null;
+        if ($data['teacher_ulid'] !== null) {
+            $teacherId = \App\Modules\Identity\Models\User::query()->where('ulid', $data['teacher_ulid'])->value('id');
+            if ($teacherId === null) {
+                throw ValidationException::withMessages(['teacher_ulid' => 'معلم یافت نشد.']);
+            }
+        }
+
+        $assignment = $classroom->classroomSubjects()->updateOrCreate(
+            ['subject_id' => $subjectId],
+            ['teacher_id' => $teacherId],
+        );
+
+        return response()->json([
+            'id' => $assignment->id,
+            'classroom_ulid' => $classroom->ulid,
+            'subject_id' => $subjectId,
+            'teacher_ulid' => $data['teacher_ulid'],
+        ], 201);
+    }
+
+    public function storeEnrollment(Request $request): Enrollment
+    {
+        $this->authorize('create', Enrollment::class);
+
+        $data = $request->validate([
+            'student_ulid' => ['required', 'string'],
+            'classroom_ulid' => ['required', 'string'],
+            'starts_on' => ['required', 'date'],
+        ]);
+
+        $student = Student::query()->where('ulid', $data['student_ulid'])->firstOrFail();
+        $classroom = Classroom::query()->where('ulid', $data['classroom_ulid'])->firstOrFail();
+
+        $already = Enrollment::query()
+            ->where('student_id', $student->id)
+            ->where('classroom_id', $classroom->id)
+            ->where('status', Enrollment::STATUS_ACTIVE)
+            ->exists();
+
+        if ($already) {
+            throw ValidationException::withMessages(['student_ulid' => 'دانش‌آموز در این کلاس ثبت‌نام است.']);
+        }
+
+        return Enrollment::query()->create([
+            'student_id' => $student->id,
+            'classroom_id' => $classroom->id,
+            'starts_on' => $data['starts_on'],
+            'status' => Enrollment::STATUS_ACTIVE,
+        ]);
+    }
+
+    public function endEnrollment(Request $request, Enrollment $enrollment): Enrollment
+    {
+        $this->authorize('end', $enrollment);
+
+        $data = $request->validate([
+            'ends_on' => ['required', 'date'],
+            'status' => ['required', Rule::in(['transferred', 'ended'])],
+        ]);
+
+        $enrollment->update([
+            'ends_on' => $data['ends_on'],
+            'status' => $data['status'],
+        ]);
+
+        return $enrollment->fresh();
+    }
+}
