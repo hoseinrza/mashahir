@@ -50,6 +50,8 @@ class LocalDemoSeeder extends Seeder
             ['first_name' => 'رضا', 'last_name' => 'احمدی', 'phone' => '09120000005', 'role' => 'office_manager'],
             ['first_name' => 'فریبا', 'last_name' => 'کاظمی', 'phone' => '09120000006', 'role' => 'guardian'],
             ['first_name' => 'مسعود', 'last_name' => 'رادمنش', 'phone' => '09120000007', 'role' => 'guardian'],
+            // Student of the high school — has his own account (PRD §3).
+            ['first_name' => 'پارسا', 'last_name' => 'رادمنش', 'phone' => '09120000008', 'role' => 'student'],
         ];
 
         $roleIds = DB::table('roles')->whereNull('school_id')->pluck('id', 'key');
@@ -69,12 +71,31 @@ class LocalDemoSeeder extends Seeder
                 ],
             );
 
+            // The student role is student-scoped (ش۴): scope_id = own record.
+            $studentRecordId = null;
+            $scopeType = 'school';
+
+            if ($person['role'] === 'student') {
+                $record = Student::query()->firstOrCreate(
+                    ['school_id' => $school->id, 'student_code' => '4002'],
+                    [
+                        'ulid' => (string) \Illuminate\Support\Str::ulid(),
+                        'first_name' => $person['first_name'],
+                        'last_name' => $person['last_name'],
+                        'status' => 'active',
+                    ],
+                );
+                $record->forceFill(['user_id' => $user->id])->save();
+                $studentRecordId = $record->id;
+                $scopeType = 'student';
+            }
+
             UserRole::query()->firstOrCreate([
                 'user_id' => $user->id,
                 'role_id' => $roleIds[$person['role']],
                 'school_id' => $school->id,
-                'scope_type' => 'school',
-                'scope_id' => null,
+                'scope_type' => $scopeType,
+                'scope_id' => $studentRecordId,
             ], ['starts_on' => now()->toDateString()]);
 
             $usersByRole[$person['role']] = $user;
@@ -127,9 +148,9 @@ class LocalDemoSeeder extends Seeder
             ],
         );
 
-        // Guardian B (مسعود، جدا شده): limited link to the SAME child (آرش).
+        // Guardian B (مسعود، پدر جداشده‌ی پارسا): limited link — pickup yes, grades no.
         GuardianLink::query()->firstOrCreate(
-            ['guardian_user_id' => $guardianB->id, 'student_id' => $students[0]->id],
+            ['guardian_user_id' => $guardianB->id, 'student_id' => $students[1]->id],
             [
                 'link_type' => 'separated_limited',
                 'status' => 'active',
@@ -142,6 +163,6 @@ class LocalDemoSeeder extends Seeder
             ],
         );
 
-        $this->command?->info('Demo users ready — ورود: 09120000001 (مدیر) … 09120000007 (ولی دوم)');
+        $this->command?->info('Demo users ready — ورود: 09120000001 (مدیر) … 09120000007 (ولی دوم) … 09120000008 (دانش‌آموز)');
     }
 }
