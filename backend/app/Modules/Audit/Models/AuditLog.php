@@ -28,4 +28,9 @@ class AuditLog extends Model
             'created_at' => 'datetime',
         ];
     }
+
+    public function actor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Identity\Models\User::class, 'actor_id');
+    }
 }

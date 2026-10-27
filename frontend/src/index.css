@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --color-primary: #2457C5;
+    --color-primary-hover: #1c469f;
+    --color-accent: #F4B740;
+    --color-bg: #F7F9FC;
+    --color-surface: #FFFFFF;
+    --color-surface-elevated: #F0F4FA;
+    --color-text: #202B3C;
+    --color-text-muted: #526176;
+    --color-border: #DCE3EE;
+    --color-success: #15803D;
+    --color-warning: #B45309;
+    --color-error: #B42318;
+  }
+
+  .dark {
+    --color-primary: #8BAEFF;
+    --color-primary-hover: #759eff;
+    --color-accent: #F4B740;
+    --color-bg: #101722;
+    --color-surface: #182231;
+    --color-surface-elevated: #222F42;
+    --color-text: #F1F5FB;
+    --color-text-muted: #B3C0D2;
+    --color-border: #344257;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+  }
+
+  * {
+    font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Prevent unexpected horizontal page overflow across mobile devices */
+  html, body {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+}
+
+/* Tabular figures for tables, metrics, dates, and scores */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth custom scrollbars for RTL dashboards */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

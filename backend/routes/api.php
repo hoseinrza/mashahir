@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Academic\Http\Controllers\Api\AcademicApiController;
+use App\Modules\Audit\Http\Controllers\Api\AuditLogsApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
 use App\Modules\Identity\Http\Controllers\Api\UsersApiController;
 use App\Modules\Identity\Http\Controllers\AuthContextController;
@@ -65,4 +66,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/pickup/{student}', [PickupApiController::class, 'index']);
     Route::post('/pickup/{student}', [PickupApiController::class, 'store']);
     Route::patch('/pickup/authorizations/{authorization}', [PickupApiController::class, 'update']);
+
+    // Audit log
+    Route::get('/audit-logs', [AuditLogsApiController::class, 'index']);
 });
