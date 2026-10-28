@@ -21,7 +21,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const location = useLocation();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
 
   // Dynamic role-tailored navigation items
   const isPlatformAdmin = activeRole.group === 'platform' || activeRole.id === 'platform_super_admin' || currentUser.id === 'usr_platform_admin';
@@ -244,7 +243,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       {/* Top Bar Header (Redesigned) */}
       <DashboardHeader
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        onOpenPermissionsModal={() => setIsPermissionsModalOpen(true)}
       />
 
       {/* Main Workspace Frame */}
@@ -444,110 +442,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         </div>
       </footer>
 
-      {/* Visual Role Permissions Transparency Modal (شناسنامه اختیارات و محدودیت‌های نقش) */}
-      <Modal
-        isOpen={isPermissionsModalOpen}
-        onClose={() => setIsPermissionsModalOpen(false)}
-        title={`شناسنامه اختیارات و قلمرو: ${activeRole.persianTitle}`}
-        maxWidth="lg"
-      >
-        <div className="space-y-4 text-right">
-          {/* Header summary banner */}
-          <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm text-[#202B3C] dark:text-[#F1F5FB]">{currentUser.fullName}</span>
-                <Badge variant="primary">{activeRole.persianTitle}</Badge>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white dark:bg-[#182231] font-mono text-slate-500">
-                  گروه: {activeRole.group}
-                </span>
-              </div>
-              <p className="text-[#526176] dark:text-[#B3C0D2] mt-1 text-[11px]">
-                {activeRole.description}
-              </p>
-            </div>
-            <div className="shrink-0 text-left sm:text-right">
-              <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2] block">قلمرو مجاز:</span>
-              <strong className="text-xs text-[#2457C5] dark:text-[#8BAEFF]">
-                {activeAssignment.scopeType === 'classroom'
-                  ? 'کلاس ۱۰۱ (تخصیص‌یافته)'
-                  : activeAssignment.scopeType === 'guardian_link'
-                  ? 'رابطه با دانش‌آموز انتسابی'
-                  : activeAssignment.scopeType === 'student'
-                  ? 'پرونده خود دانش‌آموز'
-                  : 'سطح کل واحد آموزشی مشاهیر آینده'}
-              </strong>
-            </div>
-          </div>
-
-          {/* Dual columns: Allowed vs Restricted */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            {/* Allowed Permissions Column */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between font-bold pb-2 border-b border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 size={15} />
-                  <span>مجوزهای مجاز و فعال ({toPersianDigits(activeRole.allowedPermissions.length)})</span>
-                </div>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 px-2 py-0.5 rounded-full">تایید شده</span>
-              </div>
-              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                {ALL_PERMISSIONS.filter((p) => activeRole.allowedPermissions.includes(p.code)).map((p) => (
-                  <div key={p.id} className="p-2 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
-                    <div className="flex items-center justify-between font-semibold text-emerald-950 dark:text-emerald-200">
-                      <span>{p.name}</span>
-                      <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">{p.code}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5">{p.description}</p>
-                  </div>
-                ))}
-                {activeRole.allowedPermissions.length === 0 && (
-                  <p className="text-xs text-slate-400 italic p-3 text-center">فاقد مجوز دسترسی داده (صرفاً ترخیص فیزیکی)</p>
-                )}
-              </div>
-            </div>
-
-            {/* Restricted Permissions Column */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between font-bold pb-2 border-b border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300">
-                <div className="flex items-center gap-1.5">
-                  <Lock size={15} />
-                  <span>محدودیت‌ها و سرفصل‌های مسدود</span>
-                </div>
-                <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 px-2 py-0.5 rounded-full">مسدود امنیتی</span>
-              </div>
-              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                {ALL_PERMISSIONS.filter((p) => !activeRole.allowedPermissions.includes(p.code)).slice(0, 8).map((p) => (
-                  <div key={p.id} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/40 opacity-75">
-                    <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-medium">
-                      <span>{p.name}</span>
-                      <span className="text-[10px] font-mono text-slate-400">{p.code}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5">غیرمجاز برای این سطح کاربری (اصل حداقل دسترسی)</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Privacy & Least Privilege Note */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-[11px] text-[#526176] dark:text-[#B3C0D2] leading-relaxed">
-            <strong className="text-[#202B3C] dark:text-[#F1F5FB] block mb-1">اصل استقلال حساب و تفکیک حریم خصوصی:</strong>
-            در سامانه مشاهیر آینده، نقش‌ها دارای قلمروهای اکید هستند. معلمان تنها به کلاس‌های تعیین‌شده دسترسی دارند و والدین به هیچ‌وجه اطلاعات پرونده یا تماس سایر اولیا (به‌ویژه در موارد والدین جداشده) را مشاهده نخواهند کرد.
-          </div>
-
-          <div className="flex justify-between items-center pt-2">
-            <Link to="/login" onClick={() => setIsPermissionsModalOpen(false)}>
-              <Button variant="outline" size="sm">
-                تغییر کاربر دمو (Demo Switcher)
-              </Button>
-            </Link>
-            <Button variant="primary" size="sm" onClick={() => setIsPermissionsModalOpen(false)}>
-              متوجه شدم
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

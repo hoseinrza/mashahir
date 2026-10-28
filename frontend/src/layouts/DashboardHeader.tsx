@@ -15,12 +15,10 @@ import { NotificationService } from '../services';
 
 interface DashboardHeaderProps {
   onToggleMobileMenu: () => void;
-  onOpenPermissionsModal: () => void;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onToggleMobileMenu,
-  onOpenPermissionsModal,
 }) => {
   const {
     currentUser,
@@ -405,26 +403,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         </select>
                       </div>
                     )}
-
-                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                      <span>مجوزهای فعال سامانه:</span>
-                      <span className="font-mono text-[#2457C5] dark:text-[#8BAEFF] font-bold">{toPersianDigits(activeRole.allowedPermissions.length)} مورد</span>
-                    </div>
                   </div>
 
                   {/* Actions list */}
                   <div className="space-y-1">
-
-                    <button
-                      onClick={() => {
-                        onOpenPermissionsModal();
-                        setIsProfileDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 p-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-right"
-                    >
-                      <ShieldCheck size={15} className="text-emerald-600 dark:text-emerald-400" />
-                      <span>شناسنامه مجوزها و اختیارات نقش</span>
-                    </button>
 
                     {hasAccess('schools:settings') && (
                     <Link
