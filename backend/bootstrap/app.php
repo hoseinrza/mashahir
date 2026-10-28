@@ -21,6 +21,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // API-only app: Laravel's default redirects guests to route('login')
         // which does not exist here — no redirect, the API answers 401 JSON.
         $middleware->redirectGuestsTo(fn () => null);
+
+        // Route-model bindings MUST resolve AFTER the school context is set:
+        // every school-scoped model has a BelongsToSchool global scope, so a
+        // binding running before auth.context would 500 on cold requests.
+        $middleware->priority([
+            \Illuminate\Auth\Middleware\Authenticate::class,
+            \App\Http\Middleware\SetAuthContext::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

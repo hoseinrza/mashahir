@@ -36,6 +36,24 @@ class EditEndpointsTest extends TestCase
         $this->subjectId = $this->assignTeacher($this->teacher, $this->classroom, $this->makeSubject())->id;
     }
 
+    public function test_route_bindings_resolve_after_the_school_context_is_set(): void
+    {
+        // Production regression: a cold request must NOT resolve the ULID
+        // binding before auth.context seeds the school scope (it used to 500
+        // with SchoolContextMissingException on every bound route).
+        $this->actingWithRole('teacher', user: $this->teacher);
+        $ulid = $this->postJson('/api/v1/assignments', [
+            'classroom_subject_id' => $this->subjectId,
+            'title' => 'جریان سرد', 'due_at' => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('ulid');
+
+        app(\App\Support\SchoolContext::class)->forget();
+
+        $this->getJson("/api/v1/assignments/{$ulid}/submissions")->assertOk();
+        $this->patchJson("/api/v1/assignments/{$ulid}", ['title' => 'ویرایش سرد'])
+            ->assertOk()->assertJsonPath('title', 'ویرایش سرد');
+    }
+
     public function test_assignment_is_editable_by_its_teacher_only(): void
     {
         $this->actingWithRole('teacher', user: $this->teacher);
