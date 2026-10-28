@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './theme/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
 // Pages
@@ -12,6 +12,7 @@ import { AssignmentsPage } from './pages/AssignmentsPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { OnlineClassesPage } from './pages/OnlineClassesPage';
 import { OnlineExamPage } from './pages/OnlineExamPage';
+import { ExamsManagementPage } from './pages/ExamsManagementPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
 import { ReportCardPage } from './pages/ReportCardPage';
 import { SmartPerformanceAnalysisPage } from './pages/SmartPerformanceAnalysisPage';
@@ -28,6 +29,14 @@ import { SpecialRolesPage } from './pages/SpecialRolesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CreateSchoolPage } from './pages/CreateSchoolPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+
+function ExamsRoleRouter() {
+  const { activeRole } = useAuth();
+  // Students (and guardians viewing) get the exam-TAKING experience;
+  // staff get the design/management console.
+  const isStudentSide = activeRole.group === 'student' || activeRole.group === 'family';
+  return isStudentSide ? <OnlineExamPage /> : <ExamsManagementPage />;
+}
 
 export default function App() {
   return (
@@ -78,7 +87,7 @@ export default function App() {
               path="/exams"
               element={
                 <DashboardLayout>
-                  <OnlineExamPage />
+                  <ExamsRoleRouter />
                 </DashboardLayout>
               }
             />

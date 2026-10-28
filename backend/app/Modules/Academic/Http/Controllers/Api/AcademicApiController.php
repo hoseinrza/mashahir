@@ -5,6 +5,7 @@ namespace App\Modules\Academic\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Modules\Academic\Http\Resources\ClassroomResource;
 use App\Modules\Academic\Models\Classroom;
+use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Academic\Models\Enrollment;
 use App\Modules\Academic\Models\GradeLevel;
 use App\Modules\Academic\Models\Subject;
@@ -171,6 +172,35 @@ class AcademicApiController extends Controller
         ]);
 
         return $enrollment->fresh();
+    }
+
+
+    /**
+     * The teachable (or school-wide for admins) classroom_subject list —
+     * the exam/assignment designers need it to target a subject-class pair.
+     */
+    public function mySubjects(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        $query = ClassroomSubject::query()
+            ->with(['subject', 'classroom', 'teacher'])
+            ->where('school_id', $request->attributes->get('school_id'))
+            ->orderBy('id');
+
+        $ids = $this->resolver->classroomIds();
+        if ($ids !== null) {
+            $query->whereIn('classroom_id', $ids ?: [0]);
+        }
+
+        return response()->json([
+            'data' => $query->get()->map(fn (ClassroomSubject $cs) => [
+                'id' => $cs->id,
+                'subject' => $cs->subject?->title,
+                'classroom' => $cs->classroom?->title,
+                'teacher' => $cs->teacher?->fullName(),
+            ]),
+        ]);
     }
 
     public function updateClassroom(Request $request, Classroom $classroom): ClassroomResource

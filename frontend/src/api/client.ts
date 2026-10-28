@@ -52,7 +52,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   /** Which credential to send: the role token (default) or the pending one. */
   tokenKind?: 'role' | 'pending' | 'none';

@@ -52,6 +52,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/students/{student}/national-code', [StudentsApiController::class, 'nationalCode']);
 
     // Academic structure
+    Route::get('/academic/my-subjects', [AcademicApiController::class, 'mySubjects']);
     Route::get('/academic/grade-levels', [AcademicApiController::class, 'gradeLevels']);
     Route::post('/academic/grade-levels', [AcademicApiController::class, 'storeGradeLevel']);
     Route::patch('/academic/grade-levels/{gradeLevel}', [AcademicApiController::class, 'updateGradeLevel']);
