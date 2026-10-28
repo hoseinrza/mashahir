@@ -100,4 +100,40 @@ class CourtOrdersApiController extends Controller
 
         return response()->json(['id' => $order->id, 'restrictions' => $order->restrictions], 201);
     }
+
+    /**
+     * sh7: editing a court order requires a reason and is always audited —
+     * restrictions may tighten or relax, the trail keeps every step.
+     */
+    public function update(Request $request, CourtOrder $order): JsonResponse
+    {
+        $this->authorize('create', CourtOrder::class);
+
+        $data = $request->validate([
+            'restrictions' => ['sometimes', 'array'],
+            'restrictions.*' => ['boolean'],
+            'valid_from' => ['sometimes', 'nullable', 'date'],
+            'valid_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:valid_from'],
+            'reason' => ['required', 'string', 'min:5'],
+        ]);
+
+        $old = $order->only(['restrictions', 'valid_from', 'valid_to']);
+
+        $order->update(collect($data)->except(['reason'])->all());
+
+        $this->audit->log(
+            'court_order.updated',
+            $order->student,
+            old: $old,
+            new: collect($data)->except(['reason'])->all(),
+            reason: $data['reason'],
+        );
+
+        return response()->json([
+            'id' => $order->id,
+            'restrictions' => $order->restrictions,
+            'valid_from' => $order->valid_from?->toDateString(),
+            'valid_to' => $order->valid_to?->toDateString(),
+        ]);
+    }
 }

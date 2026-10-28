@@ -117,6 +117,87 @@ class ExamsApiController extends Controller
         return response()->json(['ulid' => $exam->ulid, 'status' => $exam->status], 201);
     }
 
+    /**
+     * FR-15: a DRAFT exam is fully editable; published exams are frozen.
+     */
+    public function update(Request $request, Exam $exam): JsonResponse
+    {
+        $this->authorize('exams.manage');
+
+        if ($exam->status !== Exam::STATUS_DRAFT) {
+            throw ValidationException::withMessages(['status' => 'آزمون منتشرشده قابل ویرایش نیست.']);
+        }
+
+        $ids = $this->resolver->classroomIds();
+        if ($ids !== null && ! in_array($exam->classroomSubject->classroom_id, $ids, true)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:200'],
+            'opens_at' => ['sometimes', 'date'],
+            'closes_at' => ['sometimes', 'date', 'after:opens_at'],
+            'duration_minutes' => ['sometimes', 'integer', 'min:5', 'max:300'],
+            'shuffle_questions' => ['boolean'],
+            'result_visibility' => ['sometimes', 'in:immediately,after_grading,manual'],
+        ]);
+
+        $exam->update($data);
+
+        return response()->json(['ulid' => $exam->ulid, 'status' => $exam->fresh()->status]);
+    }
+
+    /**
+     * Replace ALL questions of a draft exam (bulk edit of the paper).
+     */
+    public function replaceQuestions(Request $request, Exam $exam): JsonResponse
+    {
+        $this->authorize('exams.manage');
+
+        if ($exam->status !== Exam::STATUS_DRAFT) {
+            throw ValidationException::withMessages(['status' => 'سؤال‌های آزمون منتشرشده قابل تغییر نیستند.']);
+        }
+
+        $ids = $this->resolver->classroomIds();
+        if ($ids !== null && ! in_array($exam->classroomSubject->classroom_id, $ids, true)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'questions' => ['required', 'array', 'min:1'],
+            'questions.*.type' => ['required', 'in:mcq,descriptive'],
+            'questions.*.body' => ['required', 'string'],
+            'questions.*.points' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'questions.*.options' => ['nullable', 'array', 'min:2'],
+            'questions.*.options.*' => ['required', 'string', 'max:500'],
+            'questions.*.correct_position' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($exam, $data) {
+            $exam->questions()->delete();
+
+            foreach ($data['questions'] as $i => $q) {
+                $question = $exam->questions()->create([
+                    'type' => $q['type'],
+                    'position' => $i + 1,
+                    'body' => $q['body'],
+                    'points' => $q['points'] ?? 1,
+                ]);
+
+                if ($q['type'] === ExamQuestion::TYPE_MCQ) {
+                    foreach ($q['options'] as $optPos => $body) {
+                        $question->options()->create(['position' => $optPos + 1, 'body' => $body]);
+                    }
+
+                    $correct = $question->options()->where('position', $q['correct_position'] ?? 1)->first();
+                    $question->forceFill(['correct_option_id' => $correct?->id])->save();
+                }
+            }
+        });
+
+        return response()->json(['ulid' => $exam->ulid, 'questions' => $exam->questions()->count()]);
+    }
+
     public function publish(Request $request, Exam $exam): JsonResponse
     {
         $this->authorize('exams.publish');

@@ -18,6 +18,33 @@ class ConsentsApiController extends Controller
     {
     }
 
+    public function update(Request $request, ConsentRequest $consent): JsonResponse
+    {
+        $this->authorize('consents.manage');
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:200'],
+            'body' => ['sometimes', 'nullable', 'string'],
+            'due_at' => ['sometimes', 'nullable', 'date', 'after:now'],
+            'policy' => ['sometimes', 'in:one_parent,both_parents'],
+        ]);
+
+        $consent->update($data);
+
+        app(\App\Modules\Audit\Services\AuditService::class)->log(
+            'consent.updated',
+            $consent->student,
+            new: collect($data)->all(),
+        );
+
+        return response()->json([
+            'ulid' => $consent->ulid,
+            'title' => $consent->title,
+            'policy' => $consent->policy,
+            'due_at' => $consent->due_at?->toIso8601String(),
+        ]);
+    }
+
     /**
      * FR: consent policy comes from school_settings (per-school decision).
      */

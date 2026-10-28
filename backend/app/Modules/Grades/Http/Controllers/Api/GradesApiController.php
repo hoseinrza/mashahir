@@ -116,6 +116,38 @@ class GradesApiController extends Controller
         return response()->json(['id' => $item->id, 'status' => $item->status], 201);
     }
 
+    /**
+     * Draft grades are freely editable by the recorder; approved items go
+     * back to draft on edit, published items NEVER change here (sh7 flow).
+     */
+    public function update(Request $request, GradeItem $item): JsonResponse
+    {
+        $this->authorize('grades.record');
+
+        if ($item->status === GradeItem::STATUS_PUBLISHED) {
+            throw ValidationException::withMessages(['status' => 'نمره منتشرشده فقط با مسیر change_published و ثبت دلیل تغییر می‌کند.']);
+        }
+
+        $data = $request->validate([
+            'score' => ['required', 'integer', 'min:0'],
+            'max_score' => ['nullable', 'integer', 'min:1', 'max:1000'],
+        ]);
+
+        if ($data['score'] > ($data['max_score'] ?? $item->max_score)) {
+            throw ValidationException::withMessages(['score' => 'نمره بیشتر از سقف است.']);
+        }
+
+        $item->forceFill([
+            'score' => $data['score'],
+            'max_score' => $data['max_score'] ?? $item->max_score,
+            // Editing an approved grade sends it back to the deputy.
+            'status' => GradeItem::STATUS_DRAFT,
+            'approved_by' => null,
+        ])->save();
+
+        return response()->json(['id' => $item->id, 'status' => $item->status, 'score' => $item->score]);
+    }
+
     public function approve(Request $request, GradeItem $item): JsonResponse
     {
         $this->authorize('grades.approve');

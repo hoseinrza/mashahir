@@ -78,6 +78,38 @@ class TimetableApiController extends Controller
         return response()->json(['id' => $slot->id], 201);
     }
 
+    public function update(Request $request, TimetableSlot $slot): JsonResponse
+    {
+        $this->authorize('timetable.manage');
+
+        $data = $request->validate([
+            'weekday' => ['sometimes', 'integer', 'min:0', 'max:6'],
+            'period' => ['sometimes', 'integer', 'min:1'],
+            'starts_at' => ['sometimes', 'date_format:H:i'],
+            'ends_at' => ['sometimes', 'date_format:H:i', 'after:starts_at'],
+        ]);
+
+        $merged = [
+            'weekday' => $data['weekday'] ?? $slot->weekday,
+            'period' => $data['period'] ?? $slot->period,
+        ];
+
+        $duplicate = TimetableSlot::query()
+            ->where('classroom_subject_id', $slot->classroom_subject_id)
+            ->where('weekday', $merged['weekday'])
+            ->where('period', $merged['period'])
+            ->whereKeyNot($slot->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages(['period' => 'این زنگ برای این درس در این روز قبلاً ثبت شده است.']);
+        }
+
+        $slot->update($data);
+
+        return response()->json(['id' => $slot->id] + $slot->only(['weekday', 'period', 'starts_at', 'ends_at']));
+    }
+
     public function destroy(TimetableSlot $slot): JsonResponse
     {
         $this->authorize('timetable.manage');

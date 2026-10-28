@@ -81,4 +81,33 @@ class AnnouncementsApiController extends Controller
                 ->count(),
         ], 201);
     }
+
+    /**
+     * Editing an official announcement: already-delivered notifications stay
+     * as read snapshots; the channel page always shows the live record.
+     */
+    public function update(Request $request, Announcement $announcement): JsonResponse
+    {
+        $this->authorize('announcements.publish');
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:200'],
+            'body' => ['sometimes', 'string'],
+            'importance' => ['sometimes', 'in:info,important,urgent'],
+            'expires_at' => ['nullable', 'date', 'after:now'],
+        ]);
+
+        $old = $announcement->only(['title', 'body', 'importance']);
+        $announcement->update(collect($data)->except(['expires_at'])->all() + [
+            'expires_at' => isset($data['expires_at']) ? \Carbon\Carbon::parse($data['expires_at']) : $announcement->expires_at,
+        ]);
+
+        $this->audit->log('announcement.updated', $announcement, old: $old, new: $data);
+
+        return response()->json([
+            'ulid' => $announcement->ulid,
+            'title' => $announcement->title,
+            'importance' => $announcement->importance,
+        ]);
+    }
 }

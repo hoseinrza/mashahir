@@ -86,6 +86,23 @@ class AssignmentsApiController extends Controller
         return response()->json($this->assignmentPayload($assignment), 201);
     }
 
+    public function update(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('assignments.manage');
+        $this->assertSubjectAccess($assignment->classroomSubject);
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:200'],
+            'description' => ['sometimes', 'nullable', 'string'],
+            'due_at' => ['sometimes', 'date'],
+            'max_score' => ['sometimes', 'integer', 'min:1', 'max:1000'],
+        ]);
+
+        $assignment->update($data);
+
+        return response()->json($this->assignmentPayload($assignment->fresh()));
+    }
+
     /**
      * FR-12: the student submits text; late is computed against due_at.
      */

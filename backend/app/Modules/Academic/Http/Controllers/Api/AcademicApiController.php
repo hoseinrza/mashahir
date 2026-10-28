@@ -172,4 +172,45 @@ class AcademicApiController extends Controller
 
         return $enrollment->fresh();
     }
+
+    public function updateClassroom(Request $request, Classroom $classroom): ClassroomResource
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate(['title' => ['sometimes', 'string', 'max:100']]);
+        $classroom->update($data);
+
+        return new ClassroomResource($classroom->fresh());
+    }
+
+    public function updateSubject(Request $request, Subject $subject): Subject
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:100'],
+            'code' => ['sometimes', 'nullable', 'string', 'max:50'],
+        ]);
+        $subject->update($data);
+
+        return $subject->fresh();
+    }
+
+    public function updateGradeLevel(Request $request, GradeLevel $gradeLevel): GradeLevel
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:100'],
+            'order' => ['sometimes', 'integer', 'min:1'],
+        ]);
+
+        if (isset($data['order']) && GradeLevel::query()->where('order', $data['order'])->whereKeyNot($gradeLevel->id)->exists()) {
+            throw ValidationException::withMessages(['order' => 'این ترتیب قبلاً ثبت شده است.']);
+        }
+
+        $gradeLevel->update($data);
+
+        return $gradeLevel->fresh();
+    }
 }

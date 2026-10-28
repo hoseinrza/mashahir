@@ -53,9 +53,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Academic structure
     Route::get('/academic/grade-levels', [AcademicApiController::class, 'gradeLevels']);
     Route::post('/academic/grade-levels', [AcademicApiController::class, 'storeGradeLevel']);
+    Route::patch('/academic/grade-levels/{gradeLevel}', [AcademicApiController::class, 'updateGradeLevel']);
     Route::post('/academic/subjects', [AcademicApiController::class, 'storeSubject']);
+    Route::patch('/academic/subjects/{subject}', [AcademicApiController::class, 'updateSubject']);
     Route::get('/academic/classrooms', [AcademicApiController::class, 'indexClassrooms']);
     Route::post('/academic/classrooms', [AcademicApiController::class, 'storeClassroom']);
+    Route::patch('/academic/classrooms/{classroom}', [AcademicApiController::class, 'updateClassroom']);
     Route::post('/academic/classrooms/{classroom}/subjects', [AcademicApiController::class, 'assignSubject']);
     Route::post('/academic/enrollments', [AcademicApiController::class, 'storeEnrollment']);
     Route::post('/academic/enrollments/{enrollment}/end', [AcademicApiController::class, 'endEnrollment']);
@@ -71,6 +74,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Court orders
     Route::get('/court-orders', [CourtOrdersApiController::class, 'index']);
     Route::post('/court-orders', [CourtOrdersApiController::class, 'store']);
+    Route::patch('/court-orders/{order}', [CourtOrdersApiController::class, 'update']);
 
     // Pickup list
     Route::get('/pickup/{student}', [PickupApiController::class, 'index']);
@@ -83,6 +87,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Timetable
     Route::get('/timetable', [TimetableApiController::class, 'index']);
     Route::post('/timetable', [TimetableApiController::class, 'store']);
+    Route::patch('/timetable/{slot}', [TimetableApiController::class, 'update']);
     Route::delete('/timetable/{slot}', [TimetableApiController::class, 'destroy']);
 
     // Attendance
@@ -98,6 +103,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Assignments
     Route::get('/assignments', [AssignmentsApiController::class, 'index']);
     Route::post('/assignments', [AssignmentsApiController::class, 'store']);
+    Route::patch('/assignments/{assignment}', [AssignmentsApiController::class, 'update']);
     Route::post('/assignments/{assignment}/submissions', [AssignmentsApiController::class, 'submit']);
     Route::get('/assignments/{assignment}/submissions', [AssignmentsApiController::class, 'submissions']);
     Route::post('/submissions/{submission}/grade', [AssignmentsApiController::class, 'grade']);
@@ -105,6 +111,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Grades & report cards
     Route::get('/grades', [GradesApiController::class, 'index']);
     Route::post('/grades', [GradesApiController::class, 'store']);
+    Route::patch('/grades/{item}', [GradesApiController::class, 'update']);
     Route::post('/grades/{item}/approve', [GradesApiController::class, 'approve']);
     Route::post('/grades/{item}/change', [GradesApiController::class, 'changePublished']);
     Route::post('/report-cards/publish', [GradesApiController::class, 'publishReportCard']);
@@ -115,6 +122,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/exams', [ExamsApiController::class, 'index']);
     Route::post('/exams', [ExamsApiController::class, 'store']);
     Route::get('/exams/{exam}', [ExamsApiController::class, 'show']);
+    Route::patch('/exams/{exam}', [ExamsApiController::class, 'update']);
+    Route::put('/exams/{exam}/questions', [ExamsApiController::class, 'replaceQuestions']);
     Route::post('/exams/{exam}/publish', [ExamsApiController::class, 'publish']);
     Route::post('/exams/{exam}/start', [ExamsApiController::class, 'start']);
     Route::get('/exams/{exam}/result', [ExamsApiController::class, 'result']);
@@ -126,6 +135,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Announcements & notification center
     Route::get('/announcements', [AnnouncementsApiController::class, 'index']);
     Route::post('/announcements', [AnnouncementsApiController::class, 'store']);
+    Route::patch('/announcements/{announcement}', [AnnouncementsApiController::class, 'update']);
     Route::get('/notifications', [NotificationsApiController::class, 'index']);
     Route::post('/notifications/{notification}/read', [NotificationsApiController::class, 'markRead']);
     Route::post('/notifications/{notification}/archive', [NotificationsApiController::class, 'archive']);
@@ -136,6 +146,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     // Consents
     Route::get('/consents', [ConsentsApiController::class, 'index']);
     Route::post('/consents', [ConsentsApiController::class, 'store']);
+    Route::patch('/consents/{consent}', [ConsentsApiController::class, 'update']);
     Route::post('/consents/{consent}/respond', [ConsentsApiController::class, 'respond']);
 
     // Imports & settings
