@@ -166,6 +166,7 @@ return [
         ],
 
         'users.manage' => [
+            'school_admin' => true,
             'office_manager' => 'sh1',
         ],
 
@@ -298,6 +299,7 @@ return [
 
         // ─── ت. حضور و غیاب ────────────────────────────────────────────
         'attendance.record' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
@@ -332,10 +334,12 @@ return [
 
         // ─── ث. تکالیف ─────────────────────────────────────────────────
         'assignments.manage' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
         'assignments.view' => [
+            'school_admin' => true,
             'academic_deputy' => true,
             'discipline_deputy' => true, // REVIEW
             'teacher' => 'sh2',
@@ -348,6 +352,7 @@ return [
         ],
 
         'submissions.view' => [
+            'school_admin' => true,
             'academic_deputy' => true,
             'discipline_deputy' => true, // REVIEW
             'teacher' => 'sh2',
@@ -356,15 +361,18 @@ return [
         ],
 
         'submissions.grade' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
         // ─── ج. آزمون آنلاین ───────────────────────────────────────────
         'exams.manage' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
         'exams.publish' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
@@ -373,21 +381,25 @@ return [
         ],
 
         'exams.proctor' => [
+            'school_admin' => true,
             'discipline_deputy' => true, // REVIEW: معاون آموزشی در خوانش جایگزین
             'teacher' => 'sh2',
             'proctor' => 'sh5',
         ],
 
         'exams.grade_descriptive' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
             'corrector' => 'sh5',
         ],
 
         'exams.results_release' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
         'exams.results_view' => [
+            'school_admin' => true,
             'academic_deputy' => true,
             'discipline_deputy' => true, // REVIEW
             'teacher' => 'sh2',
@@ -398,10 +410,12 @@ return [
 
         // ─── چ. نمره و کارنامه ─────────────────────────────────────────
         'grades.record' => [
+            'school_admin' => true,
             'teacher' => 'sh2',
         ],
 
         'grades.view' => [
+            'school_admin' => true,
             'academic_deputy' => true,
             'discipline_deputy' => true, // REVIEW
             'teacher' => 'sh2',
