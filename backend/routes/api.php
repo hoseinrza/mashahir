@@ -9,6 +9,7 @@ use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
 use App\Modules\Family\Http\Controllers\Api\ConsentsApiController;
 use App\Modules\Grades\Http\Controllers\Api\GradesApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
+use App\Modules\OnlineClasses\Http\Controllers\Api\OnlineClassesApiController;
 use App\Modules\Identity\Http\Controllers\Api\RolesApiController;
 use App\Modules\Identity\Http\Controllers\Api\UsersApiController;
 use App\Modules\Identity\Http\Controllers\AuthContextController;
@@ -88,6 +89,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/roles', [RolesApiController::class, 'store']);
     Route::patch('/roles/{role}', [RolesApiController::class, 'update']);
     Route::delete('/roles/{role}', [RolesApiController::class, 'destroy']);
+
+    // Online classes (Skyroom)
+    Route::get('/online-classes', [OnlineClassesApiController::class, 'index']);
+    Route::post('/online-classes', [OnlineClassesApiController::class, 'store']);
+    Route::get('/online-classes/{class}/enter', [OnlineClassesApiController::class, 'enter']);
+    Route::post('/online-classes/{class}/close', [OnlineClassesApiController::class, 'close']);
+    Route::delete('/online-classes/{class}', [OnlineClassesApiController::class, 'destroy']);
 
     // Audit log
     Route::get('/audit-logs', [AuditLogsApiController::class, 'index']);

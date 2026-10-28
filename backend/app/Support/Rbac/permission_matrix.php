@@ -140,6 +140,12 @@ return [
             ['key' => 'schools.manage', 'title' => 'ساخت و مدیریت مدرسه و پلن'],
             ['key' => 'system.monitor', 'title' => 'پایش فنی و خطاها'],
         ],
+
+        'online' => [
+            ['key' => 'online_classes.view', 'title' => 'مشاهده کلاس‌های آنلاین'],
+            ['key' => 'online_classes.create', 'title' => 'برگزاری کلاس آنلاین'],
+            ['key' => 'online_classes.manage', 'title' => 'مدیریت و بستن کلاس آنلاین'],
+        ],
     ],
 
     'matrix' => [
@@ -524,6 +530,25 @@ return [
         'system.monitor' => [
             'platform_admin' => true,
             'support' => 'sh8',
+        ],
+
+        // ─── و. کلاس آنلاین (اسکای‌روم) ────────────────────────────────
+        'online_classes.view' => [
+            'school_admin' => true,
+            'academic_deputy' => true,
+            'teacher' => 'sh2',
+            'student' => 'sh4',
+        ],
+
+        'online_classes.create' => [
+            'school_admin' => true,
+            'academic_deputy' => true,
+            'teacher' => 'sh2',
+        ],
+
+        'online_classes.manage' => [
+            'school_admin' => true,
+            'academic_deputy' => true,
         ],
     ],
 ];
