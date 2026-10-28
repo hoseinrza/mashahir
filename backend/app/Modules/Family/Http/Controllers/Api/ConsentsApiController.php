@@ -48,6 +48,39 @@ class ConsentsApiController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
+        // The teacher only ever gets NOTIFIED that his class has a trip —
+        // he never manages or views consents (client decision, 1405-08-06).
+        $enrollment = \App\Modules\Academic\Models\Enrollment::query()
+            ->where('student_id', $student->id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($enrollment !== null) {
+            $teacherIds = \App\Modules\Academic\Models\ClassroomSubject::query()
+                ->where('classroom_id', $enrollment->classroom_id)
+                ->whereNotNull('teacher_id')
+                ->pluck('teacher_id')
+                ->unique();
+
+            foreach ($teacherIds as $teacherId) {
+                $teacher = \App\Modules\Identity\Models\User::query()->find($teacherId);
+                if ($teacher === null) {
+                    continue;
+                }
+
+                app(\App\Modules\Notifications\Services\NotificationService::class)->notify(
+                    $teacher,
+                    $student->id,
+                    'consent.request',
+                    "«{$data['title']}» برای کلاس شما",
+                    'رضایتنامه برای دانش‌آموز ' . $student->fullName() . ' ثبت شد؛ اولیا تا مهلت مقرر پاسخ می‌دهند.',
+                    '/notifications',
+                    \App\Modules\Notifications\Models\Notification::IMPORTANCE_IMPORTANT,
+                    ['in_app'],
+                );
+            }
+        }
+
         return response()->json(['ulid' => $request2->ulid, 'policy' => $request2->policy], 201);
     }
 

@@ -231,7 +231,6 @@ return [
         'consents.manage' => [
             'school_admin' => true,
             'academic_deputy' => true, // REVIEW: خوانش اصل سند نامطمئن
-            'teacher' => 'sh2',
         ],
 
         'consents.respond' => [
@@ -241,7 +240,6 @@ return [
         'consents.view_results' => [
             'school_admin' => true,
             'academic_deputy' => true,
-            'teacher' => 'sh2',
             'office_manager' => true,
         ],
 

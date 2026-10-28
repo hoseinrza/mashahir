@@ -118,6 +118,42 @@ class ConsentsTimetableImportsTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_teacher_is_only_notified_about_class_trips_never_manages_consents(): void
+    {
+        // The class teacher + his student.
+        $teacher = $this->makeUser();
+        $classroom = $this->makeClassroom();
+        $this->assignTeacher($teacher, $classroom, $this->makeSubject());
+        $this->enroll($this->student, $classroom);
+
+        // Admin creates the trip consent for that student.
+        $this->makeConsent('one_parent');
+
+        // The teacher RECEIVED a notification about the class trip.
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $teacher->id,
+            'type' => 'consent.request',
+        ]);
+
+        $notification = \App\Modules\Notifications\Models\Notification::query()
+            ->where('user_id', $teacher->id)
+            ->where('type', 'consent.request')
+            ->first();
+        $this->assertStringContainsString('کلاس شما', $notification->title);
+
+        // The teacher has NO consent permissions in the matrix at all.
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('teacher', user: $teacher);
+
+        $this->getJson('/api/v1/consents')->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('teacher', user: $teacher);
+        $this->postJson('/api/v1/consents', [
+            'student_ulid' => $this->student->ulid, 'title' => 'تست معلم',
+        ])->assertForbidden();
+    }
+
     public function test_timetable_crud_and_teacher_scope(): void
     {
         $teacher = $this->makeUser();
