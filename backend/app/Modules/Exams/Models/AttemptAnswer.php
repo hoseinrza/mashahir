@@ -33,6 +33,6 @@ class AttemptAnswer extends Model
 
     public function grade(): HasOne
     {
-        return $this->hasOne(AnswerGrade::class);
+        return $this->hasOne(AnswerGrade::class, 'answer_id');
     }
 }

@@ -34,6 +34,15 @@ class ExamsApiController extends Controller
         $classroomIds = $this->resolver->classroomIds();
         if ($classroomIds !== null) {
             $exams = $exams->filter(fn ($e) => in_array($e->classroomSubject->classroom_id, $classroomIds, true))->values();
+        } elseif (app(PermissionRegistrar::class)->activeRole()?->role->key === 'student') {
+            // sh4: the student sees exams of HIS enrolled classrooms only.
+            $selfIds = $this->resolver->studentIds() ?? [];
+            $classroomIds = \App\Modules\Academic\Models\Enrollment::query()
+                ->whereIn('student_id', $selfIds)
+                ->where('status', 'active')
+                ->pluck('classroom_id')
+                ->all();
+            $exams = $exams->filter(fn ($e) => in_array($e->classroomSubject->classroom_id, $classroomIds, true))->values();
         }
 
         return response()->json([
@@ -221,6 +230,7 @@ class ExamsApiController extends Controller
         return response()->json([
             'ulid' => $exam->ulid,
             'title' => $exam->title,
+            'classroom_subject_id' => $exam->classroom_subject_id,
             'subject' => $exam->classroomSubject?->subject?->title,
             'opens_at' => $exam->opens_at->toIso8601String(),
             'closes_at' => $exam->closes_at->toIso8601String(),
@@ -348,16 +358,25 @@ class ExamsApiController extends Controller
             ]);
         }
 
-        // Staff view: all attempts (proctoring/grading).
-        $attempts = $exam->attempts()->with(['student', 'answers.grade'])->get()->map(fn (ExamAttempt $a) => [
+        // Staff view: all attempts with their answers (descriptive grading).
+        $attempts = $exam->attempts()->with(['student', 'answers.question', 'answers.grade'])->get()->map(fn (ExamAttempt $a) => [
             'attempt_id' => $a->id,
             'student_ulid' => $a->student?->ulid,
             'student_name' => $a->student?->fullName(),
             'status' => $a->status,
             'auto_score' => $a->auto_score,
             'submitted_at' => $a->submitted_at?->toIso8601String(),
-            'descriptive_graded' => $a->answers->where('question.type', 'descriptive')->where('grade')->count(),
-            'descriptive_total' => $a->answers->where('question.type', 'descriptive')->count(),
+            'answers' => $a->answers->map(fn (AttemptAnswer $ans) => [
+                'answer_id' => $ans->id,
+                'question_id' => $ans->question_id,
+                'type' => $ans->question?->type,
+                'body' => $ans->question?->body,
+                'points' => $ans->question?->points,
+                'option_id' => $ans->option_id,
+                'text' => $ans->text,
+                'score' => $ans->grade?->score,
+                'comment' => $ans->grade?->comment,
+            ]),
         ]);
 
         return response()->json(['visible' => $visible, 'data' => $attempts]);

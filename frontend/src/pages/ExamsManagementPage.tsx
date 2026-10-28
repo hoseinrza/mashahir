@@ -416,16 +416,55 @@ export const ExamsManagementPage: React.FC = () => {
         ) : results.length === 0 ? (
           <p className="text-sm text-slate-500 text-center py-6">هنوز هیچ شرکت‌کننده‌ای نداشته است.</p>
         ) : (
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
             {results.map((a) => (
-              <div key={a.attempt_id} className="flex items-center justify-between p-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] text-xs">
-                <span className="font-bold">{a.student_name}</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant={a.status === 'submitted' ? 'success' : a.status === 'expired' ? 'danger' : 'warning'}>
-                    {a.status === 'submitted' ? 'ارسال‌شده' : a.status === 'expired' ? 'منقضی' : 'در حال آزمون'}
-                  </Badge>
-                  <span className="font-mono font-bold">{a.auto_score !== null ? toPersianDigits(a.auto_score) : '—'}</span>
+              <div key={a.attempt_id} className="p-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold">{a.student_name}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={a.status === 'submitted' ? 'success' : a.status === 'expired' ? 'danger' : 'warning'}>
+                      {a.status === 'submitted' ? 'ارسال‌شده' : a.status === 'expired' ? 'منقضی' : 'در حال آزمون'}
+                    </Badge>
+                    <span className="font-mono font-bold">تستی: {a.auto_score !== null ? toPersianDigits(a.auto_score) : '—'}</span>
+                  </div>
                 </div>
+
+                {(a.answers ?? []).filter((ans: any) => ans.type === 'descriptive').map((ans: any) => (
+                  <div key={ans.answer_id} className="bg-slate-50 dark:bg-[#131C2E] rounded-lg p-2.5 space-y-1.5">
+                    <p className="text-[11px] font-medium">{ans.body}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-wrap">
+                      {ans.text || '(بدون پاسخ)'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={ans.points}
+                        defaultValue={ans.score ?? ''}
+                        placeholder={`از ${toPersianDigits(ans.points)}`}
+                        data-answer-id={ans.answer_id}
+                        className="w-20 h-8 px-2 rounded-lg border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-xs outline-none"
+                      />
+                      <button
+                        onClick={async (e) => {
+                          const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement;
+                          try {
+                            await api(`/v1/exams/answers/${ans.answer_id}/grade`, {
+                              method: 'POST',
+                              body: { score: Number(input.value), comment: '' },
+                            });
+                            (e.target as HTMLElement).textContent = '✓ ثبت شد';
+                          } catch (err) {
+                            (e.target as HTMLElement).textContent = err instanceof ApiError ? err.firstError() : 'خطا';
+                          }
+                        }}
+                        className="text-[11px] font-bold text-[#2457C5] dark:text-[#8BAEFF] cursor-pointer"
+                      >
+                        ثبت نمره
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

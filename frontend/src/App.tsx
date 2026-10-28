@@ -13,6 +13,7 @@ import { AttendancePage } from './pages/AttendancePage';
 import { OnlineClassesPage } from './pages/OnlineClassesPage';
 import { OnlineExamPage } from './pages/OnlineExamPage';
 import { ExamsManagementPage } from './pages/ExamsManagementPage';
+import { StudentExamsPage } from './pages/StudentExamsPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
 import { ReportCardPage } from './pages/ReportCardPage';
 import { SmartPerformanceAnalysisPage } from './pages/SmartPerformanceAnalysisPage';
@@ -32,10 +33,10 @@ import { NotFoundPage } from './pages/NotFoundPage';
 
 function ExamsRoleRouter() {
   const { activeRole } = useAuth();
-  // Students (and guardians viewing) get the exam-TAKING experience;
+  // Students (and guardians) get the REAL exam-taking experience;
   // staff get the design/management console.
   const isStudentSide = activeRole.group === 'student' || activeRole.group === 'family';
-  return isStudentSide ? <OnlineExamPage /> : <ExamsManagementPage />;
+  return isStudentSide ? <StudentExamsPage /> : <ExamsManagementPage />;
 }
 
 export default function App() {
