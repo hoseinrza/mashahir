@@ -202,3 +202,18 @@ export const ApiConsentService = {
     return result.data ?? [];
   },
 };
+
+/** Custom school-role management (roles.manage / school_admin). */
+export const ApiRolesService = {
+  async list(): Promise<Record<string, unknown>[]> {
+    const result = await api<{ data: Record<string, unknown>[] }>('/v1/roles');
+    return result.data ?? [];
+  },
+
+  async create(key: string, title: string, permissions: string[]): Promise<void> {
+    await api('/v1/roles', {
+      method: 'POST',
+      body: { key, title, permissions: permissions.map((c) => c.replace(':', '.')) },
+    });
+  },
+};

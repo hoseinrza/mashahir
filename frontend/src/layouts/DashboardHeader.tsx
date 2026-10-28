@@ -378,7 +378,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                             const r = allRoles.find((role) => role.id === ra.roleId);
                             return (
                               <option key={ra.id} value={ra.id} className="dark:bg-[#151f32] text-slate-800 dark:text-slate-100">
-                                {r?.persianTitle} {ra.scopeType === 'classroom' ? '(کلاس ۱۰۱)' : ra.scopeType === 'guardian_link' ? '(ولی فرزند)' : ''}
+                                {ra.roleTitle ?? r?.persianTitle ?? ra.roleId}{ra.schoolName ? ` — ${ra.schoolName}` : ''}
                               </option>
                             );
                           })}

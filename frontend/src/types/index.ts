@@ -52,6 +52,9 @@ export interface RoleAssignment {
   validFrom: string;
   validUntil?: string; // for temporary roles, substitute teachers, interns
   isRevoked?: boolean;
+  /** Live-session extras for the header switcher (multi-school support). */
+  roleTitle?: string;
+  schoolName?: string;
 }
 
 export interface School {

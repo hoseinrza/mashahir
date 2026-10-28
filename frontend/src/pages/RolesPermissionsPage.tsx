@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, SearchInput, PageHeader, AccessDeniedGate, RolePermissionBadge } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { ALL_PERMISSIONS, BASE_ROLES } from '../permissions';
+import { ApiRolesService } from '../api/data';
 import { UserService } from '../services';
 import { Role, PermissionScope } from '../types';
 
@@ -60,6 +61,12 @@ export const RolesPermissionsPage: React.FC = () => {
 
     const updated = UserService.saveCustomRole(newRole);
     setRoles(updated);
+
+    // Persist through the real API; the demo store is the offline fallback.
+    const key = 'custom_' + Date.now().toString(36);
+    ApiRolesService.create(key, customRoleTitle, selectedPermCodes)
+      .catch(() => { /* demo-only role when the API is unreachable */ });
+
     setIsCreateRoleModalOpen(false);
     setCustomRoleTitle('');
     setCustomRoleDesc('');

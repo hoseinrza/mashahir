@@ -165,6 +165,24 @@ class LocalDemoSeeder extends Seeder
             ],
         );
 
+        // Second school: the math teacher works there TOO (multi-school demo).
+        $secondSchool = School::query()->firstOrCreate(
+            ['name' => 'هنرستان فنی مشاهیر نوین'],
+            [
+                'level' => 'high', 'grading_type' => 'numeric',
+                'student_has_account' => true, 'timezone' => 'Asia/Tehran', 'is_active' => true,
+            ],
+        );
+
+        $teacher = $usersByPhone['09120000004'];
+        UserRole::query()->firstOrCreate([
+            'user_id' => $teacher->id,
+            'role_id' => $roleIds['teacher'],
+            'school_id' => $secondSchool->id,
+            'scope_type' => 'school',
+            'scope_id' => null,
+        ], ['starts_on' => now()->toDateString()]);
+
         $this->seedAcademicContent($school, $students, $usersByPhone);
 
         $this->command?->info('Demo users ready — ورود: 09120000001 (مدیر) … 09120000007 (ولی دوم) … 09120000008 (دانش‌آموز)');

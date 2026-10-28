@@ -201,6 +201,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const userAssignments: RoleAssignment[] = useMemo(() => {
     if (!contextPayload?.active_role) return [];
+
+    const live = (contextPayload as AuthContextPayload & {
+      assignments?: { id: number; role_key: string; role_title: string; scope_type: string; school_ulid: string | null; school_name: string | null }[];
+    }).assignments ?? [];
+
+    if (live.length > 0) {
+      return live.map((a) => ({
+        id: `ra_${a.id}`,
+        userId: currentUser.id,
+        roleId: ROLE_KEY_TO_FRONTEND_ID[a.role_key] ?? a.role_key,
+        schoolId: a.school_ulid ?? 'sch_active',
+        scopeType: mapScope(a.scope_type),
+        validFrom: '—',
+        roleTitle: a.role_title,
+        schoolName: a.school_name ?? undefined,
+      }));
+    }
+
     return [
       {
         id: 'ra_active',
@@ -214,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [contextPayload, currentUser, activeRole]);
 
   const activeAssignment: RoleAssignment = useMemo(
-    () => userAssignments[0] ?? {
+    () => userAssignments.find((ra) => ra.id === `ra_${contextPayload?.active_role ? (contextPayload as any).active_role.id ?? '' : ''}`) ?? userAssignments[0] ?? {
       id: 'ra_guest',
       userId: GUEST_USER.id,
       roleId: GUEST_ROLE.id,

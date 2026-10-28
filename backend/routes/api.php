@@ -9,6 +9,7 @@ use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
 use App\Modules\Family\Http\Controllers\Api\ConsentsApiController;
 use App\Modules\Grades\Http\Controllers\Api\GradesApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
+use App\Modules\Identity\Http\Controllers\Api\RolesApiController;
 use App\Modules\Identity\Http\Controllers\Api\UsersApiController;
 use App\Modules\Identity\Http\Controllers\AuthContextController;
 use App\Modules\Imports\Http\Controllers\Api\ImportsApiController;
@@ -80,6 +81,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/pickup/{student}', [PickupApiController::class, 'index']);
     Route::post('/pickup/{student}', [PickupApiController::class, 'store']);
     Route::patch('/pickup/authorizations/{authorization}', [PickupApiController::class, 'update']);
+
+    // Custom roles (system roles live in the matrix file, API-immutable)
+    Route::get('/roles', [RolesApiController::class, 'index']);
+    Route::post('/roles', [RolesApiController::class, 'store']);
+    Route::patch('/roles/{role}', [RolesApiController::class, 'update']);
+    Route::delete('/roles/{role}', [RolesApiController::class, 'destroy']);
 
     // Audit log
     Route::get('/audit-logs', [AuditLogsApiController::class, 'index']);

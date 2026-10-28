@@ -110,8 +110,12 @@ class UsersApiController extends Controller
             abort(403, 'Assigning this role is not allowed.');
         }
 
+        // System roles are global; custom roles belong to the active school.
         $roleId = \DB::table('roles')
-            ->whereNull('school_id')
+            ->where(function ($q) use ($request) {
+                $q->whereNull('school_id')
+                  ->orWhere('school_id', $request->attributes->get('school_id'));
+            })
             ->where('key', $data['role_key'])
             ->value('id');
 
