@@ -1,21 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Megaphone, Pin, Calendar, User, Plus, Filter,
-  Bell, CheckCircle2, AlertTriangle, Send
+  Bell, CheckCircle2, AlertTriangle, Send, Radio
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, PageHeader } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { AnnouncementService } from '../services';
+import { ApiAnnouncementService } from '../api/data';
 import { Announcement } from '../types';
 
 export const AnnouncementsPage: React.FC = () => {
   const { currentUser, hasAccess } = useAuth();
   const canPublish = hasAccess('announcements:create');
 
-  const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
+  const [mockAnnouncements] = useState<Announcement[]>(() =>
     AnnouncementService.getAll()
   );
+  const [liveAnnouncements, setLiveAnnouncements] = useState<Announcement[] | null>(null);
+  const announcements = liveAnnouncements ?? mockAnnouncements;
+
+  // The official channel is backed by the backend; demo data stays as fallback.
+  useEffect(() => {
+    let cancelled = false;
+    ApiAnnouncementService.list()
+      .then((rows) => { if (!cancelled && rows.length > 0) setLiveAnnouncements(rows); })
+      .catch(() => { /* keep demo data */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -39,7 +52,16 @@ export const AnnouncementsPage: React.FC = () => {
       isPinned,
     });
 
-    setAnnouncements([created, ...announcements]);
+    // Publish through the real channel; the demo store is the fallback.
+    ApiAnnouncementService.create(
+      newTitle,
+      newContent,
+      newCategory === 'urgent' ? 'urgent' : 'important',
+    )
+      .then(() => ApiAnnouncementService.list())
+      .then((rows) => setLiveAnnouncements(rows))
+      .catch(() => setLiveAnnouncements([created, ...announcements]));
+
     setIsCreateModalOpen(false);
     setNewTitle('');
     setNewContent('');

@@ -1,14 +1,24 @@
 <?php
 
 use App\Modules\Academic\Http\Controllers\Api\AcademicApiController;
+use App\Modules\Academic\Http\Controllers\Api\TimetableApiController;
+use App\Modules\Attendance\Http\Controllers\Api\AttendanceApiController;
 use App\Modules\Audit\Http\Controllers\Api\AuditLogsApiController;
+use App\Modules\Assignments\Http\Controllers\Api\AssignmentsApiController;
+use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
+use App\Modules\Family\Http\Controllers\Api\ConsentsApiController;
+use App\Modules\Grades\Http\Controllers\Api\GradesApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
 use App\Modules\Identity\Http\Controllers\Api\UsersApiController;
 use App\Modules\Identity\Http\Controllers\AuthContextController;
+use App\Modules\Imports\Http\Controllers\Api\ImportsApiController;
+use App\Modules\Notifications\Http\Controllers\Api\AnnouncementsApiController;
+use App\Modules\Notifications\Http\Controllers\Api\NotificationsApiController;
 use App\Modules\People\Http\Controllers\Api\CourtOrdersApiController;
 use App\Modules\People\Http\Controllers\Api\GuardianLinksApiController;
 use App\Modules\People\Http\Controllers\Api\PickupApiController;
 use App\Modules\People\Http\Controllers\Api\StudentsApiController;
+use App\Modules\School\Http\Controllers\Api\SchoolSettingsApiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/auth')->group(function (): void {
@@ -69,4 +79,68 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
 
     // Audit log
     Route::get('/audit-logs', [AuditLogsApiController::class, 'index']);
+
+    // Timetable
+    Route::get('/timetable', [TimetableApiController::class, 'index']);
+    Route::post('/timetable', [TimetableApiController::class, 'store']);
+    Route::delete('/timetable/{slot}', [TimetableApiController::class, 'destroy']);
+
+    // Attendance
+    Route::post('/attendance/sessions', [AttendanceApiController::class, 'createSession']);
+    Route::get('/attendance/sessions', [AttendanceApiController::class, 'indexSessions']);
+    Route::get('/attendance/sessions/{session}', [AttendanceApiController::class, 'showSession']);
+    Route::post('/attendance/sessions/{session}/records', [AttendanceApiController::class, 'saveRecords']);
+    Route::post('/attendance/sessions/{session}/finalize', [AttendanceApiController::class, 'finalize']);
+    Route::post('/attendance/records/{record}/correct', [AttendanceApiController::class, 'correct']);
+    Route::get('/attendance/students/{student}/records', [AttendanceApiController::class, 'studentRecords']);
+    Route::get('/attendance/sms-status', [AttendanceApiController::class, 'smsStatus']);
+
+    // Assignments
+    Route::get('/assignments', [AssignmentsApiController::class, 'index']);
+    Route::post('/assignments', [AssignmentsApiController::class, 'store']);
+    Route::post('/assignments/{assignment}/submissions', [AssignmentsApiController::class, 'submit']);
+    Route::get('/assignments/{assignment}/submissions', [AssignmentsApiController::class, 'submissions']);
+    Route::post('/submissions/{submission}/grade', [AssignmentsApiController::class, 'grade']);
+
+    // Grades & report cards
+    Route::get('/grades', [GradesApiController::class, 'index']);
+    Route::post('/grades', [GradesApiController::class, 'store']);
+    Route::post('/grades/{item}/approve', [GradesApiController::class, 'approve']);
+    Route::post('/grades/{item}/change', [GradesApiController::class, 'changePublished']);
+    Route::post('/report-cards/publish', [GradesApiController::class, 'publishReportCard']);
+    Route::get('/report-cards', [GradesApiController::class, 'reportCards']);
+    Route::get('/report-cards/{card}/export', [GradesApiController::class, 'exportPdf']);
+
+    // Online exams
+    Route::get('/exams', [ExamsApiController::class, 'index']);
+    Route::post('/exams', [ExamsApiController::class, 'store']);
+    Route::get('/exams/{exam}', [ExamsApiController::class, 'show']);
+    Route::post('/exams/{exam}/publish', [ExamsApiController::class, 'publish']);
+    Route::post('/exams/{exam}/start', [ExamsApiController::class, 'start']);
+    Route::get('/exams/{exam}/result', [ExamsApiController::class, 'result']);
+    Route::post('/exams/{exam}/correctors', [ExamsApiController::class, 'assignCorrector']);
+    Route::post('/exams/attempts/{attempt}/answers', [ExamsApiController::class, 'saveAnswer']);
+    Route::post('/exams/attempts/{attempt}/submit', [ExamsApiController::class, 'submit']);
+    Route::post('/exams/answers/{answer}/grade', [ExamsApiController::class, 'gradeAnswer']);
+
+    // Announcements & notification center
+    Route::get('/announcements', [AnnouncementsApiController::class, 'index']);
+    Route::post('/announcements', [AnnouncementsApiController::class, 'store']);
+    Route::get('/notifications', [NotificationsApiController::class, 'index']);
+    Route::post('/notifications/{notification}/read', [NotificationsApiController::class, 'markRead']);
+    Route::post('/notifications/{notification}/archive', [NotificationsApiController::class, 'archive']);
+    Route::get('/notification-preferences', [NotificationsApiController::class, 'listPreferences']);
+    Route::put('/notification-preferences', [NotificationsApiController::class, 'updatePreference']);
+    Route::post('/notification-deliveries/{delivery}/retry', [NotificationsApiController::class, 'retryDelivery']);
+
+    // Consents
+    Route::get('/consents', [ConsentsApiController::class, 'index']);
+    Route::post('/consents', [ConsentsApiController::class, 'store']);
+    Route::post('/consents/{consent}/respond', [ConsentsApiController::class, 'respond']);
+
+    // Imports & settings
+    Route::post('/imports/students', [ImportsApiController::class, 'store']);
+    Route::get('/imports/{batch}', [ImportsApiController::class, 'show']);
+    Route::get('/school/settings', [SchoolSettingsApiController::class, 'show']);
+    Route::put('/school/settings', [SchoolSettingsApiController::class, 'update']);
 });

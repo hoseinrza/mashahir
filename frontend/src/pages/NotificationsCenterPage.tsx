@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bell, CheckCircle2, Bookmark, Archive, Check,
   Clock, ShieldAlert, BookOpen, HeartHandshake, Settings
@@ -6,24 +6,47 @@ import {
 import { Card, Button, Badge, Tabs, PageHeader } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { NotificationService } from '../services';
+import { ApiNotificationCenter } from '../api/data';
 import { Notification } from '../types';
 
 export const NotificationsCenterPage: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(() =>
+  const [mockNotifications] = useState<Notification[]>(() =>
     NotificationService.getAll()
   );
+  const [liveNotifications, setLiveNotifications] = useState<Notification[] | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'important' | 'archived'>('all');
 
+  const notifications = liveNotifications ?? mockNotifications;
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  // Live notification center; demo data stays as the offline fallback.
+  const refresh = (tab: typeof activeTab) => {
+    ApiNotificationCenter.list(tab)
+      .then((r) => setLiveNotifications(r.items))
+      .catch(() => { /* keep demo data */ });
+  };
+
+  useEffect(() => {
+    refresh(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   const handleMarkAsRead = (id: string) => {
-    const updated = NotificationService.markAsRead(id);
-    setNotifications(updated);
+    if (liveNotifications === null) {
+      setLiveNotifications(NotificationService.markAsRead(id));
+      return;
+    }
+
+    const numeric = Number(id);
+    if (Number.isFinite(numeric)) {
+      ApiNotificationCenter.markRead(numeric).then(() => refresh(activeTab)).catch(() => {});
+    }
   };
 
   const handleMarkAllRead = () => {
-    const updated = NotificationService.markAllAsRead();
-    setNotifications(updated);
+    if (liveNotifications === null) {
+      setLiveNotifications(NotificationService.markAllAsRead());
+    }
   };
 
   const tabs = [

@@ -22,4 +22,24 @@ class School extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    public function setting(string $key, mixed $default = null): mixed
+    {
+        $value = \Illuminate\Support\Facades\DB::table('school_settings')
+            ->where('school_id', $this->id)
+            ->where('key', $key)
+            ->value('value');
+
+        return $value ?? $default;
+    }
+
+    /**
+     * FR: رضایتنامه — سیاست یک‌ولی/دو‌ولی از تنظیمات مدرسه.
+     */
+    public function consentPolicy(): string
+    {
+        $raw = $this->setting('consent_policy');
+
+        return in_array($raw, ['one_parent', 'both_parents'], true) ? $raw : 'one_parent';
+    }
 }

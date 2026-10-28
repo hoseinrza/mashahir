@@ -6,6 +6,7 @@ use App\Modules\Academic\Models\AcademicYear;
 use App\Modules\Academic\Models\Classroom;
 use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Academic\Models\Enrollment;
+use App\Modules\Academic\Models\Term;
 use App\Modules\Academic\Models\GradeLevel;
 use App\Modules\Academic\Models\Subject;
 use App\Modules\Identity\Models\User;
@@ -52,6 +53,10 @@ trait BuildsSchoolContext
 
     protected function actingWithRole(string $roleKey, array $attributes = [], ?User $user = null): UserRole
     {
+        // Sanctum caches the resolved guard inside the test app instance;
+        // clear it so every acting switch re-resolves the fresh token.
+        $this->app['auth']->forgetGuards();
+
         $this->actor = $user ?? $this->actor ?? $this->makeUser();
 
         $roleId = \DB::table('roles')->whereNull('school_id')->where('key', $roleKey)->value('id');
@@ -84,13 +89,30 @@ trait BuildsSchoolContext
         ]);
     }
 
+    protected function makeTerm(): Term
+    {
+        $year = $this->makeAcademicYear();
+
+        return Term::query()->firstOrCreate(
+            ['academic_year_id' => $year->id, 'title' => 'دوره اول'],
+            ['starts_on' => '2026-09-01', 'ends_on' => '2027-01-20'],
+        );
+    }
+
     protected function makeAcademicYear(array $attributes = []): AcademicYear
     {
+        // One current year per school (partial unique index) — reuse it.
+        $existing = AcademicYear::query()->where('school_id', $this->school->id)->first();
+
+        if ($existing !== null && $attributes === []) {
+            return $existing;
+        }
+
         return AcademicYear::query()->create([
             'title' => 'سال تحصیلی ۱۴۰۵-۱۴۰۶',
             'starts_on' => '2026-09-01',
             'ends_on' => '2027-06-20',
-            'is_current' => true,
+            'is_current' => $existing === null,
             ...$attributes,
         ]);
     }

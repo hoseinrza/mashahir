@@ -107,3 +107,98 @@ export const ApiFamilyService = {
     }));
   },
 };
+
+/** Announcements (official channel) mapped to the page's Announcement type. */
+export const ApiAnnouncementService = {
+  async list(): Promise<import('../types').Announcement[]> {
+    const result = await api<{ data: any[] }>('/v1/announcements');
+    return (result.data ?? []).map((a) => ({
+      id: a.ulid,
+      title: a.title,
+      content: a.body,
+      category: a.importance === 'urgent' ? 'urgent' : 'official',
+      targetAudience: ['all'],
+      authorName: a.publisher ?? 'اداره مدرسه',
+      authorRole: 'کانال رسمی',
+      publishedDate: formatTimestamp(a.published_at),
+      isPinned: false,
+    }));
+  },
+
+  async create(title: string, body: string, importance: 'info' | 'important' | 'urgent'): Promise<void> {
+    await api('/v1/announcements', {
+      method: 'POST',
+      body: { title, body, importance },
+    });
+  },
+};
+
+/** Notification center mapped to the page's Notification type. */
+export const ApiNotificationCenter = {
+  async list(tab: 'all' | 'unread' | 'important' | 'archived' = 'all'): Promise<{
+    unreadCount: number;
+    items: import('../types').Notification[];
+  }> {
+    const result = await api<{ unread_count: number; data: any[] }>(`/v1/notifications?tab=${tab}`);
+    return {
+      unreadCount: result.unread_count ?? 0,
+      items: (result.data ?? []).map((n) => ({
+        id: String(n.id),
+        userId: 'me',
+        title: n.title,
+        message: n.body ?? '',
+        category: n.type.startsWith('attendance') ? 'attendance'
+          : n.type.startsWith('exam') ? 'exam'
+          : n.type === 'announcement' ? 'system'
+          : 'academic',
+        createdAt: formatTimestamp(n.created_at),
+        isRead: n.read_at !== null,
+        isImportant: n.importance === 'important' || n.importance === 'urgent',
+        isArchived: n.archived_at !== null,
+        linkUrl: n.link ?? undefined,
+      })),
+    };
+  },
+
+  async markRead(id: number): Promise<void> {
+    await api(`/v1/notifications/${id}/read`, { method: 'POST' });
+  },
+
+  async archive(id: number): Promise<void> {
+    await api(`/v1/notifications/${id}/archive`, { method: 'POST' });
+  },
+};
+
+/** Attendance timeline of one student (guardian/student view). */
+export const ApiAttendanceService = {
+  async studentTimeline(studentUlid: string): Promise<
+    { date: string; period: number; subject: string | null; status: string; late_minutes: number | null }[]
+  > {
+    const result = await api<{ data: any[] }>(`/v1/attendance/students/${studentUlid}/records`);
+    return result.data ?? [];
+  },
+};
+
+/** Assignments list mapped to the page's Assignment shape (subset). */
+export const ApiAssignmentService = {
+  async list(): Promise<Record<string, unknown>[]> {
+    const result = await api<{ data: any[] }>('/v1/assignments');
+    return result.data ?? [];
+  },
+};
+
+/** Published report cards (guardian/student see only published versions). */
+export const ApiReportCardService = {
+  async list(): Promise<Record<string, unknown>[]> {
+    const result = await api<{ data: any[] }>('/v1/report-cards');
+    return result.data ?? [];
+  },
+};
+
+/** Consent requests for the current viewer. */
+export const ApiConsentService = {
+  async list(): Promise<Record<string, unknown>[]> {
+    const result = await api<{ data: any[] }>('/v1/consents');
+    return result.data ?? [];
+  },
+};
