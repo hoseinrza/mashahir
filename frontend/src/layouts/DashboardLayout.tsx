@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, CheckSquare, FileText, Award,
   Sparkles, HeartHandshake, Users, Megaphone, ShieldCheck,
@@ -7,6 +7,7 @@ import {
   Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { GuestPanelPage } from '../pages/GuestPanelPage';
 import { SchoolLogo, Badge, Modal, Button } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { ALL_PERMISSIONS } from '../permissions';
@@ -14,7 +15,8 @@ import { DashboardHeader } from './DashboardHeader';
 
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
-    currentUser, activeRole, activeAssignment, hasAccess
+    currentUser, activeRole, activeAssignment, hasAccess,
+    isAuthenticated, isSessionLoading, needsRole,
   } = useAuth();
   const location = useLocation();
 
@@ -42,6 +44,55 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   interface NavGroup {
     title: string;
     items: NavItem[];
+  }
+
+  // Sections a role cannot touch are REMOVED from navigation — no dead
+  // links, no access-error pages. Phase-2 pages without a backend module
+  // map to null (hidden until the module ships).
+  const NAV_PERMISSIONS: Record<string, string | null> = {
+    '/announcements': 'announcements:view',
+    '/attendance': 'attendance:view',
+    '/assignments': 'assignments:view',
+    '/exams': 'exams:results_view',
+    '/essay-grading': 'exams:grade_descriptive',
+    '/report-card': 'reportcards:view',
+    '/consent-forms': 'consents:view_results',
+    '/user-management': 'users:view',
+    '/roles-permissions': 'roles:manage',
+    '/audit-logs': 'audit:view',
+    '/family-management': 'guardian_links:view',
+    '/settings': 'schools:settings',
+    '/create-school': 'schools:manage',
+    '/special-roles': 'roles:manage',
+    '/online-classes': null,
+    '/performance-analytics': null,
+    '/counseling': null,
+    '/pta': null,
+  };
+
+  const itemAllowed = (href: string, show: boolean): boolean => {
+    if (!show) return false;
+    if (!(href in NAV_PERMISSIONS)) return true;
+    const perm = NAV_PERMISSIONS[href];
+    return perm !== null && hasAccess(perm);
+  };
+
+  // Mandatory login + guest panel: no anonymous dashboards, and a role-less
+  // account never reaches data screens.
+  if (isSessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F9FC] dark:bg-[#0c1322]">
+        <div className="w-8 h-8 border-2 border-[#2457C5] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (needsRole) {
+    return <GuestPanelPage />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
   const navGroups: NavGroup[] = [
@@ -217,7 +268,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             {/* Navigation Groups */}
             <div className="space-y-4">
               {navGroups.map((group) => {
-                const visibleItems = group.items.filter((it) => it.show);
+                const visibleItems = group.items.filter((it) => itemAllowed(it.href, it.show));
                 if (visibleItems.length === 0) return null;
                 return (
                   <div key={group.title}>
@@ -284,7 +335,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               {/* Mobile Drawer Groups */}
               <div className="space-y-4">
                 {navGroups.map((group) => {
-                  const visibleItems = group.items.filter((it) => it.show);
+                  const visibleItems = group.items.filter((it) => itemAllowed(it.href, it.show));
                   if (visibleItems.length === 0) return null;
                   return (
                     <div key={group.title}>
@@ -346,18 +397,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           <span>داشبورد</span>
         </Link>
 
-        <Link
-          to="/online-classes"
-          className={cn(
-            'flex flex-col items-center gap-1 py-1 px-2 rounded-lg text-[10px] font-medium transition-colors relative',
-            location.pathname === '/online-classes' ? 'text-[#2457C5] dark:text-[#8BAEFF]' : 'text-slate-500 dark:text-slate-400'
-          )}
-        >
-          <Video size={18} />
-          <span>کلاس آنلاین</span>
-          <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-        </Link>
-
+        {itemAllowed('/attendance', true) && (
         <Link
           to="/attendance"
           className={cn(
@@ -368,7 +408,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           <CheckSquare size={18} />
           <span>حضور و غیاب</span>
         </Link>
+        )}
 
+        {itemAllowed('/assignments', true) && (
         <Link
           to="/assignments"
           className={cn(
@@ -379,6 +421,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           <BookOpen size={18} />
           <span>تکالیف</span>
         </Link>
+        )}
 
         <button
           onClick={() => setIsMobileMenuOpen(true)}

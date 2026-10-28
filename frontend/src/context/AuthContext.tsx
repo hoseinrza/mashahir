@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { User, Role, RoleAssignment, Student, PermissionScope } from '../types';
 import { UserService } from '../services';
 import { BASE_ROLES } from '../permissions';
-import { ApiError, getToken, setToken } from '../api/client';
+import { ApiError, getPendingToken, getToken, setPendingToken, setToken } from '../api/client';
 import * as authApi from '../api/auth';
 import type { AuthContextPayload, RoleOption } from '../api/client';
 import { ApiFamilyService } from '../api/data';
@@ -67,6 +67,8 @@ interface AuthContextType {
   hasAccess: (permissionCode: string) => boolean;
   // Real backend session API
   isAuthenticated: boolean;
+  /** Logged in but the school has not assigned any role yet (guest panel). */
+  needsRole: boolean;
   isSessionLoading: boolean;
   pendingRoles: RoleOption[];
   requestOtp: (phone: string) => Promise<void>;
@@ -86,22 +88,34 @@ const mapScope = (scopeType: string): PermissionScope => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [contextPayload, setContextPayload] = useState<AuthContextPayload | null>(null);
-  const [sessionLoading, setSessionLoading] = useState<boolean>(() => getToken() !== null);
+  const [pendingPayload, setPendingPayload] = useState<AuthContextPayload | null>(null);
+  const [sessionLoading, setSessionLoading] = useState<boolean>(
+    () => getToken() !== null || getPendingToken() !== null,
+  );
   const [pendingRoles, setPendingRoles] = useState<RoleOption[]>([]);
   const [myChildren, setMyChildren] = useState<Student[]>([]);
 
-  // Bootstrap: restore an existing role token, if any.
+  // Bootstrap: restore an existing role token; a logged-in user without a
+  // chosen role lands in the guest panel (needsRole), never in the dashboard.
   useEffect(() => {
-    if (!getToken()) return;
+    if (!getToken() && !getPendingToken()) return;
 
     (async () => {
       try {
-        const payload = await authApi.fetchAuthContext();
-        setContextPayload(payload);
+        const payload = getToken()
+          ? await authApi.fetchAuthContext()
+          : await authApi.fetchPendingAuthContext();
+
+        if (payload.active_role === null) {
+          setPendingPayload(payload);
+        } else {
+          setContextPayload(payload);
+        }
       } catch (error) {
-        // Expired/revoked role (404), pending-only token (403) or server down.
+        // Expired/revoked role (404), stale token or server down.
         if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
           setToken(null);
+          setPendingToken(null);
         }
       } finally {
         setSessionLoading(false);
@@ -142,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     await authApi.logout();
     setContextPayload(null);
+    setPendingPayload(null);
     setPendingRoles([]);
     setMyChildren([]);
   }, []);
@@ -254,7 +269,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchContext,
         switchStudent,
         hasAccess,
-        isAuthenticated: contextPayload !== null,
+        isAuthenticated: contextPayload !== null || pendingPayload !== null,
+        needsRole: pendingPayload !== null,
         isSessionLoading: sessionLoading,
         pendingRoles,
         requestOtp,

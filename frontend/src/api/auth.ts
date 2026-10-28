@@ -50,6 +50,11 @@ export async function fetchAuthContext(): Promise<AuthContextPayload> {
   return api<AuthContextPayload>('/v1/auth/context');
 }
 
+/** Context call with the pending token (logged in, role not chosen yet). */
+export async function fetchPendingAuthContext(): Promise<AuthContextPayload> {
+  return api<AuthContextPayload>('/v1/auth/context', { tokenKind: 'pending' });
+}
+
 export async function logout(): Promise<void> {
   try {
     await api('/v1/auth/logout', { method: 'POST' });

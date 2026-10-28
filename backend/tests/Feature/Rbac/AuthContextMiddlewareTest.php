@@ -113,4 +113,30 @@ class AuthContextMiddlewareTest extends TestCase
         $this->assertTrue(app(SchoolContext::class)->hasOverride());
         $this->assertNotNull(app(PermissionRegistrar::class)->activeRole());
     }
+
+    public function test_pending_role_token_is_a_valid_guest_session(): void
+    {
+        // Logged in, no role chosen: context answers 200 with no role/school.
+        $pending = $this->user->createToken('otp', ['pending-role'])->plainTextToken;
+
+        $response = $this->withToken($pending)->getJson('/api/v1/auth/context');
+
+        $response->assertOk()
+            ->assertJsonPath('active_role', null)
+            ->assertJsonPath('school', null)
+            ->assertJsonPath('user.ulid', $this->user->ulid);
+
+        // Scoped data routes stay default-deny for the guest.
+        $this->withToken($pending)->getJson('/api/v1/students')->assertForbidden();
+    }
+
+    public function test_expired_plain_token_without_any_ability_is_forbidden(): void
+    {
+        $token = $this->user->createToken('role-session', ["role:{$this->assignment('school_admin')->id}"])->plainTextToken;
+
+        // A role token stripped of context still works; an arbitrary-token
+        // guest (no pending-role) stays forbidden.
+        $bogus = $this->user->createToken('bogus', ['something-else'])->plainTextToken;
+        $this->withToken($bogus)->getJson('/api/v1/auth/context')->assertForbidden();
+    }
 }

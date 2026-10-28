@@ -156,8 +156,13 @@ class OtpAuthTest extends TestCase
         $pending = $this->postJson('/api/v1/auth/otp/verify', ['phone' => '09120000001', 'code' => $code]);
         $pendingToken = $pending->json('token');
 
-        // The pending token cannot call scoped APIs.
-        $this->withToken($pendingToken)->getJson('/api/v1/auth/context')->assertForbidden();
+        // The pending token is a GUEST session: context answers with no role,
+        // and scoped data routes stay default-deny.
+        $this->withToken($pendingToken)->getJson('/api/v1/auth/context')
+            ->assertOk()
+            ->assertJsonPath('active_role', null);
+
+        $this->withToken($pendingToken)->getJson('/api/v1/students')->assertForbidden();
 
         $switched = $this->withToken($pendingToken)
             ->postJson('/api/v1/auth/switch-role', ['user_role_id' => $assignment->id]);

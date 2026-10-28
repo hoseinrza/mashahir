@@ -29,7 +29,17 @@ class SetAuthContext
             fn (string $ability) => str_starts_with($ability, 'role:'),
         );
 
+        // A pending-role token (logged in, no role chosen yet) is a valid
+        // guest session: authenticated but role-less. Context stays empty and
+        // every scoped route answers with the default-deny errors.
         if ($roleAbility === null) {
+            if (in_array('pending-role', $token?->abilities ?? [], true)) {
+                $request->attributes->set('school_id', null);
+                $request->attributes->set('user_role', null);
+
+                return $next($request);
+            }
+
             abort(403, 'No active role selected. Use auth.switch_role first.');
         }
 
