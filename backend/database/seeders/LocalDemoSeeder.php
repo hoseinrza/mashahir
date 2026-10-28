@@ -185,6 +185,17 @@ class LocalDemoSeeder extends Seeder
 
         $this->seedAcademicContent($school, $students, $usersByPhone);
 
+        \App\Modules\OnlineClasses\Models\OnlineClass::query()->firstOrCreate(
+            ['title' => 'کلاس آنلاین ریاضی — فصل ۲', 'classroom_subject_id' => $mathCs->id],
+            [
+                'school_id' => $school->id,
+                'skyroom_room_id' => crc32('demo-math'),
+                'skyroom_name' => 'cls_demo_math',
+                'status' => 'active',
+                'created_by' => $teacher->id,
+            ],
+        );
+
         $this->command?->info('Demo users ready — ورود: 09120000001 (مدیر) … 09120000007 (ولی دوم) … 09120000008 (دانش‌آموز)');
     }
 
