@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge, Modal, FormField, PageHeader, SearchInput } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
+import { formatJalaliDateTime, jalaliPreview } from '../utils/jalali';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../api/client';
 
@@ -296,12 +297,12 @@ export const ExamsManagementPage: React.FC = () => {
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="شروع" required>
+            <FormField label="شروع" required hint={jalaliPreview(form.opens_at) ? `شمسی: ${jalaliPreview(form.opens_at)}` : undefined}>
               <input type="datetime-local" value={form.opens_at}
                 onChange={(e) => setForm({ ...form, opens_at: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none" />
             </FormField>
-            <FormField label="پایان" required>
+            <FormField label="پایان" required hint={jalaliPreview(form.closes_at) ? `شمسی: ${jalaliPreview(form.closes_at)}` : undefined}>
               <input type="datetime-local" value={form.closes_at}
                 onChange={(e) => setForm({ ...form, closes_at: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none" />
@@ -480,5 +481,5 @@ function toLocalInput(d: Date): string {
 }
 
 function fmt(iso: string): string {
-  try { return new Date(iso).toLocaleString('fa-IR'); } catch { return iso; }
+  return formatJalaliDateTime(iso);
 }

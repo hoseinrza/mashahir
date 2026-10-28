@@ -65,7 +65,7 @@ const ACTION_TITLES: Record<string, string> = {
 function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString('fa-IR');
+    return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   } catch {
     return iso;
   }

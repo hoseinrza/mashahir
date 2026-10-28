@@ -433,7 +433,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       {/* Footer */}
       <footer className="border-t border-[#DCE3EE] dark:border-[#344257] py-6 px-4 bg-white/50 dark:bg-[#182231]/40 text-center text-xs text-[#526176] dark:text-[#B3C0D2]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© سال تحصیلی ۱۴۰۳-۱۴۰۴ — مجتمع آموزشی و دبیرستان استعدادهای درخشان مشاهیر آینده</p>
+          <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی و دبیرستان استعدادهای درخشان مشاهیر آینده</p>
           <div className="flex items-center gap-4">
             <span className="text-[11px] bg-blue-50 text-[#2457C5] dark:bg-blue-950 dark:text-[#8BAEFF] px-2 py-0.5 rounded">
               سامانه یکپارچه مبتنی بر RBAC و امنیت روابط خانوادگی

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Clock, Send, Loader2, AlertTriangle, CheckCircle2, Flag } from 'lucide-react';
 import { Card, Button, Badge, PageHeader } from '../components/common';
 import { toPersianDigits } from '../utils/persian';
+import { formatJalaliDateTime } from '../utils/jalali';
 import { api, ApiError } from '../api/client';
 
 /**
@@ -274,8 +275,8 @@ export const StudentExamsPage: React.FC = () => {
                     {e.subject && <Badge variant="neutral">{e.subject}</Badge>}
                   </div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap gap-3">
-                    <span>شروع: {new Date(e.opens_at).toLocaleString('fa-IR')}</span>
-                    <span>پایان: {new Date(e.closes_at).toLocaleString('fa-IR')}</span>
+                    <span>شروع: {formatJalaliDateTime(e.opens_at)}</span>
+                    <span>پایان: {formatJalaliDateTime(e.closes_at)}</span>
                     <span className="flex items-center gap-1"><Clock size={12} /> {toPersianDigits(e.duration_minutes)} دقیقه</span>
                   </div>
                 </div>
