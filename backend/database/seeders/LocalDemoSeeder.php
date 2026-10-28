@@ -324,7 +324,6 @@ class LocalDemoSeeder extends Seeder
                 'recorded_by' => $teacher->id, 'approved_by' => $admin->id,
             ],
         );
-    }
 
         \App\Modules\OnlineClasses\Models\OnlineClass::query()->firstOrCreate(
             ['title' => 'کلاس آنلاین ریاضی — فصل ۲', 'classroom_subject_id' => $mathCs->id],
