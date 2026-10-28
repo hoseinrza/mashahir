@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { SchoolLogo } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
-import { NotificationService, SchoolService } from '../services';
+import { NotificationService } from '../services';
 
 interface DashboardHeaderProps {
   onToggleMobileMenu: () => void;
@@ -32,6 +32,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     activeStudent,
     switchContext,
     switchStudent,
+    hasAccess,
+    logout,
+    activeSchoolName,
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -46,9 +49,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const [notifications, setNotifications] = useState(() => NotificationService.getAll());
 
   // School Data
-  const schools = SchoolService.getAll();
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(activeAssignment.schoolId || 'sch_1');
-  const activeSchool = schools.find((s) => s.id === selectedSchoolId) || schools[0];
+  // The school comes from the live session context — no mock school list.
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -358,19 +359,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         <Building2 size={13} className="text-[#2457C5] dark:text-[#8BAEFF]" />
                         <span>واحد آموزشی:</span>
                       </span>
-                      {schools.length > 1 ? (
-                        <select
-                          value={selectedSchoolId}
-                          onChange={(e) => setSelectedSchoolId(e.target.value)}
-                          className="bg-white dark:bg-[#151f32] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer max-w-[140px] truncate"
-                        >
-                          {schools.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{activeSchool.name}</span>
-                      )}
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{activeSchoolName}</span>
                     </div>
 
                     {/* Dual-role Context Switcher (if user has multiple assignments) */}
@@ -425,19 +414,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
                   {/* Actions list */}
                   <div className="space-y-1">
-                    <Link
-                      to="/login"
-                      onClick={() => setIsProfileDropdownOpen(false)}
-                      className="flex items-center justify-between p-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ArrowLeftRight size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" />
-                        <span>تغییر کاربر نمونه (Demo Switcher)</span>
-                      </div>
-                      <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-1.5 py-0.5 rounded font-mono">
-                        دمو
-                      </span>
-                    </Link>
 
                     <button
                       onClick={() => {
@@ -450,6 +426,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       <span>شناسنامه مجوزها و اختیارات نقش</span>
                     </button>
 
+                    {hasAccess('schools:settings') && (
                     <Link
                       to="/settings"
                       onClick={() => setIsProfileDropdownOpen(false)}
@@ -458,15 +435,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       <Settings size={15} className="text-slate-500" />
                       <span>تنظیمات سامانه و حساب</span>
                     </Link>
+                    )}
 
-                    <Link
-                      to="/"
-                      onClick={() => setIsProfileDropdownOpen(false)}
-                      className="flex items-center gap-2 p-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    <button
+                      onClick={async () => {
+                        setIsProfileDropdownOpen(false);
+                        await logout();
+                        navigate('/login', { replace: true });
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer text-right"
                     >
                       <LogOut size={15} />
-                      <span>خروج و بازگشت به صفحه معرفی</span>
-                    </Link>
+                      <span>خروج از حساب</span>
+                    </button>
                   </div>
                 </div>
               )}

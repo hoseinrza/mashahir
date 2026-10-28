@@ -64,6 +64,8 @@ interface AuthContextType {
   switchStudent: (studentId: string) => void;
   hasAccess: (permissionCode: string) => boolean;
   // Real backend session API
+  /** Real school name from the live session (null for guests). */
+  activeSchoolName: string | null;
   isAuthenticated: boolean;
   /** Logged in but the school has not assigned any role yet (guest panel). */
   needsRole: boolean;
@@ -261,6 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchContext,
         switchStudent,
         hasAccess,
+        activeSchoolName: contextPayload?.school?.name ?? null,
         isAuthenticated: contextPayload !== null || pendingPayload !== null,
         needsRole: pendingPayload !== null,
         isSessionLoading: sessionLoading,
