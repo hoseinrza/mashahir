@@ -52,6 +52,8 @@ class LocalDemoSeeder extends Seeder
             ['first_name' => 'مسعود', 'last_name' => 'رادمنش', 'phone' => '09120000007', 'role' => 'guardian'],
             // Student of the high school — has his own account (PRD §3).
             ['first_name' => 'پارسا', 'last_name' => 'رادمنش', 'phone' => '09120000008', 'role' => 'student'],
+            // Platform admin — technical only, no educational content.
+            ['first_name' => 'حسین', 'last_name' => 'رضازاده', 'phone' => '09120000000', 'role' => 'platform_admin'],
         ];
 
         $roleIds = DB::table('roles')->whereNull('school_id')->pluck('id', 'key');
