@@ -11,7 +11,7 @@ import { UserService } from '../services';
 import { Role, PermissionScope } from '../types';
 
 export const RolesPermissionsPage: React.FC = () => {
-  const { activeRole, switchUser } = useAuth();
+  const { activeRole } = useAuth();
   const isAuthorized = activeRole.group === 'school_admin' || activeRole.group === 'platform';
 
   const [roles, setRoles] = useState<Role[]>(() => UserService.getRoles());
@@ -33,9 +33,6 @@ export const RolesPermissionsPage: React.FC = () => {
         requiredRoleOrPermission="school_principal یا platform_super_admin"
         reason="تعریف الگوهای دسترسی، افزودن نقش‌های سفارشی و تغییر مجوزها تنها در صلاحیت مدیریت مدرسه و ادمین پلتفرم است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

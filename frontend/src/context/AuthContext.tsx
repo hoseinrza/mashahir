@@ -60,8 +60,6 @@ interface AuthContextType {
   allRoles: Role[];
   allStudents: Student[];
   activeStudent: Student | null;
-  /** Legacy demo-tool from the mock era: kept as a no-op for compatibility. */
-  switchUser: (userId: string) => void;
   switchContext: (assignmentId: string) => Promise<void>;
   switchStudent: (studentId: string) => void;
   hasAccess: (permissionCode: string) => boolean;
@@ -234,11 +232,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const activeStudent: Student | null = useMemo(() => allStudents[0] ?? null, [allStudents]);
 
-  const switchUser = useCallback((_userId: string) => {
-    // The mock-era demo user switcher is gone: one real session per phone.
-    console.warn('switchUser is deprecated — login with OTP switches the session.');
-  }, []);
-
   const switchContext = useCallback(async (assignmentId: string) => {
     // Mapped assignments may carry the numeric backend id after the "ra_" prefix.
     const numeric = Number(assignmentId.replace('ra_', ''));
@@ -265,7 +258,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         allRoles,
         allStudents,
         activeStudent,
-        switchUser,
         switchContext,
         switchStudent,
         hasAccess,

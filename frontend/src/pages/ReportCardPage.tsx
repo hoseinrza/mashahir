@@ -10,7 +10,7 @@ import { toPersianDigits, formatScore, cn } from '../utils/persian';
 import { INITIAL_REPORT_CARDS, INITIAL_STUDENTS } from '../data/mockData';
 
 export const ReportCardPage: React.FC = () => {
-  const { currentUser, activeRole, switchUser } = useAuth();
+  const { currentUser, activeRole } = useAuth();
 
   // Role checks adhering to Section 35 & 36
   const isBusDriver = activeRole.id === 'bus_driver';
@@ -27,9 +27,6 @@ export const ReportCardPage: React.FC = () => {
         requiredRoleOrPermission="grades:view_own یا grades:manage (اولیا، دانش‌آموز، یا کادر آموزشی)"
         reason="بر اساس اصول ۱۸ و ۳۶ سند جامع حاکمیت داده، حساب کاربری راننده سرویس فاقد هرگونه دسترسی به اطلاعات تحصیلی، نمرات و کارنامه‌های دانش‌آموزان می‌باشد."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

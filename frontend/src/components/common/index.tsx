@@ -398,17 +398,11 @@ export const AccessDeniedGate: React.FC<{
   requiredRoleOrPermission?: string;
   reason?: string;
   currentRoleTitle?: string;
-  suggestedRoleId?: string;
-  suggestedRoleName?: string;
-  onSwitchUser?: (userId: string) => void;
 }> = ({
   title = 'عدم دسترسی به این بخش',
   requiredRoleOrPermission = 'مجوز مدیریت ارشد یا مسئول اداری',
   reason = 'این صفحه طبق ماتریس دسترسی RBAC سامانه مشاهیر آینده، تنها برای نقش‌های دارای اختیارات قانونی مشخص فعال است.',
   currentRoleTitle,
-  suggestedRoleId = 'usr_principal',
-  suggestedRoleName = 'دکتر احمدرضا جلالی (مدیر مدرسه)',
-  onSwitchUser,
 }) => {
   const navigate = useNavigate();
 
@@ -456,16 +450,6 @@ export const AccessDeniedGate: React.FC<{
             >
               بازگشت به داشبورد مجاز
             </Button>
-            {suggestedRoleId && onSwitchUser && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onSwitchUser(suggestedRoleId)}
-                icon={<UserCheck size={14} />}
-              >
-                تغییر به {suggestedRoleName}
-              </Button>
-            )}
           </div>
         </div>
       </Card>

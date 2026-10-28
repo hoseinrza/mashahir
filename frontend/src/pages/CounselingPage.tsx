@@ -10,7 +10,7 @@ import { CounselingService } from '../services';
 import { CounselingAppointment } from '../types';
 
 export const CounselingPage: React.FC = () => {
-  const { currentUser, activeRole, activeStudent, switchUser } = useAuth();
+  const { currentUser, activeRole, activeStudent } = useAuth();
   const isBusDriver = activeRole.id === 'bus_driver';
 
   if (isBusDriver) {
@@ -20,9 +20,6 @@ export const CounselingPage: React.FC = () => {
         requiredRoleOrPermission="counseling:book یا counseling:manage_sessions"
         reason="بر اساس اصول امنیتی و حریم خصوصی، راننده سرویس فاقد مجوز مشاهده و نوبت‌گیری مشاوره تحصیلی و روانشناسی دانش‌آموزان است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

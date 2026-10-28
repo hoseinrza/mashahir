@@ -9,7 +9,7 @@ import { toPersianDigits, formatScore } from '../utils/persian';
 import { ExamService } from '../services';
 
 export const EssayGradingPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
   const isAuthorized = hasAccess('exam:grade_essay') || activeRole.id === 'teacher' || activeRole.id === 'essay_grader' || activeRole.group === 'school_admin';
 
   if (!isAuthorized) {
@@ -19,9 +19,6 @@ export const EssayGradingPage: React.FC = () => {
         requiredRoleOrPermission="exam:grade_essay (دبیر یا مصحح آزمون)"
         reason="تصحیح پاسخ‌های تشریحی و درج بارم نمره منحصراً در اختیار کادر ارزیابی آزمون است و سایر کاربران مجاز به ورود به این سامانه نیستند."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_proctor_grader"
-        suggestedRoleName="مهندس سینا مرادی (مصحح آزمون)"
-        onSwitchUser={switchUser}
       />
     );
   }

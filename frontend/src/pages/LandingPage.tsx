@@ -13,7 +13,7 @@ import { StudentHonorsShowcase } from '../components/landing/StudentHonorsShowca
 import { toPersianDigits, cn } from '../utils/persian';
 
 export const LandingPage: React.FC = () => {
-  const { switchUser, switchContext, currentUser, activeRole } = useAuth();
+  const { switchContext, currentUser, activeRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 

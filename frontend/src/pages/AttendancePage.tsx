@@ -13,7 +13,7 @@ import { AttendanceRecord, AttendanceStatus, WeeklyTimetableSlot } from '../type
 import { INITIAL_STUDENTS, INITIAL_CLASSROOMS, INITIAL_WEEKLY_TIMETABLE } from '../data/mockData';
 
 export const AttendancePage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
 
   const isFamily = activeRole.group === 'family';
   const isStudent = activeRole.group === 'student';
@@ -61,9 +61,6 @@ export const AttendancePage: React.FC = () => {
         requiredRoleOrPermission="attendance:view (کادر آموزشی، ناظم، یا اولیا)"
         reason="دفتر حضور و غیاب کلاسی تنها برای دبیران، ناظم مدرسه و اولیای گرامی قابل دسترسی است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

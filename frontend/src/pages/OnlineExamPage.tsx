@@ -11,7 +11,7 @@ import { ExamService } from '../services';
 import { Exam, ExamAttempt } from '../types';
 
 export const OnlineExamPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
 
   const isBusDriver = activeRole.id === 'bus_driver';
   const isFamily = activeRole.group === 'family';
@@ -27,9 +27,6 @@ export const OnlineExamPage: React.FC = () => {
         requiredRoleOrPermission="exam:take یا exam:create (دانش‌آموزان یا دبیران)"
         reason="طبق مفاد ماده ۱۸ و ۳۱ سند جامع حاکمیت داده، حساب راننده سرویس فاقد هرگونه دسترسی به محتوای آموزشی و آزمون‌های آنلاین است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

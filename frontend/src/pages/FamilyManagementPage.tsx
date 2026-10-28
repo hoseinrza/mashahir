@@ -10,7 +10,7 @@ import { FamilyService } from '../services';
 import { GuardianStudentLink, LegalRestriction, AuthorizedPickup } from '../types';
 
 export const FamilyManagementPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
   const isAuthorized = hasAccess('family:manage_links') || activeRole.group === 'school_admin' || activeRole.id === 'school_registrar';
 
   const [links, setLinks] = useState<GuardianStudentLink[]>(() => FamilyService.getLinks());
@@ -31,9 +31,6 @@ export const FamilyManagementPage: React.FC = () => {
         requiredRoleOrPermission="family:manage_links (مدیر ارشد مدرسه یا مسئول ثبت‌نام)"
         reason="اطلاعات پرونده‌های سرپرستی، احکام دادگاه خانواده و تفکیک اولیای جداشده کاملاً محرمانه بوده و تنها برای مدیر مدرسه و مسئول ثبت‌نام قابل مشاهده و ویرایش است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

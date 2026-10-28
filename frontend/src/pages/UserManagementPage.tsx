@@ -17,7 +17,7 @@ import { BASE_ROLES } from '../permissions';
 import { INITIAL_CLASSROOMS } from '../data/mockData';
 
 export const UserManagementPage: React.FC = () => {
-  const { allUsers, allRoles, userAssignments, activeRole, currentUser, hasAccess, switchUser } = useAuth();
+  const { allUsers, allRoles, userAssignments, activeRole, currentUser, hasAccess } = useAuth();
 
   // Role checks according to requirements
   const isPlatformAdmin = activeRole.group === 'platform' || activeRole.id === 'platform_super_admin' || currentUser.id === 'usr_platform_admin';
@@ -147,9 +147,6 @@ export const UserManagementPage: React.FC = () => {
         requiredRoleOrPermission="مدیر کل پلتفرم، مدیر مدرسه یا معاونین آموزشی و انضباطی"
         reason="تعریف مدارس، استخدام کادر، ثبت‌نام دانش‌آموزان و مدیریت رانندگان سرویس منحصراً در صلاحیت مدیران ارشد و معاونت‌های مربوطه است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

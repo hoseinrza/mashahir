@@ -11,7 +11,7 @@ import { ApiAuditService } from '../api/data';
 import { AuditEvent } from '../types';
 
 export const AuditLogPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
   const isAuthorized = hasAccess('audit:view') || activeRole.group === 'school_admin' || activeRole.id === 'ministry_inspector' || activeRole.group === 'platform';
 
   const [mockLogs] = useState<AuditEvent[]>(() => AuditService.getAll());
@@ -40,9 +40,6 @@ export const AuditLogPage: React.FC = () => {
         requiredRoleOrPermission="audit:view (مدیر مدرسه، بازرس آموزش و پرورش یا سوپرادمین)"
         reason="ردپای تغییر نمرات، اصلاح حضور و غیاب، و انتساب احکام قضایی تنها برای بازرسان و مدیران ارشد مجاز است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }

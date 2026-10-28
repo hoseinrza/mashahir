@@ -14,7 +14,7 @@ import { OnlineClassSession, OnlineClassParticipant, OnlineChatMessage, OnlineCl
 import { INITIAL_CLASSROOMS } from '../data/mockData';
 
 export const OnlineClassesPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
   const isTeacher = activeRole.id === 'teacher' || activeRole.group === 'faculty';
   const isAdmin = activeRole.group === 'school_admin' || activeRole.group === 'platform';
   const isFamily = activeRole.group === 'family';
@@ -89,9 +89,6 @@ export const OnlineClassesPage: React.FC = () => {
         requiredRoleOrPermission="online_class:view (دانش‌آموز، دبیر، اولیا یا کادر مدرسه)"
         reason="مشاهده و شرکت در کلاس‌های آنلاین مستلزم عضویت در کادر آموزشی، دانش‌آموزی یا پیوند والدینی مجاز است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_student_parsa"
-        suggestedRoleName="پارسا رادمنش (دانش‌آموز)"
-        onSwitchUser={switchUser}
       />
     );
   }

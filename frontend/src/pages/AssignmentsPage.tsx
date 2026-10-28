@@ -11,7 +11,7 @@ import { Assignment, Submission } from '../types';
 import { INITIAL_CLASSROOMS } from '../data/mockData';
 
 export const AssignmentsPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess, activeStudent, switchUser } = useAuth();
+  const { currentUser, activeRole, hasAccess, activeStudent } = useAuth();
   const isBusDriver = activeRole.id === 'bus_driver';
 
   if (isBusDriver) {
@@ -21,9 +21,6 @@ export const AssignmentsPage: React.FC = () => {
         requiredRoleOrPermission="assignment:create یا assignment:submit (دبیران، دانش‌آموزان یا اولیا)"
         reason="بر اساس اصول ۱۸ و ۴۰ سند جامع حاکمیت داده، حساب راننده سرویس فاقد دسترسی به تکالیف و محتوای آموزشی دانش‌آموزان است."
         currentRoleTitle={activeRole.persianTitle}
-        suggestedRoleId="usr_principal"
-        suggestedRoleName="دکتر احمدرضا جلالی (مدیر مدرسه)"
-        onSwitchUser={switchUser}
       />
     );
   }
