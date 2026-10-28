@@ -249,7 +249,7 @@ export const StudentExamsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="آزمون‌های آنلاین من"
-        subtitle="شرکت در آزمون‌های منتشرشده — یک نشست فعال برای هر آزمون؛ ورود مجدد ادامه همان نشست است"
+        subtitle="شرکت در آزمون‌های منتشرشده — با هر بار ورود، ادامهٔ همان نشست باز می‌شود"
       />
 
       {error && (
@@ -261,7 +261,7 @@ export const StudentExamsPage: React.FC = () => {
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 size={26} className="animate-spin text-[#2457C5]" /></div>
       ) : exams.length === 0 ? (
-        <Card className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">آزمون منتشرشده‌ای برای شما نیست.</Card>
+        <Card className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">در حال حاضر آزمون منتشرشده‌ای برای شما وجود ندارد.</Card>
       ) : (
         <div className="grid gap-4">
           {exams.map((e) => {

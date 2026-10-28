@@ -220,7 +220,7 @@ export const ExamsManagementPage: React.FC = () => {
         </div>
       ) : filtered.length === 0 ? (
         <Card className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          هنوز آزمونی ندارید — با «طراحی آزمون جدید» شروع کنید.
+          هنوز آزمونی ندارید؛ با دکمه «طراحی آزمون جدید» اولین آزمون خود را بسازید.
         </Card>
       ) : (
         <div className="grid gap-4">
@@ -295,7 +295,7 @@ export const ExamsManagementPage: React.FC = () => {
             </select>
           </FormField>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="شروع" required>
               <input type="datetime-local" value={form.opens_at}
                 onChange={(e) => setForm({ ...form, opens_at: e.target.value })}
@@ -425,7 +425,7 @@ export const ExamsManagementPage: React.FC = () => {
                     <Badge variant={a.status === 'submitted' ? 'success' : a.status === 'expired' ? 'danger' : 'warning'}>
                       {a.status === 'submitted' ? 'ارسال‌شده' : a.status === 'expired' ? 'منقضی' : 'در حال آزمون'}
                     </Badge>
-                    <span className="font-mono font-bold">تستی: {a.auto_score !== null ? toPersianDigits(a.auto_score) : '—'}</span>
+                    <span className="font-mono font-bold">نمره تستی: {a.auto_score !== null ? toPersianDigits(a.auto_score) : '—'}</span>
                   </div>
                 </div>
 

@@ -177,7 +177,7 @@ export const Modal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
-      <div className={cn('w-full bg-white dark:bg-[#182231] rounded-2xl border border-[#DCE3EE] dark:border-[#344257] shadow-xl overflow-hidden', widthStyles[maxWidth])}>
+      <div className={cn('w-full max-h-[calc(100vh-2rem)] overflow-y-auto bg-white dark:bg-[#182231] rounded-2xl border border-[#DCE3EE] dark:border-[#344257] shadow-xl', widthStyles[maxWidth])}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#DCE3EE] dark:border-[#344257]">
           <h3 className="text-base font-semibold text-[#202B3C] dark:text-[#F1F5FB]">{title}</h3>
           <button

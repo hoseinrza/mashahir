@@ -67,7 +67,7 @@ export const AuditLogPage: React.FC = () => {
       <div className="flex justify-start -mt-3">
         <Badge variant={isLive ? 'success' : 'warning'} className="text-[10px]">
           <Radio size={11} />
-          {isLive ? 'متصل به سرور — داده واقعی (فقط‌افزودنی)' : 'داده نمایشی — سرور در دسترس نیست'}
+          {isLive ? 'متصل به سرور — داده واقعی' : 'داده نمایشی — سرور در دسترس نیست'}
         </Badge>
       </div>
 

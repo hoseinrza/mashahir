@@ -70,7 +70,7 @@ export const GuestPanelPage: React.FC = () => {
                 onClick={() => window.location.reload()}
               >
                 <RefreshCw size={15} className="ml-1" />
-                بررسی مجدد
+                بررسی مجدد دسترسی
               </Button>
               <Button className="flex-1 h-11" onClick={handleLogout}>
                 <LogOut size={15} className="ml-1" />
