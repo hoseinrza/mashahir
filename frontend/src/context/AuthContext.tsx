@@ -151,6 +151,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await authApi.switchRole(backendUserRoleId);
     setPendingRoles([]);
     await applyContext(await authApi.fetchAuthContext());
+
+    // UX: a FULL reload re-fetches every page with the new school's context —
+    // no stale lists from the previous school survive the jump.
+    sessionStorage.setItem('mashahir_school_switched', '1');
+    window.location.replace('/dashboard');
   }, [applyContext]);
 
   const logout = useCallback(async () => {

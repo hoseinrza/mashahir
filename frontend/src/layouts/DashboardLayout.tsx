@@ -16,11 +16,16 @@ import { DashboardHeader } from './DashboardHeader';
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
     currentUser, activeRole, activeAssignment, hasAccess,
-    isAuthenticated, isSessionLoading, needsRole,
+    isAuthenticated, isSessionLoading, needsRole, activeSchoolName,
   } = useAuth();
   const location = useLocation();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [schoolSwitched] = useState(() => {
+    const flag = sessionStorage.getItem('mashahir_school_switched') === '1';
+    if (flag) sessionStorage.removeItem('mashahir_school_switched');
+    return flag;
+  });
 
   // Dynamic role-tailored navigation items
   const isPlatformAdmin = activeRole.group === 'platform' || activeRole.id === 'platform_super_admin' || currentUser.id === 'usr_platform_admin';
@@ -240,6 +245,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F9FC] dark:bg-[#101722] text-[#202B3C] dark:text-[#F1F5FB]">
+      {schoolSwitched && (
+        <div className="bg-emerald-600 dark:bg-emerald-700 text-white text-xs font-bold text-center py-2 px-4">
+          ورود به {activeSchoolName ?? 'واحد آموزشی جدید'} انجام شد — داده‌ها برای این مدرسه بارگذاری شدند.
+        </div>
+      )}
       {/* Top Bar Header (Redesigned) */}
       <DashboardHeader
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
