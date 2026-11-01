@@ -3,8 +3,19 @@
  * (تقویم persian با Intl؛ شمسی فقط در نمایش، ذخیره‌سازی UTC می‌ماند.)
  */
 
-const DATE_FMT = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' });
+// ساعت رسمی مدرسه تهران است؛ نمایش باید به همین منطقه قفل شود تا صفحه با
+// برگه چاپی (که سرور با Asia/Tehran می‌سازد) یک زمان را بگوید، نه منطقهٔ دستگاه کاربر.
+const TEHRAN = 'Asia/Tehran';
+
+const DATE_FMT = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeZone: TEHRAN });
 const DATETIME_FMT = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: TEHRAN,
+});
+
+// ورودی datetime-local منطقه‌ای ندارد: همان ساعت دیواری که کاربر تایپ کرده است.
+const LOCAL_DATETIME_FMT = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
@@ -33,8 +44,17 @@ export function formatJalaliDateTime(iso: string | null | undefined): string {
 export function jalaliPreview(localInputValue: string): string {
   if (!localInputValue) return '';
   try {
-    return DATETIME_FMT.format(new Date(localInputValue));
+    return LOCAL_DATETIME_FMT.format(new Date(localInputValue));
   } catch {
     return '';
   }
+}
+
+/** شماره ماه شمسی (۱..۱۲) — پیش‌فرض انتخابگر دوره کارنامه ماهانه. */
+export function jalaliMonth(date: Date = new Date()): number {
+  const part = new Intl.DateTimeFormat('en-u-ca-persian', { month: 'numeric', day: 'numeric', year: 'numeric', timeZone: TEHRAN })
+    .formatToParts(date)
+    .find((p) => p.type === 'month');
+
+  return Number(part?.value) || 1;
 }
