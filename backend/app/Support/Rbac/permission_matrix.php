@@ -146,6 +146,11 @@ return [
             ['key' => 'online_classes.create', 'title' => 'برگزاری کلاس آنلاین'],
             ['key' => 'online_classes.manage', 'title' => 'مدیریت و بستن کلاس آنلاین'],
         ],
+
+        'admissions' => [
+            ['key' => 'preregistrations.view', 'title' => 'مشاهده درخواست‌های پیش‌ثبت‌نام لندینگ'],
+            ['key' => 'preregistrations.manage', 'title' => 'بررسی و تغییر وضعیت پیش‌ثبت‌نام'],
+        ],
     ],
 
     'matrix' => [
@@ -549,6 +554,17 @@ return [
         'online_classes.manage' => [
             'school_admin' => true,
             'academic_deputy' => true,
+        ],
+
+        // ─── ز. پذیرش و پیش‌ثبت‌نام لندینگ ─────────────────────────────
+        'preregistrations.view' => [
+            'school_admin' => true,
+            'office_manager' => true,
+        ],
+
+        'preregistrations.manage' => [
+            'school_admin' => true,
+            'office_manager' => true,
         ],
     ],
 ];

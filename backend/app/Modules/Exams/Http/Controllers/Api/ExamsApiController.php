@@ -10,6 +10,7 @@ use App\Modules\Exams\Models\Exam;
 use App\Modules\Exams\Models\ExamAttempt;
 use App\Modules\Exams\Models\ExamQuestion;
 use App\Modules\Exams\Services\ExamService;
+use App\Modules\Files\Services\FileService;
 use App\Modules\People\Models\Student;
 use App\Support\Rbac\PermissionRegistrar;
 use App\Support\Rbac\ScopeResolver;
@@ -32,6 +33,7 @@ class ExamsApiController extends Controller
         $exams = Exam::query()->with('classroomSubject.subject')->orderByDesc('id')->limit(200)->get();
 
         $classroomIds = $this->resolver->classroomIds();
+        $myAttempts = [];
         if ($classroomIds !== null) {
             $exams = $exams->filter(fn ($e) => in_array($e->classroomSubject->classroom_id, $classroomIds, true))->values();
         } elseif (app(PermissionRegistrar::class)->activeRole()?->role->key === 'student') {
@@ -43,6 +45,18 @@ class ExamsApiController extends Controller
                 ->pluck('classroom_id')
                 ->all();
             $exams = $exams->filter(fn ($e) => in_array($e->classroomSubject->classroom_id, $classroomIds, true))->values();
+
+            // The list has to say whether the student already sat an exam:
+            // a second attempt is refused server-side, so offering «شروع» on a
+            // submitted paper is a dead end.
+            $myAttempts = ExamAttempt::query()
+                ->whereIn('student_id', $selfIds ?: [0])
+                ->whereIn('exam_id', $exams->pluck('id')->all() ?: [0])
+                ->orderByDesc('id')
+                ->get()
+                ->keyBy('exam_id')
+                ->map(fn (ExamAttempt $a) => $a->status)
+                ->all();
         }
 
         return response()->json([
@@ -55,6 +69,7 @@ class ExamsApiController extends Controller
                 'duration_minutes' => $e->duration_minutes,
                 'status' => $e->status,
                 'result_visibility' => $e->result_visibility,
+                'my_attempt_status' => $myAttempts[$e->id] ?? null,
             ]),
         ]);
     }
@@ -280,7 +295,8 @@ class ExamsApiController extends Controller
     }
 
     /**
-     * FR-17: autosave with honest server-confirmed state.
+     * FR-17: autosave with honest server-confirmed state. Descriptive
+     * answers may carry an image/PDF of the handwritten paper.
      */
     public function saveAnswer(Request $request, ExamAttempt $attempt): JsonResponse
     {
@@ -290,12 +306,32 @@ class ExamsApiController extends Controller
             'question_id' => ['required', 'integer'],
             'option_id' => ['nullable', 'integer'],
             'text' => ['nullable', 'string', 'max:10000'],
+            'file_ulid' => ['nullable', 'string', 'max:26'],
+            'remove_file' => ['boolean'],
             'version' => ['required', 'integer', 'min:1'],
             'flagged' => ['boolean'],
         ]);
 
         if ((int) $attempt->student_id !== (int) Student::query()->where('user_id', $request->user()->id)->value('id')) {
             abort(404);
+        }
+
+        // null = keep the attached sheet, 0 = clear it, >0 = replace it.
+        $fileId = null;
+        if ($data['remove_file'] ?? false) {
+            $fileId = 0;
+        } elseif (($data['file_ulid'] ?? null) !== null) {
+            $questionType = ExamQuestion::query()->whereKey($data['question_id'])->value('type');
+            if ($questionType !== ExamQuestion::TYPE_DESCRIPTIVE) {
+                throw ValidationException::withMessages(['file_ulid' => 'فقط سؤال تشریحی پیوست فایل می‌پذیرد.']);
+            }
+
+            $file = \App\Modules\Files\Models\File::query()->where('ulid', $data['file_ulid'])->first();
+            if ($file === null) {
+                throw ValidationException::withMessages(['file_ulid' => 'فایل یافت نشد.']);
+            }
+
+            $fileId = $file->id;
         }
 
         $result = $this->service->saveAnswer(
@@ -305,6 +341,7 @@ class ExamsApiController extends Controller
             $data['text'] ?? null,
             $data['version'],
             $data['flagged'] ?? false,
+            $fileId,
         );
 
         return response()->json($result + ['message' => $result['accepted'] ? 'ذخیره شد' : 'نسخه قدیمی؛ همگام‌سازی شد']);
@@ -353,13 +390,14 @@ class ExamsApiController extends Controller
                             : null,
                         'descriptive_score' => $a->grade?->score,
                         'comment' => $a->grade?->comment,
+                        'file' => $a->file ? app(FileService::class)->payload($a->file) : null,
                     ];
                 }),
             ]);
         }
 
         // Staff view: all attempts with their answers (descriptive grading).
-        $attempts = $exam->attempts()->with(['student', 'answers.question', 'answers.grade'])->get()->map(fn (ExamAttempt $a) => [
+        $attempts = $exam->attempts()->with(['student', 'answers.question', 'answers.grade', 'answers.file'])->get()->map(fn (ExamAttempt $a) => [
             'attempt_id' => $a->id,
             'student_ulid' => $a->student?->ulid,
             'student_name' => $a->student?->fullName(),
@@ -374,6 +412,7 @@ class ExamsApiController extends Controller
                 'points' => $ans->question?->points,
                 'option_id' => $ans->option_id,
                 'text' => $ans->text,
+                'file' => $ans->file ? app(FileService::class)->payload($ans->file) : null,
                 'score' => $ans->grade?->score,
                 'comment' => $ans->grade?->comment,
             ]),

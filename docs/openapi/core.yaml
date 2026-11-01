@@ -18,6 +18,7 @@ tags:
   - name: academic
   - name: family
   - name: pickup
+  - name: files
 
 paths:
   /v1/auth/otp/request:
@@ -404,6 +405,56 @@ paths:
       responses:
         "201": { description: ثبت شد و لاگ شد }
 
+  /v1/files:
+    post:
+      tags: [files]
+      summary: آپلود فایل (فایل منیجر)
+      description: >
+        آپلود multipart برای برگه تکلیف، پاسخ تشریحی و اسناد. فقط JPG/PNG/WebP/PDF،
+        حداکثر ۱۰ مگابایت. نوع واقعی از بایت‌های فایل تشخیص داده می‌شود (پسوند
+        دروغ‌گو رد می‌شود). فراخواننده باید یکی از مجوزهای submissions.submit،
+        exams.take، assignments.manage یا court_orders.manage را داشته باشد.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: فایل ذخیره شد
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileAttachment" }
+        "422": { description: محتوا/پسوند/حجم مجاز نیست }
+
+  /v1/files/{file}:
+    get:
+      tags: [files]
+      summary: دریافت فایل با کنترل دسترسی (استریم inline)
+      description: دسترسی بر اساس ارجاع فایل (تکلیف، پاسخ آزمون، حکم) + نقش فعال؛ خارج از محدوده ۴۰۴.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: file, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: بایت‌های فایل با Content-Disposition: inline
+        "404": { description: خارج از محدوده دسترسی }
+
+  /v1/assignments/{assignment}/submissions:
+    post:
+      tags: [assignments]
+      summary: ارسال پاسخ تکلیف — متن و/یا فایل‌های تصویر/PDF (file_ulids)
+      description: دیرکرد به‌صورت خودکار نسبت به due_at تشخیص داده می‌شود.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201": { description: ثبت شد؛ پاسخ شامل files است }
+        "422": { description: بدون متن و بدون فایل }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -551,3 +602,14 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/GuardianLink" }
+
+    FileAttachment:
+      type: object
+      description: پیوست‌های تصویر/PDF برگهٔ تکلیف یا پاسخ تشریحی
+      properties:
+        ulid: { type: string }
+        original_name: { type: string }
+        mime:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, application/pdf]
+        size: { type: integer }

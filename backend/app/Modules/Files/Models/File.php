@@ -13,5 +13,10 @@ class File extends Model
 
     protected $table = 'files';
 
-    protected $fillable = ['disk', 'path', 'original_name', 'mime', 'size', 'checksum', 'uploaded_by'];
+    protected $fillable = ['ulid', 'disk', 'path', 'original_name', 'mime', 'size', 'checksum', 'uploaded_by'];
+
+    public function uploader()
+    {
+        return $this->belongsTo(\App\Modules\Identity\Models\User::class, 'uploaded_by');
+    }
 }

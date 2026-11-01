@@ -126,4 +126,34 @@ class AssignmentsFlowTest extends TestCase
         $this->assertSame(85, $row['score']);
         $this->assertSame('خوب بود', $row['feedback']);
     }
+
+    public function test_submissions_endpoint_embeds_assignment_attachments(): void
+    {
+        $assignment = $this->createAssignment();
+
+        $file = \App\Modules\Files\Models\File::query()->create([
+            'school_id' => $this->school->id,
+            'disk' => 'local',
+            'path' => 'schools/1/files/demo-sheet.pdf',
+            'original_name' => 'برگه سؤالات.pdf',
+            'mime' => 'application/pdf',
+            'size' => 128,
+            'checksum' => hash('sha256', 'demo'),
+            'uploaded_by' => $this->teacher->id,
+        ]);
+
+        \App\Modules\Assignments\Models\Assignment::query()
+            ->where('ulid', $assignment['ulid'])
+            ->firstOrFail()
+            ->files()->attach($file->id);
+
+        // The embedded assignment must carry its attachments even though the
+        // route does not eager-load the relation.
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('teacher', user: $this->teacher);
+
+        $this->getJson("/api/v1/assignments/{$assignment['ulid']}/submissions")
+            ->assertOk()
+            ->assertJsonPath('assignment.files.0.original_name', 'برگه سؤالات.pdf');
+    }
 }

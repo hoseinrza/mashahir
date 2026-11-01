@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Assignments\Models\Assignment;
 use App\Modules\Assignments\Models\Submission;
+use App\Modules\Files\Models\File;
+use App\Modules\Files\Services\FileService;
 use App\Modules\People\Models\Student;
 use App\Modules\People\Services\GuardianAccessService;
 use App\Support\Rbac\PermissionRegistrar;
@@ -29,7 +31,7 @@ class AssignmentsApiController extends Controller
         $roleKey = app(PermissionRegistrar::class)->activeRole()?->role->key;
 
         $assignments = Assignment::query()
-            ->with(['classroomSubject.subject', 'classroomSubject.classroom'])
+            ->with(['classroomSubject.subject', 'classroomSubject.classroom', 'files'])
             ->orderByDesc('due_at')
             ->limit(200)
             ->get();
@@ -71,19 +73,22 @@ class AssignmentsApiController extends Controller
             'description' => ['nullable', 'string'],
             'due_at' => ['required', 'date'],
             'max_score' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'file_ulids' => ['nullable', 'array', 'max:5', 'distinct'],
         ]);
 
         $subject = ClassroomSubject::query()->findOrFail($data['classroom_subject_id']);
         $this->assertSubjectAccess($subject);
 
         $assignment = Assignment::query()->create([
-            ...collect($data)->except('classroom_subject_id')->all(),
+            ...collect($data)->except(['classroom_subject_id', 'file_ulids'])->all(),
             'classroom_subject_id' => $subject->id,
             'max_score' => $data['max_score'] ?? 100,
             'created_by' => $request->user()->id,
         ]);
 
-        return response()->json($this->assignmentPayload($assignment), 201);
+        $this->syncFiles($assignment, $data['file_ulids'] ?? []);
+
+        return response()->json($this->assignmentPayload($assignment->fresh('files')), 201);
     }
 
     public function update(Request $request, Assignment $assignment): JsonResponse
@@ -96,21 +101,41 @@ class AssignmentsApiController extends Controller
             'description' => ['sometimes', 'nullable', 'string'],
             'due_at' => ['sometimes', 'date'],
             'max_score' => ['sometimes', 'integer', 'min:1', 'max:1000'],
+            'file_ulids' => ['sometimes', 'array', 'max:5', 'distinct'],
         ]);
 
-        $assignment->update($data);
+        $assignment->update(collect($data)->except('file_ulids')->all());
 
-        return response()->json($this->assignmentPayload($assignment->fresh()));
+        if (array_key_exists('file_ulids', $data)) {
+            $this->syncFiles($assignment, $data['file_ulids'] ?? []);
+        }
+
+        return response()->json($this->assignmentPayload($assignment->fresh('files')));
     }
 
     /**
-     * FR-12: the student submits text; late is computed against due_at.
+     * FR-12: the student submits text and/or homework sheets (image/PDF);
+     * late is computed against due_at.
      */
     public function submit(Request $request, Assignment $assignment): JsonResponse
     {
         $this->authorize('submissions.submit');
 
-        $data = $request->validate(['text' => ['required', 'string', 'max:20000']]);
+        $data = $request->validate([
+            'text' => ['nullable', 'string', 'max:20000'],
+            'file_ulids' => ['nullable', 'array', 'max:5', 'distinct'],
+        ]);
+
+        $text = $data['text'] ?? null;
+        $fileUlids = $data['file_ulids'] ?? [];
+
+        if (trim((string) $text) === '' && $fileUlids === []) {
+            throw ValidationException::withMessages([
+                'text' => 'متن پاسخ یا حداقل یک فایل (تصویر/PDF) لازم است.',
+            ]);
+        }
+
+        $files = $this->resolveFiles($fileUlids);
 
         $student = Student::query()
             ->where('user_id', $request->user()->id)
@@ -132,16 +157,19 @@ class AssignmentsApiController extends Controller
             ['assignment_id' => $assignment->id, 'student_id' => $student->id],
             [
                 'school_id' => $assignment->school_id,
-                'text' => $data['text'],
+                'text' => $text !== null && trim($text) !== '' ? $text : null,
                 'status' => $late ? Submission::STATUS_LATE : Submission::STATUS_SUBMITTED,
                 'submitted_at' => now(),
             ],
         );
 
+        $submission->files()->sync($files->pluck('id')->all());
+
         return response()->json([
             'id' => $submission->id,
             'status' => $submission->status,
             'submitted_at' => $submission->submitted_at->toIso8601String(),
+            'files' => $files->map(fn (File $f) => app(FileService::class)->payload($f))->values()->all(),
         ], 201);
     }
 
@@ -183,12 +211,16 @@ class AssignmentsApiController extends Controller
         $this->authorize('submissions.view');
 
         $roleKey = app(PermissionRegistrar::class)->activeRole()?->role->key;
-        $query = $assignment->submissions()->with('student');
+        $query = $assignment->submissions()->with(['student', 'files']);
 
         if ($roleKey === 'guardian') {
             // sh3: only my children's rows.
             $childrenIds = $this->resolver->studentIds() ?? [];
             $query->whereIn('student_id', $childrenIds ?: [0]);
+        } elseif ($roleKey === 'student') {
+            // sh4: the student only ever sees his own row.
+            $selfIds = $this->resolver->studentIds() ?? [];
+            $query->whereIn('student_id', $selfIds ?: [0]);
         }
 
         return response()->json([
@@ -201,6 +233,7 @@ class AssignmentsApiController extends Controller
                 'score' => $s->score,
                 'feedback' => $s->feedback,
                 'text' => $s->text,
+                'files' => $s->files->map(fn (File $f) => app(FileService::class)->payload($f))->values()->all(),
             ]),
             'assignment' => $this->assignmentPayload($assignment),
         ]);
@@ -214,6 +247,33 @@ class AssignmentsApiController extends Controller
         }
     }
 
+    /** ulids → in-school File models (input order kept); unknown ulid fails loudly. */
+    private function resolveFiles(array $ulids): \Illuminate\Support\Collection
+    {
+        if ($ulids === []) {
+            return collect();
+        }
+
+        $files = File::query()->whereIn('ulid', $ulids)->get()->keyBy('ulid');
+
+        $resolved = collect();
+        foreach ($ulids as $ulid) {
+            $file = $files->get($ulid);
+            if ($file === null) {
+                throw ValidationException::withMessages(['file_ulids' => "فایل {$ulid} یافت نشد."]);
+            }
+
+            $resolved->push($file);
+        }
+
+        return $resolved;
+    }
+
+    private function syncFiles(Assignment $assignment, array $ulids): void
+    {
+        $assignment->files()->sync($this->resolveFiles($ulids)->pluck('id')->all());
+    }
+
     private function assignmentPayload(Assignment $a): array
     {
         return [
@@ -224,6 +284,10 @@ class AssignmentsApiController extends Controller
             'max_score' => $a->max_score,
             'subject' => $a->classroomSubject?->subject?->title,
             'classroom' => $a->classroomSubject?->classroom?->title,
+            // Lazy-load when the caller did not eager-load it — an embedded
+            // assignment must never silently report "no attachments".
+            'files' => $a->files
+                ->map(fn (File $f) => app(FileService::class)->payload($f))->values()->all(),
         ];
     }
 }

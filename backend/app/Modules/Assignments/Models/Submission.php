@@ -3,8 +3,10 @@
 namespace App\Modules\Assignments\Models;
 
 use App\Support\Concerns\BelongsToSchool;
+use App\Modules\Files\Models\File;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Submission extends Model
 {
@@ -35,5 +37,11 @@ class Submission extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(\App\Modules\People\Models\Student::class);
+    }
+
+    /** Homework sheets the student attached (image/PDF via the file manager). */
+    public function files(): BelongsToMany
+    {
+        return $this->belongsToMany(File::class, 'submission_files');
     }
 }

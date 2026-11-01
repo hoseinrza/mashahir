@@ -37,9 +37,7 @@ class OnlineClassesApiController extends Controller
             $ids = $this->resolver->classroomIds() ?? [];
             $query->whereHas('classroomSubject', fn ($q) => $q->whereIn('classroom_id', $ids ?: [0]));
         } elseif ($roleKey === 'student') {
-            $selfIds = $this->resolver->studentIds() ?? [];
-            $classroomIds = \App\Modules\Academic\Models\Enrollment::query()
-                ->whereIn('student_id', $selfIds)->where('status', 'active')->pluck('classroom_id');
+            $classroomIds = $this->studentClassroomIds();
             $query->whereHas('classroomSubject', fn ($q) => $q->whereIn('classroom_id', $classroomIds ?: [0]));
         }
 
@@ -55,6 +53,8 @@ class OnlineClassesApiController extends Controller
         $data = $request->validate([
             'classroom_subject_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:200'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
 
         $subject = ClassroomSubject::query()->findOrFail($data['classroom_subject_id']);
@@ -66,6 +66,8 @@ class OnlineClassesApiController extends Controller
         $class = OnlineClass::query()->create([
             'classroom_subject_id' => $subject->id,
             'title' => $data['title'],
+            'starts_at' => $data['starts_at'] ?? null,
+            'ends_at' => $data['ends_at'] ?? null,
             'created_by' => $request->user()->id,
         ]);
 
@@ -84,7 +86,8 @@ class OnlineClassesApiController extends Controller
 
     /**
      * لینک ورود مستقیم اسکای‌روم برای کاربر فعلی — نقش معلم = ارائه‌دهنده (۲)،
-     * بقیه = کاربر عادی (۱). شناسه اسکای‌روم کاربر یک‌بار ساخته و کش می‌شود.
+     * بقیه = کاربر عادی (۱). طبق نمونه رسمی، createLoginUrl کاربر موقت با
+     * شناسه رشته‌ای خودِ سامانه می‌سازد؛ نیازی به createUser و کش نیست.
      */
     public function enter(Request $request, OnlineClass $class): JsonResponse
     {
@@ -94,6 +97,15 @@ class OnlineClassesApiController extends Controller
             throw ValidationException::withMessages(['class' => 'این کلاس بسته شده است.']);
         }
 
+        // ورود فقط داخل پنجره‌ی زمانی کلاس ممکن است.
+        if ($class->starts_at !== null && now()->lt($class->starts_at)) {
+            throw ValidationException::withMessages(['class' => 'این کلاس هنوز شروع نشده است.']);
+        }
+
+        if ($class->ends_at !== null && now()->gt($class->ends_at)) {
+            throw ValidationException::withMessages(['class' => 'زمان این کلاس به پایان رسیده است.']);
+        }
+
         $roleKey = app(PermissionRegistrar::class)->activeRole()?->role->key;
 
         if ($roleKey === 'teacher') {
@@ -101,21 +113,19 @@ class OnlineClassesApiController extends Controller
             if (! in_array($class->classroomSubject->classroom_id, $ids, true)) {
                 abort(404);
             }
+        } elseif ($roleKey === 'student') {
+            // دانش‌آموز فقط به کلاس آنلاینِ کلاسِ خودش وارد می‌شود — همان قاعده‌ی فهرست.
+            if (! in_array($class->classroomSubject->classroom_id, $this->studentClassroomIds(), true)) {
+                abort(404);
+            }
         }
 
         $user = $request->user();
-
-        if ($user->skyroom_user_id === null) {
-            $user->forceFill([
-                'skyroom_user_id' => SkyroomManager::createUser('u' . $user->id, $user->fullName()),
-            ])->save();
-        }
-
         $access = in_array($roleKey, ['teacher', 'school_admin', 'academic_deputy'], true) ? 2 : 1;
 
         $url = SkyroomManager::createLoginUrl(
             (int) $class->skyroom_room_id,
-            (string) $user->skyroom_user_id,
+            'u' . $user->id,
             $user->fullName(),
             $access,
         );
@@ -150,14 +160,34 @@ class OnlineClassesApiController extends Controller
         return response()->noContent();
     }
 
+    /** کلاس‌های (اتاق‌های) دانش‌آموز فعلی — فیلتر فهرست و کنترل ورود با همین قاعده. */
+    private function studentClassroomIds(): array
+    {
+        $selfIds = $this->resolver->studentIds() ?? [];
+
+        return \App\Modules\Academic\Models\Enrollment::query()
+            ->whereIn('student_id', $selfIds)
+            ->where('status', 'active')
+            ->pluck('classroom_id')
+            ->all();
+    }
+
     private function payload(OnlineClass $c): array
     {
+        $availability = $c->status === OnlineClass::STATUS_CLOSED
+            ? 'closed'
+            : $c->availability();
+
         return [
             'ulid' => $c->ulid,
             'title' => $c->title,
             'subject' => $c->classroomSubject?->subject?->title,
             'classroom' => $c->classroomSubject?->classroom?->title,
+            'teacher' => $c->classroomSubject?->teacher?->fullName(),
             'status' => $c->status,
+            'availability' => $availability,
+            'starts_at' => $c->starts_at?->toIso8601String(),
+            'ends_at' => $c->ends_at?->toIso8601String(),
             'created_by' => $c->created_by,
         ];
     }

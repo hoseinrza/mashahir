@@ -1,11 +1,13 @@
 <?php
 
 use App\Modules\Academic\Http\Controllers\Api\AcademicApiController;
+use App\Modules\Admissions\Http\Controllers\Api\PreRegistrationsApiController;
 use App\Modules\Academic\Http\Controllers\Api\TimetableApiController;
 use App\Modules\Attendance\Http\Controllers\Api\AttendanceApiController;
 use App\Modules\Audit\Http\Controllers\Api\AuditLogsApiController;
 use App\Modules\Assignments\Http\Controllers\Api\AssignmentsApiController;
 use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
+use App\Modules\Files\Http\Controllers\Api\FilesApiController;
 use App\Modules\Family\Http\Controllers\Api\ConsentsApiController;
 use App\Modules\Grades\Http\Controllers\Api\GradesApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
@@ -34,8 +36,18 @@ Route::prefix('v1/auth')->group(function (): void {
     });
 });
 
+// Public landing-page intake (پیش‌ثبت‌نام آزمون ورودی) — guest form,
+// strictly throttled, no auth context.
+Route::post('/v1/pre-registrations', [PreRegistrationsApiController::class, 'store'])
+    ->middleware('throttle:12,1')
+    ->name('pre-registrations.public-store');
+
 Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(function (): void {
     Route::get('/auth/context', AuthContextController::class)->name('auth.context');
+
+    // Pre-registration pipeline (principal / registrar)
+    Route::get('/pre-registrations', [PreRegistrationsApiController::class, 'index']);
+    Route::patch('/pre-registrations/{registration}', [PreRegistrationsApiController::class, 'update']);
 
     // Users & roles
     Route::get('/users', [UsersApiController::class, 'index']);
@@ -54,6 +66,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
 
     // Academic structure
     Route::get('/academic/my-subjects', [AcademicApiController::class, 'mySubjects']);
+    Route::get('/academic/terms', [AcademicApiController::class, 'terms']);
     Route::get('/academic/grade-levels', [AcademicApiController::class, 'gradeLevels']);
     Route::post('/academic/grade-levels', [AcademicApiController::class, 'storeGradeLevel']);
     Route::patch('/academic/grade-levels/{gradeLevel}', [AcademicApiController::class, 'updateGradeLevel']);
@@ -116,6 +129,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/attendance/students/{student}/records', [AttendanceApiController::class, 'studentRecords']);
     Route::get('/attendance/sms-status', [AttendanceApiController::class, 'smsStatus']);
 
+    // Files (file manager: upload + access-checked inline stream)
+    Route::post('/files', [FilesApiController::class, 'store']);
+    Route::get('/files/{file}', [FilesApiController::class, 'show']);
+
     // Assignments
     Route::get('/assignments', [AssignmentsApiController::class, 'index']);
     Route::post('/assignments', [AssignmentsApiController::class, 'store']);
@@ -126,6 +143,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
 
     // Grades & report cards
     Route::get('/grades', [GradesApiController::class, 'index']);
+    Route::get('/grades/roster', [GradesApiController::class, 'roster']);
     Route::post('/grades', [GradesApiController::class, 'store']);
     Route::patch('/grades/{item}', [GradesApiController::class, 'update']);
     Route::post('/grades/{item}/approve', [GradesApiController::class, 'approve']);

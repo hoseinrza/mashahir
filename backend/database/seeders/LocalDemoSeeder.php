@@ -255,7 +255,7 @@ class LocalDemoSeeder extends Seeder
             );
         }
 
-        \App\Modules\Assignments\Models\Assignment::query()->firstOrCreate(
+        $functionsAsg = \App\Modules\Assignments\Models\Assignment::query()->firstOrCreate(
             ['title' => 'تم تابع درجه دوم', 'classroom_subject_id' => $mathCs->id],
             [
                 'school_id' => $school->id, 'due_at' => now()->addDays(3),
@@ -263,7 +263,7 @@ class LocalDemoSeeder extends Seeder
                 'created_by' => $teacher->id,
             ],
         );
-        \App\Modules\Assignments\Models\Assignment::query()->firstOrCreate(
+        $pendulumAsg = \App\Modules\Assignments\Models\Assignment::query()->firstOrCreate(
             ['title' => 'گزارش آزمایش آونگ', 'classroom_subject_id' => $mathCs->id],
             [
                 'school_id' => $school->id, 'due_at' => now()->subDay(),
@@ -271,6 +271,67 @@ class LocalDemoSeeder extends Seeder
                 'created_by' => $teacher->id,
             ],
         );
+
+        // Submission states covering every badge in the UI: graded (پارسا),
+        // waiting for correction (سارا) and late-graded (آرش).
+        $parsaSub = \App\Modules\Assignments\Models\Submission::query()->updateOrCreate(
+            ['assignment_id' => $functionsAsg->id, 'student_id' => $students[1]->id],
+            [
+                'school_id' => $school->id,
+                'text' => 'تمرین‌های ۱ تا ۸ حل شد؛ نمودارها در پیوست است.',
+                'status' => 'graded',
+                'submitted_at' => now()->subDays(2),
+                'score' => 92,
+                'feedback' => 'رسم نمودار دقیق است؛ دامنه و بازه تعریف را در سؤال ۷ بازبینی کنید.',
+                'graded_by' => $teacher->id,
+                'graded_at' => now()->subDay(),
+            ],
+        );
+        \App\Modules\Assignments\Models\Submission::query()->updateOrCreate(
+            ['assignment_id' => $functionsAsg->id, 'student_id' => $students[2]->id],
+            [
+                'school_id' => $school->id,
+                'text' => 'حل تمرین‌های ۱ تا ۵ — دو سؤال آخر نیاز به راهنمایی دارد.',
+                'status' => 'submitted',
+                'submitted_at' => now()->subHours(4),
+                'score' => null,
+                'feedback' => null,
+                'graded_by' => null,
+                'graded_at' => null,
+            ],
+        );
+        \App\Modules\Assignments\Models\Submission::query()->updateOrCreate(
+            ['assignment_id' => $pendulumAsg->id, 'student_id' => $students[0]->id],
+            [
+                'school_id' => $school->id,
+                'text' => 'گزارش کار آزمایش آونگ همراه با جدول دوره تناوب.',
+                'status' => 'graded',
+                'submitted_at' => now()->subHours(6),
+                'score' => 74,
+                'feedback' => 'محاسبات درست است؛ نتیجه‌گیری از رابطه طول و دوره ناقص است.',
+                'graded_by' => $teacher->id,
+                'graded_at' => now()->subHour(),
+            ],
+        );
+
+        // Attachments through the real file manager (bytes + content sniffing),
+        // so homework sheets and PDFs render in the teacher and student views.
+        $studentUser = $usersByPhone['09120000008'];
+        $attach = function(
+            \Illuminate\Database\Eloquent\Model $owner,
+            string $name,
+            string $bytes,
+            \App\Modules\Identity\Models\User $uploader
+        ) use ($school): void {
+            if ($owner->files()->exists()) {
+                return;
+            }
+            $owner->files()->attach($this->demoFile($uploader, $school->id, $name, $bytes));
+        };
+
+        $attach($functionsAsg, 'برگه سؤالات فصل ۲.pdf', $this->pdfBytes('Functions chapter 2 - exercise sheet'), $teacher);
+        $attach($pendulumAsg, 'دستور کار آزمایش آونگ.pdf', $this->pdfBytes('Pendulum lab - procedure'), $teacher);
+        $attach($parsaSub, 'برگه پاسخ پارسا.png', $this->pngBytes(), $studentUser);
 
         $exam = \App\Modules\Exams\Models\Exam::query()->firstOrCreate(
             ['title' => 'کوییز آنلاین فصل ۱', 'classroom_subject_id' => $mathCs->id],
@@ -295,6 +356,96 @@ class LocalDemoSeeder extends Seeder
         \App\Modules\Exams\Models\ExamOption::query()->firstOrCreate(
             ['question_id' => $question->id, 'position' => 3], ['body' => 'x²/2'],
         );
+
+        // A descriptive question + two submitted papers so the teacher's
+        // correction panel has a pending sheet and an already-graded one.
+        // پارسا is left without an attempt so the live take-the-exam demo still works.
+        $essayQuestion = \App\Modules\Exams\Models\ExamQuestion::query()->firstOrCreate(
+            ['exam_id' => $exam->id, 'position' => 2],
+            [
+                'type' => 'descriptive',
+                'body' => 'با استفاده از مشتق، نشانه‌های افزایش و کاهش تابع f(x) = x² − 4x + 3 را تعیین کنید و کمینه آن را توضیح دهید.',
+                'points' => 4,
+            ],
+        );
+
+        $demoPaper = function (int $studentId, string $answerText, ?string $sheetName) use ($exam, $question, $essayQuestion, $optB, $school, $teacher): \App\Modules\Exams\Models\ExamAttempt {
+            $attempt = \App\Modules\Exams\Models\ExamAttempt::query()->firstOrCreate(
+                ['exam_id' => $exam->id, 'student_id' => $studentId],
+                [
+                    'school_id' => $school->id,
+                    'started_at' => now()->subHours(3),
+                    'server_deadline' => now()->subHours(3)->addMinutes($exam->duration_minutes),
+                    'status' => 'submitted',
+                    'submitted_at' => now()->subHours(2),
+                    'auto_score' => 2,
+                ],
+            );
+
+            \App\Modules\Exams\Models\AttemptAnswer::query()->firstOrCreate(
+                ['attempt_id' => $attempt->id, 'question_id' => $question->id],
+                ['option_id' => $optB->id, 'saved_at' => now()->subHours(2), 'version' => 1],
+            );
+
+            $essay = \App\Modules\Exams\Models\AttemptAnswer::query()->firstOrCreate(
+                ['attempt_id' => $attempt->id, 'question_id' => $essayQuestion->id],
+                ['text' => $answerText, 'saved_at' => now()->subHours(2), 'version' => 1],
+            );
+
+            if ($sheetName !== null && $essay->file_id === null) {
+                // The demo students behind these papers have no login, so the
+                // scanned sheet is filed by the teacher; access is still scoped
+                // through the attempt's class.
+                $essay->forceFill([
+                    'file_id' => $this->demoFile($teacher, $school->id, $sheetName, $this->pngBytes())->id,
+                ])->save();
+            }
+
+            return $attempt;
+        };
+
+        // Graded paper (has the scanned sheet) + one still waiting for a score.
+        $gradedPaper = $demoPaper($students[0]->id, 'مشتق برابر ۲x−۴ است؛ با صفر قرار دادن آن x=2 به دست می‌آید و تابع در این نقطه کمینه دارد.', 'برگه دست‌نویس آرش.png');
+        $demoPaper($students[2]->id, 'نمودار سهمی رو به بالا است و رأس آن در x=2 قرار دارد؛ بنابراین کمینه تابع f(2)=−۱ است.', null);
+
+        \App\Modules\Exams\Models\AnswerGrade::query()->firstOrCreate(
+            ['answer_id' => $gradedPaper->answers()->where('question_id', $essayQuestion->id)->value('id')],
+            [
+                'score' => 3,
+                'comment' => 'استدلال درست است؛ مقدار کمینه تابع ذکر نشده بود، یک نمره کسر شد.',
+                'graded_by' => $teacher->id,
+                'graded_at' => now()->subHour(),
+            ],
+        );
+
+        // A second, untouched exam: the demo student can still sit it live,
+        // so the take → correct → view-result round trip stays demoable even
+        // after the first exam already has submitted papers.
+        $liveExam = \App\Modules\Exams\Models\Exam::query()->firstOrCreate(
+            ['title' => 'آزمون تشریحی فصل ۲', 'classroom_subject_id' => $mathCs->id],
+            [
+                'school_id' => $school->id,
+                'opens_at' => now()->subHours(2), 'closes_at' => now()->addDays(3),
+                'duration_minutes' => 20, 'result_visibility' => 'immediately',
+                'status' => 'published', 'created_by' => $teacher->id,
+            ],
+        );
+        \App\Modules\Exams\Models\ExamQuestion::query()->firstOrCreate(
+            ['exam_id' => $liveExam->id, 'position' => 1],
+            [
+                'type' => 'descriptive',
+                'body' => 'حد تابع (x² − 9)/(x − 3) را هنگام میل x به 3 محاسبه کنید و روش خود را توضیح دهید.',
+                'points' => 4,
+            ],
+        );
+
+        // firstOrCreate freezes these at the first seed run, so a sandbox that is
+        // opened days later shows an expired exam and overdue homework only.
+        // Re-running the seeder re-anchors the demo window around "now".
+        $exam->forceFill(['opens_at' => now()->subDay(), 'closes_at' => now()->addDays(2)])->save();
+        $liveExam->forceFill(['opens_at' => now()->subHours(2), 'closes_at' => now()->addDays(3)])->save();
+        $functionsAsg->forceFill(['due_at' => now()->addDays(3)])->save();
+        $pendulumAsg->forceFill(['due_at' => now()->subDay()])->save();
 
         app(\App\Modules\Notifications\Services\AnnouncementService::class)->publish(
             'جلسه انجمن اولیا',
@@ -325,6 +476,20 @@ class LocalDemoSeeder extends Seeder
             ],
         );
 
+        // One published report card, so the student/guardian grade views
+        // (which only ever show published rows) have real content.
+        $alreadyPublished = \App\Modules\Grades\Models\ReportCard::query()
+            ->where('student_id', $students[1]->id)
+            ->where('term_id', $term->id)
+            ->where('kind', \App\Modules\Grades\Models\ReportCard::KIND_IN_PERSON)
+            ->where('status', \App\Modules\Grades\Models\ReportCard::STATUS_PUBLISHED)
+            ->exists();
+
+        if (! $alreadyPublished) {
+            app(\App\Modules\Grades\Services\GradeService::class)
+                ->publishReportCard($students[1]->id, $term->id, \App\Modules\Grades\Models\ReportCard::KIND_IN_PERSON, $admin->id);
+        }
+
         \App\Modules\OnlineClasses\Models\OnlineClass::query()->firstOrCreate(
             ['title' => 'کلاس آنلاین ریاضی — فصل ۲', 'classroom_subject_id' => $mathCs->id],
             [
@@ -334,6 +499,58 @@ class LocalDemoSeeder extends Seeder
                 'status' => 'active',
                 'created_by' => $teacher->id,
             ],
+        );
+    }
+
+    /** Store real bytes through the file manager — same validation as the UI. */
+    private function demoFile(User $uploader, int $schoolId, string $name, string $bytes): \App\Modules\Files\Models\File
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'mashahir-demo');
+        file_put_contents($tmp, $bytes);
+
+        try {
+            return app(\App\Modules\Files\Services\FileService::class)->store(
+                new \Illuminate\Http\UploadedFile($tmp, $name, null, null, true),
+                $uploader,
+                $schoolId,
+            );
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    private function pdfBytes(string $title): string
+    {
+        $content = "BT /F1 18 Tf 40 780 Td ({$title}) Tj ET";
+        $objects = [
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            2 => '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            3 => '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] '
+                . '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+            4 => '<< /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream",
+            5 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        ];
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $num => $body) {
+            $offsets[$num] = strlen($pdf);
+            $pdf .= "{$num} 0 obj\n{$body}\nendobj\n";
+        }
+
+        $xrefAt = strlen($pdf);
+        $pdf .= "xref\n0 6\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+
+        return $pdf . "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{$xrefAt}\n%%EOF";
+    }
+
+    private function pngBytes(): string
+    {
+        return base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
         );
     }
 }

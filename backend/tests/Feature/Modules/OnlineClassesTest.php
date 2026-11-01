@@ -21,6 +21,8 @@ class OnlineClassesTest extends TestCase
 
     private $studentUser;
 
+    private $classroom;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,12 +30,13 @@ class OnlineClassesTest extends TestCase
         $this->makeSchool();
 
         $this->teacher = $this->makeUser();
-        $this->subjectId = $this->assignTeacher($this->teacher, $this->makeClassroom(), $this->makeSubject())->id;
+        $this->classroom = $this->makeClassroom();
+        $this->subjectId = $this->assignTeacher($this->teacher, $this->classroom, $this->makeSubject())->id;
 
         $this->studentUser = $this->makeUser();
         $student = $this->makeStudent();
         $student->forceFill(['user_id' => $this->studentUser->id])->save();
-        $this->enroll($student, $this->classroom ?? $this->makeClassroom());
+        $this->enroll($student, $this->classroom);
     }
 
     public function test_teacher_creates_class_and_students_get_entry_urls(): void
@@ -77,6 +80,25 @@ class OnlineClassesTest extends TestCase
         $this->getJson("/api/v1/online-classes/{$ulid}/enter")->assertNotFound();
     }
 
+    /** دانش‌آموز کلاسِ دیگر با دانستن شناسه کلاس هم وارد نمی‌شود — همان قاعده‌ی محدوده. */
+    public function test_student_of_another_classroom_cannot_enter(): void
+    {
+        $this->actingWithRole('teacher', user: $this->teacher);
+        $ulid = $this->postJson('/api/v1/online-classes', [
+            'classroom_subject_id' => $this->subjectId, 'title' => 'کلاس درس ما',
+        ])->assertCreated()->json('ulid');
+
+        $otherStudentUser = $this->makeUser();
+        $otherStudent = $this->makeStudent();
+        $otherStudent->forceFill(['user_id' => $otherStudentUser->id])->save();
+        $this->enroll($otherStudent, $this->makeClassroom());
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('student', user: $otherStudentUser);
+
+        $this->getJson("/api/v1/online-classes/{$ulid}/enter")->assertNotFound();
+    }
+
     public function test_admin_closes_and_deletes_class(): void
     {
         $this->actingWithRole('teacher', user: $this->teacher);
@@ -94,5 +116,47 @@ class OnlineClassesTest extends TestCase
 
         $this->deleteJson("/api/v1/online-classes/{$ulid}")->assertNoContent();
         $this->assertDatabaseMissing('online_classes', ['ulid' => $ulid]);
+    }
+
+    /** ورود فقط داخل پنجره‌ی زمانی کلاس: قبل از شروع ممنوع، داخل پنجره آزاد، بعد از پایان ممنوع. */
+    public function test_scheduled_class_only_admits_inside_its_time_window(): void
+    {
+        $this->actingWithRole('teacher', user: $this->teacher);
+
+        // Future class: created, listed as scheduled, entry refused.
+        $future = $this->postJson('/api/v1/online-classes', [
+            'classroom_subject_id' => $this->subjectId,
+            'title' => 'کلاس فردا',
+            'starts_at' => now()->addHour()->toIso8601String(),
+            'ends_at' => now()->addHours(2)->toIso8601String(),
+        ])->assertCreated()->json('ulid');
+
+        $this->getJson("/api/v1/online-classes/{$future}/enter")->assertJsonValidationErrors('class');
+        $this->getJson('/api/v1/online-classes')->assertOk()
+            ->assertJsonPath('data.0.availability', 'scheduled');
+
+        // Live window: entry allowed and reported open.
+        OnlineClass::query()->where('ulid', $future)->firstOrFail()->forceFill([
+            'starts_at' => now()->subMinutes(10),
+            'ends_at' => now()->addHour(),
+        ])->save();
+        $this->getJson("/api/v1/online-classes/{$future}/enter")->assertOk();
+        $this->getJson('/api/v1/online-classes')->assertOk()
+            ->assertJsonPath('data.0.availability', 'open');
+
+        // Past window: entry refused and reported ended.
+        OnlineClass::query()->where('ulid', $future)->firstOrFail()->forceFill([
+            'starts_at' => now()->subHours(2),
+            'ends_at' => now()->subHour(),
+        ])->save();
+        $this->getJson("/api/v1/online-classes/{$future}/enter")->assertJsonValidationErrors('class');
+        $this->getJson('/api/v1/online-classes')->assertOk()
+            ->assertJsonPath('data.0.availability', 'ended');
+
+        // No schedule = old behavior: always enterable while active.
+        $unscheduled = $this->postJson('/api/v1/online-classes', [
+            'classroom_subject_id' => $this->subjectId, 'title' => 'کلاس بی زمان',
+        ])->assertCreated()->json('ulid');
+        $this->getJson("/api/v1/online-classes/{$unscheduled}/enter")->assertOk();
     }
 }

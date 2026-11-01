@@ -70,9 +70,10 @@ final class ExamService
 
     /**
      * Idempotent autosave: a stale version is ignored, the server state is
-     * returned so the client can resync (FR-17/FR-18).
+     * returned so the client can resync (FR-17/FR-18). A descriptive answer
+     * may carry an uploaded sheet (image/PDF).
      */
-    public function saveAnswer(ExamAttempt $attempt, int $questionId, ?int $optionId, ?string $text, int $version, bool $flagged = false): array
+    public function saveAnswer(ExamAttempt $attempt, int $questionId, ?int $optionId, ?string $text, int $version, bool $flagged = false, ?int $fileId = null): array
     {
         $this->assertWritable($attempt);
 
@@ -104,6 +105,8 @@ final class ExamService
             [
                 'option_id' => $optionId,
                 'text' => $text,
+                // null keeps the attached sheet, 0 clears it, >0 replaces it.
+                'file_id' => $fileId === 0 ? null : ($fileId ?? ($answer->file_id ?? null)),
                 'version' => $version,
                 'flagged' => $flagged,
                 'saved_at' => now(),

@@ -114,6 +114,9 @@ final class GradeService
                     'report_card_id' => $card->id,
                     'subject_id' => $item->classroomSubject->subject_id,
                     'score' => $item->score,
+                    // Frozen with the card: the raw score is meaningless without
+                    // its ceiling, and a later max_score edit must not move history.
+                    'data' => ['max_score' => $item->max_score, 'source_type' => $item->source_type],
                 ]);
 
                 $item->forceFill(['status' => GradeItem::STATUS_PUBLISHED, 'published_at' => now()])->save();

@@ -78,6 +78,90 @@ class GradesApiController extends Controller
         ]);
     }
 
+    /**
+     * لیست کلاس برای ثبت نمره: دانش‌آموزانِ درس-کلاس + نمرات ثبت‌شده‌ی همان
+     * درس و ترم + میانگین هر دانش‌آموز از ۲۰ (مقیاس‌شده از max_score).
+     * محدوده معلم همان sh2 است — کلاس بیرون از محدوده = ۴۰۴.
+     */
+    public function roster(Request $request): JsonResponse
+    {
+        $registrar = app(PermissionRegistrar::class);
+
+        if (! $registrar->allows('grades.record') && ! $registrar->allows('grades.view')) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'classroom_subject_id' => ['required', 'integer'],
+            'term_id' => ['nullable', 'integer'],
+        ]);
+
+        $subject = ClassroomSubject::query()
+            ->with(['subject', 'classroom', 'teacher'])
+            ->findOrFail($data['classroom_subject_id']);
+
+        $classroomIds = $this->resolver->classroomIds();
+        if ($classroomIds !== null && ! in_array($subject->classroom_id, $classroomIds, true)) {
+            abort(404);
+        }
+
+        $termId = $data['term_id'] ?? \App\Modules\Academic\Models\Term::query()
+            ->whereHas('academicYear', fn ($q) => $q->where('school_id', $subject->school_id))
+            ->max('id');
+
+        $studentIds = \App\Modules\Academic\Models\Enrollment::query()
+            ->where('classroom_id', $subject->classroom_id)
+            ->where('status', 'active')
+            ->pluck('student_id');
+
+        $students = Student::query()->whereIn('id', $studentIds)->orderBy('last_name')->get();
+
+        $items = GradeItem::query()
+            ->where('classroom_subject_id', $subject->id)
+            ->where('term_id', $termId)
+            ->whereIn('student_id', $studentIds)
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('student_id');
+
+        $rows = $students->map(function (Student $s) use ($items) {
+            $own = $items->get($s->id, collect());
+
+            $avg = $own->isEmpty() ? null : round(
+                $own->avg(fn (GradeItem $g) => $g->max_score > 0 ? ($g->score / $g->max_score) * 20 : 0),
+                2,
+            );
+
+            return [
+                'student_ulid' => $s->ulid,
+                'student_name' => $s->fullName(),
+                'avg_out_of_20' => $avg,
+                'final_in_person' => $own->firstWhere('source_type', GradeItem::SOURCE_IN_PERSON_EXAM)?->only([
+                    'id', 'status', 'score', 'max_score',
+                ]),
+                'items' => $own->map(fn (GradeItem $g) => [
+                    'id' => $g->id,
+                    'status' => $g->status,
+                    'score' => $g->score,
+                    'max_score' => $g->max_score,
+                    'delivery' => $g->delivery,
+                    'source_type' => $g->source_type,
+                ])->values(),
+            ];
+        });
+
+        $averages = $rows->pluck('avg_out_of_20')->filter();
+
+        return response()->json([
+            'subject' => $subject->subject?->title,
+            'classroom' => $subject->classroom?->title,
+            'teacher' => $subject->teacher?->fullName(),
+            'term_id' => (int) $termId,
+            'class_avg_out_of_20' => $averages->isEmpty() ? null : round($averages->avg(), 2),
+            'data' => $rows,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $this->authorize('grades.record');
@@ -227,8 +311,20 @@ class GradesApiController extends Controller
             $query->where('status', ReportCard::STATUS_PUBLISHED);
         }
 
+        $cards = $query->limit(100)->get();
+
+        // Cards published before the ceiling was frozen into the line payload
+        // still have to render as a real score out of 20 — read it from the
+        // source grade item instead of showing a raw out-of-100 number.
+        $ceilings = GradeItem::query()
+            ->with('classroomSubject')
+            ->whereIn('student_id', $cards->pluck('student_id')->unique()->all() ?: [0])
+            ->whereIn('term_id', $cards->pluck('term_id')->unique()->all() ?: [0])
+            ->get()
+            ->keyBy(fn (GradeItem $i) => $i->student_id.':'.$i->term_id.':'.($i->classroomSubject?->subject_id ?? 0));
+
         return response()->json([
-            'data' => $query->limit(100)->get()->map(fn (ReportCard $c) => [
+            'data' => $cards->map(fn (ReportCard $c) => [
                 'ulid' => $c->ulid,
                 'student_ulid' => $c->student?->ulid,
                 'student_name' => $c->student?->fullName(),
@@ -237,7 +333,14 @@ class GradesApiController extends Controller
                 'version' => $c->version,
                 'status' => $c->status,
                 'published_at' => $c->published_at?->toIso8601String(),
-                'lines' => $c->lines->map(fn ($l) => ['subject' => $l->subject?->title, 'score' => $l->score]),
+                'lines' => $c->lines->map(fn ($l) => [
+                    'subject' => $l->subject?->title,
+                    'score' => $l->score,
+                    'max_score' => $l->data['max_score'] ?? $ceilings->get($c->student_id.':'.$c->term_id.':'.$l->subject_id)?->max_score,
+                    'source_type' => $l->data['source_type']
+                        ?? $ceilings->get($c->student_id.':'.$c->term_id.':'.$l->subject_id)?->source_type,
+                    'teacher_comment' => $l->teacher_comment,
+                ]),
             ]),
         ]);
     }

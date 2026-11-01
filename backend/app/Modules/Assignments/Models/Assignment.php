@@ -2,10 +2,12 @@
 
 namespace App\Modules\Assignments\Models;
 
+use App\Modules\Files\Models\File;
 use App\Support\Concerns\BelongsToSchool;
 use App\Support\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Assignment extends Model
@@ -33,5 +35,11 @@ class Assignment extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(Submission::class);
+    }
+
+    /** The assignment sheet itself (PDF/image the teacher attaches). */
+    public function files(): BelongsToMany
+    {
+        return $this->belongsToMany(File::class, 'assignment_files');
     }
 }

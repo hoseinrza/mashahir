@@ -103,6 +103,14 @@ class GradesFlowTest extends TestCase
         $this->actingWithRole('guardian', user: $this->guardianWithGrades);
         $this->getJson('/api/v1/grades')->assertOk()->assertJsonCount(1, 'data');
 
+        // The card freezes the ceiling with the score, so the report-card view
+        // can render the official /20 figure instead of a raw out-of-100 number.
+        $this->getJson('/api/v1/report-cards')
+            ->assertOk()
+            ->assertJsonPath('data.0.lines.0.score', 92)
+            ->assertJsonPath('data.0.lines.0.max_score', $item->max_score)
+            ->assertJsonPath('data.0.lines.0.source_type', 'in_person_exam');
+
         $this->app['auth']->forgetGuards();
         $this->actingWithRole('guardian', user: $this->guardianWithoutGrades);
         $this->getJson('/api/v1/grades')->assertOk()->assertJsonCount(0, 'data');
@@ -149,5 +157,53 @@ class GradesFlowTest extends TestCase
         // The history table is append-only at the DB level too.
         $this->expectException(QueryException::class);
         DB::table('grade_changes')->update(['reason' => 'tampered']);
+    }
+
+    /** لیست ثبت نمره: دانش‌آموزان کلاس + میانگین مقیاس‌شده از ۲۰ + نمره نهایی حضوری. */
+    public function test_roster_lists_class_students_with_average_out_of_20(): void
+    {
+        $this->actingWithRole('teacher', user: $this->teacher);
+
+        $this->postJson('/api/v1/grades', [
+            'student_ulid' => $this->student->ulid,
+            'classroom_subject_id' => $this->subjectId,
+            'term_id' => $this->termId,
+            'score' => 92,
+            'source_type' => 'in_person_exam',
+            'delivery' => 'in_person',
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/grades', [
+            'student_ulid' => $this->student->ulid,
+            'classroom_subject_id' => $this->subjectId,
+            'term_id' => $this->termId,
+            'score' => 16,
+            'max_score' => 20,
+            'source_type' => 'assignment',
+            'delivery' => 'in_person',
+        ])->assertCreated();
+
+        $roster = $this->getJson("/api/v1/grades/roster?classroom_subject_id={$this->subjectId}&term_id={$this->termId}")
+            ->assertOk();
+
+        // (92/100 + 16/20) scaled to 20 → (18.4 + 16) / 2 = 17.2
+        $roster->assertJsonPath('class_avg_out_of_20', 17.2)
+            ->assertJsonPath('data.0.final_in_person.score', 92)
+            ->assertJsonPath('data.0.avg_out_of_20', 17.2)
+            ->assertJsonPath('data.0.student_ulid', $this->student->ulid);
+
+        $this->getJson('/api/v1/grades/roster?classroom_subject_id='.$this->subjectId)
+            ->assertOk()
+            ->assertJsonPath('term_id', $this->termId);
+    }
+
+    public function test_roster_is_out_of_scope_for_other_teachers_and_forbidden_for_family(): void
+    {
+        $this->actingWithRole('teacher', user: $this->makeUser());
+        $this->getJson("/api/v1/grades/roster?classroom_subject_id={$this->subjectId}")->assertNotFound();
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('guardian', user: $this->guardianWithGrades);
+        $this->getJson("/api/v1/grades/roster?classroom_subject_id={$this->subjectId}")->assertForbidden();
     }
 }

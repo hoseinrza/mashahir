@@ -3,11 +3,15 @@
 namespace App\Modules\OnlineClasses\Services;
 
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
- * Skyroom webservice client. Action-based JSON over POST; API key is part
- * of the endpoint URL. A fake driver keeps dev/demo working without a
- * provider account (same shape as the SMS driver pattern).
+ * Skyroom webservice client — هم‌تراز با نمونه رسمی SkyroomOnline/webservice:
+ * درخواست POST با بدنه JSON «{action, params}» به URL سرویس که کلید API
+ * بخشی از آن است؛ پاسخ با پوشش «ok/result» یا «ok=false/error_code».
+ * ساختار از samples/php/api/Skyroom.php + HttpRequest.php الگو گرفته است.
+ *
+ * درایور fake همان قرارداد را برای دمو برمی‌گرداند (الگوی درایور SMS).
  */
 final class SkyroomManager
 {
@@ -24,16 +28,39 @@ final class SkyroomManager
         };
     }
 
+    /**
+     * URL سرویس: SKYROOM_URL کامل، یا ساخت خودکار از SKYROOM_API_KEY
+     * به شکل https://www.skyroom.online/skyroom/api/{API-KEY} — مطابق README نمونه رسمی.
+     */
+    public static function serviceUrl(): string
+    {
+        $url = trim((string) config('skyroom.url'));
+        if ($url !== '') {
+            return $url;
+        }
+
+        $apiKey = trim((string) config('skyroom.api_key'));
+        if ($apiKey !== '') {
+            return rtrim((string) config('skyroom.service_url', 'https://www.skyroom.online/skyroom/api'), '/').'/'.$apiKey;
+        }
+
+        throw new RuntimeException('Skyroom webservice URL تنظیم نشده است (SKYROOM_URL یا SKYROOM_API_KEY).');
+    }
+
     /** ساخت اتاق؛ شناسه اتاق اسکای‌روم برمی‌گردد. */
     public static function createRoom(string $name, string $title): int
     {
         return self::client()->createRoom($name, $title);
     }
 
-    /** لینک ورود مستقیم کاربر به اتاق (بدون نیاز به لاگین اسکای‌روم). */
-    public static function createLoginUrl(int $roomId, string $skyroomUserId, string $nickname, int $access): string
+    /**
+     * لینک ورود مستقیم به اتاق بدون نیاز به حساب اسکای‌روم — کاربر موقت با
+     * شناسه رشته‌ای سیستم ما (user_id)، نام نمایشی (nickname) و سطح دسترسی:
+     * 1=کاربر عادی، 2=ارائه‌دهنده، 3=اپراتور (ثابت‌های USER_ACCESS_* نمونه رسمی).
+     */
+    public static function createLoginUrl(int $roomId, string $externalUserId, string $nickname, int $access): string
     {
-        return self::client()->createLoginUrl($roomId, $skyroomUserId, $nickname, $access);
+        return self::client()->createLoginUrl($roomId, $externalUserId, $nickname, $access);
     }
 
     public static function createUser(string $username, string $nickname): int
@@ -56,27 +83,32 @@ final class SkyroomManager
 interface SkyroomDriver
 {
     public function createRoom(string $name, string $title): int;
-    public function createLoginUrl(int $roomId, string $skyroomUserId, string $nickname, int $access): string;
+    public function createLoginUrl(int $roomId, string $externalUserId, string $nickname, int $access): string;
     public function createUser(string $username, string $nickname): int;
     public function deleteRoom(int $roomId): void;
 }
 
 final class RealSkyroomClient implements SkyroomDriver
 {
+    /**
+     * معادل Skyroom::call در نمونه رسمی — ارسال JSON و رمزگشایی پاسخ.
+     * خطای شبکه/HTTP/JSON مثل HttpRequest.php استثنا پرتاب می‌کند
+     * (برخلاف نمونه، SSL verify غیرفعال نمی‌شود).
+     */
     private function call(string $action, array $params = []): mixed
     {
-        $url = (string) config('skyroom.url');
-        if ($url === '') {
-            throw new \RuntimeException('Skyroom webservice URL تنظیم نشده است.');
-        }
-
         $response = \Illuminate\Support\Facades\Http::timeout((int) config('skyroom.timeout', 15))
-            ->post($url, ['action' => $action, 'params' => $params])
+            ->withHeaders(['Accept' => 'application/json', 'Content-Type' => 'application/json'])
+            ->post(SkyroomManager::serviceUrl(), ['action' => $action, 'params' => $params])
             ->throw()
             ->json();
 
+        if (! is_array($response)) {
+            throw new RuntimeException('پاسخ نامعتبر از سرویس اسکای‌روم.');
+        }
+
         if (($response['ok'] ?? false) !== true) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Skyroom error ' . ($response['error_code'] ?? '?') . ': ' . ($response['error_message'] ?? 'نامشخص'),
             );
         }
@@ -94,14 +126,15 @@ final class RealSkyroomClient implements SkyroomDriver
         ]);
     }
 
-    public function createLoginUrl(int $roomId, string $skyroomUserId, string $nickname, int $access): string
+    public function createLoginUrl(int $roomId, string $externalUserId, string $nickname, int $access): string
     {
         return (string) $this->call('createLoginUrl', [
             'room_id' => $roomId,
-            'user_id' => $skyroomUserId,
+            'user_id' => $externalUserId,
             'nickname' => $nickname,
-            'access' => $access, // 1=user, 2=presenter, 3=operator
-            'language' => config('skyroom.defaults.language', 'fa'),
+            'access' => $access,
+            'language' => (string) config('skyroom.defaults.language', 'fa'),
+            'concurrent' => (int) config('skyroom.defaults.concurrent', 1),
             'ttl' => (int) config('skyroom.defaults.ttl', 3600),
         ]);
     }
@@ -129,9 +162,9 @@ final class FakeSkyroomClient implements SkyroomDriver
         return crc32($name);
     }
 
-    public function createLoginUrl(int $roomId, string $skyroomUserId, string $nickname, int $access): string
+    public function createLoginUrl(int $roomId, string $externalUserId, string $nickname, int $access): string
     {
-        return "https://demo.skyroom.local/room/{$roomId}/entry/{$skyroomUserId}/access/{$access}";
+        return "https://demo.skyroom.local/room/{$roomId}/entry/{$externalUserId}/access/{$access}";
     }
 
     public function createUser(string $username, string $nickname): int

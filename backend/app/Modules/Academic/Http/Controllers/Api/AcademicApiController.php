@@ -203,6 +203,21 @@ class AcademicApiController extends Controller
         ]);
     }
 
+    /** ترم‌های تحصیلی مدرسه برای انتخاب در فرم‌های نمره/کارنامه. */
+    public function terms(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        $terms = \App\Modules\Academic\Models\Term::query()
+            ->whereHas('academicYear', fn ($q) => $q->where('school_id', $request->attributes->get('school_id')))
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'data' => $terms->map(fn ($t) => ['id' => $t->id, 'title' => $t->title]),
+        ]);
+    }
+
     public function updateClassroom(Request $request, Classroom $classroom): ClassroomResource
     {
         $this->authorize('create', Classroom::class);

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class AttemptAnswer extends Model
 {
     protected $fillable = [
-        'attempt_id', 'question_id', 'option_id', 'text',
+        'attempt_id', 'question_id', 'option_id', 'text', 'file_id',
         'version', 'flagged', 'saved_at',
     ];
 
@@ -34,5 +34,11 @@ class AttemptAnswer extends Model
     public function grade(): HasOne
     {
         return $this->hasOne(AnswerGrade::class, 'answer_id');
+    }
+
+    /** Photo/PDF of the handwritten answer (descriptive questions). */
+    public function file(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Files\Models\File::class);
     }
 }
