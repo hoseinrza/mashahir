@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Award, Printer, CheckCircle2, FileText, Calendar, ShieldCheck,
-  Users, AlertCircle, Loader2, GraduationCap, BookOpenCheck,
+  Printer, CheckCircle2, FileText, Calendar, ShieldCheck, AlertCircle, Loader2,
+  GraduationCap, BookOpenCheck, Sparkles, TrendingUp, MessageSquareQuote, Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -10,7 +10,7 @@ import {
 } from '../components/common';
 import { toPersianDigits, formatScore, cn } from '../utils/persian';
 import { formatJalaliDateTime } from '../utils/jalali';
-import { ApiReportCardService, ReportCardLineRow, ReportCardRow } from '../api/data';
+import { ApiReportCardService, ApiReportCardPrintService, ReportCardLineRow, ReportCardRow } from '../api/data';
 import { ApiError } from '../api/client';
 
 const KIND_LABEL: Record<string, string> = {
@@ -26,11 +26,113 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 /** Score on the official ۲۰-point scale; a line without a ceiling is already out of ۲۰. */
-function outOfTwenty(line: ReportCardLineRow): string {
-  if (line.score === null) return '—';
-  if (!line.maxScore || line.maxScore === 20) return formatScore(line.score);
-  return formatScore((line.score / line.maxScore) * 20);
+function outOfTwenty(line: ReportCardLineRow): number | null {
+  if (line.score === null) return null;
+  if (!line.maxScore || line.maxScore === 20) return line.score;
+  return (line.score / line.maxScore) * 20;
 }
+
+/**
+ * The four descriptive bands of the Iranian grading scale. The same vocabulary
+ * the teachers pick in the monthly report cycle, so a family reads one language
+ * in both places.
+ */
+const BANDS = [
+  { key: 'excellent', min: 17, label: 'خیلی خوب', variant: 'success' as const, bar: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400' },
+  { key: 'good', min: 14, label: 'خوب', variant: 'primary' as const, bar: 'bg-[#2457C5]', text: 'text-[#2457C5] dark:text-[#8BAEFF]' },
+  { key: 'acceptable', min: 10, label: 'قابل قبول', variant: 'warning' as const, bar: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400' },
+  { key: 'needs_work', min: -1, label: 'نیاز به تلاش', variant: 'danger' as const, bar: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400' },
+];
+
+const bandOf = (score20: number | null) =>
+  score20 === null ? null : BANDS.find((b) => score20 >= b.min) ?? BANDS[BANDS.length - 1];
+
+/** Ring gauge for the overall average. */
+const ScoreRing: React.FC<{ avg: number | null }> = ({ avg }) => {
+  const R = 34;
+  const C = 2 * Math.PI * R;
+  const ratio = avg === null ? 0 : Math.max(0, Math.min(1, avg / 20));
+  const band = bandOf(avg);
+  return (
+    <div className="relative w-[92px] h-[92px] shrink-0">
+      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+        <circle cx="40" cy="40" r={R} fill="none" strokeWidth="8" className="stroke-[#DCE3EE] dark:stroke-[#344257]" />
+        <circle
+          cx="40" cy="40" r={R} fill="none" strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={`${ratio * C} ${C}`}
+          className={cn('transition-all duration-500', band?.key === 'excellent' && 'stroke-emerald-500', band?.key === 'good' && 'stroke-[#2457C5] dark:stroke-[#8BAEFF]', band?.key === 'acceptable' && 'stroke-amber-500', band?.key === 'needs_work' && 'stroke-rose-500')}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-xl font-black tabular-nums text-[#202B3C] dark:text-[#F1F5FB]">
+          {avg === null ? '—' : formatScore(avg)}
+        </span>
+        <span className="text-[10px] text-[#526176] dark:text-[#B3C0D2]">از ۲۰</span>
+      </div>
+    </div>
+  );
+};
+
+const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; hint?: string }> = ({ icon, label, value, hint }) => (
+  <div className="rounded-2xl border border-[#DCE3EE]/80 dark:border-[#344257]/80 bg-white/70 dark:bg-[#101722]/40 px-3.5 py-3">
+    <span className="flex items-center gap-1.5 text-[11px] text-[#526176] dark:text-[#B3C0D2]">
+      <span className="text-[#2457C5] dark:text-[#8BAEFF]">{icon}</span>{label}
+    </span>
+    <div className="mt-1 text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{value}</div>
+    {hint && <span className="text-[10px] text-slate-400 dark:text-slate-500">{hint}</span>}
+  </div>
+);
+
+/** One lesson: gauge, descriptive band and the teacher's remark. */
+const SubjectCard: React.FC<{ line: ReportCardLineRow; index: number }> = ({ line, index }) => {
+  const score20 = outOfTwenty(line);
+  const band = bandOf(score20);
+  return (
+    <div className="rounded-2xl border border-[#DCE3EE] dark:border-[#344257] bg-white dark:bg-[#182231] p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-xl bg-[#F0F4FA] dark:bg-[#222F42] text-[#2457C5] dark:text-[#8BAEFF] text-xs font-bold flex items-center justify-center shrink-0 tabular-nums">
+            {toPersianDigits(index + 1)}
+          </span>
+          <div className="min-w-0">
+            <h4 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{line.subject ?? '—'}</h4>
+            <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2]">
+              {line.sourceType ? SOURCE_LABEL[line.sourceType] ?? line.sourceType : 'بدون منبع'}
+            </span>
+          </div>
+        </div>
+        <div className="text-left shrink-0">
+          <div className={cn('text-2xl font-black tabular-nums leading-none', band?.text ?? 'text-slate-400')}>
+            {score20 === null ? '—' : formatScore(score20)}
+          </div>
+          <span className="text-[10px] text-[#526176] dark:text-[#B3C0D2] block mt-1">
+            {line.score === null ? 'ثبت نشده' : line.maxScore && line.maxScore !== 20 ? `${formatScore(line.score)} از ${toPersianDigits(line.maxScore)}` : 'از ۲۰'}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <div className="h-2 rounded-full bg-[#F0F4FA] dark:bg-[#222F42] overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all duration-500', band?.bar ?? 'bg-slate-300 dark:bg-slate-600')}
+            style={{ width: `${score20 === null ? 0 : Math.max(3, (score20 / 20) * 100)}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          {band ? <Badge variant={band.variant}>{band.label}</Badge> : <Badge variant="neutral">بی‌نمره</Badge>}
+          {score20 !== null && (
+            <span className="text-[10px] text-slate-400 tabular-nums">{toPersianDigits(Math.round((score20 / 20) * 100))}٪ از سقف نمره</span>
+          )}
+        </div>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-[#526176] dark:text-[#B3C0D2] flex items-start gap-1.5 min-h-[32px]">
+        <MessageSquareQuote size={13} className="shrink-0 mt-0.5 text-slate-400" />
+        {line.teacherComment ?? 'دبیر توضیحی برای این درس ثبت نکرده است.'}
+      </p>
+    </div>
+  );
+};
 
 export const ReportCardPage: React.FC = () => {
   const { currentUser, activeRole, hasAccess } = useAuth();
@@ -47,6 +149,8 @@ export const ReportCardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'in_person' | 'online'>('all');
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,18 +193,16 @@ export const ReportCardPage: React.FC = () => {
   );
 
   const summary = useMemo(() => {
-    const scored = visible.flatMap((c) => c.lines).filter((l) => l.score !== null);
-    const convertible = scored.filter((l) => l.maxScore);
-    const avg =
-      convertible.length === 0
-        ? null
-        : convertible.reduce((sum, l) => sum + ((l.score as number) / (l.maxScore as number)) * 20, 0) / convertible.length;
-    const lastPublished = visible
-      .map((c) => c.publishedAt)
-      .filter((d): d is string => Boolean(d))
-      .sort()
-      .at(-1) ?? null;
-    return { subjectCount: scored.length, avg, lastPublished };
+    const scored = visible.flatMap((c) => c.lines).map((l) => ({ l, s20: outOfTwenty(l) })).filter((x) => x.s20 !== null);
+    const avg = scored.length === 0 ? null : scored.reduce((sum, x) => sum + (x.s20 as number), 0) / scored.length;
+    const best = scored.reduce<{ subject: string; s20: number } | null>(
+      (top, x) => (x.s20! > (top?.s20 ?? -1) ? { subject: x.l.subject ?? '—', s20: x.s20! } : top), null);
+    const lastPublished = visible.map((c) => c.publishedAt).filter((d): d is string => Boolean(d)).sort().at(-1) ?? null;
+    const counts = BANDS.map((b) => ({
+      band: b,
+      count: scored.filter((x) => bandOf(x.s20)?.key === b.key).length,
+    }));
+    return { subjectCount: scored.length, avg, best, lastPublished, counts };
   }, [visible]);
 
   if (isBusDriver) {
@@ -125,31 +227,68 @@ export const ReportCardPage: React.FC = () => {
     );
   }
 
-  const learnerLabel = visible[0]?.studentName ?? selectedStudent ?? '';
+  const learnerLabel = cards.find((c) => (c.studentUlid ?? c.studentName) === selectedStudent)?.studentName ?? '';
+  const initials = learnerLabel.trim().charAt(0) || '—';
+  const learnerUlid = cards.find((c) => (c.studentUlid ?? c.studentName) === selectedStudent)?.studentUlid ?? null;
+
+  // The paper is the server's fixed A4 template, not a screenshot of this page.
+  const printOfficial = async () => {
+    if (!learnerUlid) return;
+    setPrinting(true);
+    setPrintError(null);
+    try {
+      const url = await ApiReportCardPrintService.bundle({ students: [learnerUlid] });
+      if (!window.open(url, '_blank')) {
+        setPrintError('مرورگر تب چاپ را بست؛ اجازهٔ پاپ‌آپ را به این سایت بدهید.');
+      }
+    } catch (e) {
+      setPrintError(e instanceof ApiError ? e.firstError() : 'خطا در تولید سند چاپ');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title={
           isStudent
-            ? `کارنامه تحصیلی من — ${currentUser.fullName}`
+            ? 'کارنامه تحصیلی من'
             : isFamily
             ? `کارنامه تحصیلی فرزند — ${learnerLabel}`
             : `کارنامه تحصیلی — ${learnerLabel || 'انتخاب پرونده'}`
         }
         subtitle="فقط کارنامه‌های منتشرشده در این نمای رسمی نمایش داده می‌شوند"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <RolePermissionBadge level="view_only" scopeLabel="کارنامه منتشرشده" />
-            <Button variant="outline" size="sm" icon={<Printer size={15} />} onClick={() => window.print()}>
-              چاپ نسخه رسمی
-            </Button>
+            {hasAccess('reportcards:export_pdf') && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Printer size={15} />}
+                disabled={learnerUlid === null}
+                loading={printing}
+                onClick={printOfficial}
+              >
+                چاپ نسخه رسمی
+              </Button>
+            )}
           </div>
         }
       />
 
+      {printError && (
+        <Card className="border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 print:hidden">
+          <div className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200">
+            <AlertCircle size={15} />
+            <span className="font-bold">{printError}</span>
+          </div>
+        </Card>
+      )}
+
       {isTeacher && (
-        <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs flex items-center justify-between gap-3 flex-wrap">
+        <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs flex items-center justify-between gap-3 flex-wrap print:hidden">
           <p className="text-blue-900 dark:text-blue-200 leading-relaxed">
             این صفحه کارنامهٔ منتشرشدهٔ دانش‌آموزان است. برای وارد کردن یا اصلاح نمرهٔ کلاس‌های خود به دفتر نمره بروید.
           </p>
@@ -160,7 +299,7 @@ export const ReportCardPage: React.FC = () => {
       )}
 
       {error && (
-        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30">
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 print:hidden">
           <div className="flex items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
               <AlertCircle size={15} />
@@ -178,7 +317,7 @@ export const ReportCardPage: React.FC = () => {
       ) : (
         <>
           {learners.length > 1 && (
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2 text-xs">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2 text-xs print:hidden">
               <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
                 <Users size={16} className="text-[#2457C5]" />
                 پرونده تحصیلی:
@@ -212,6 +351,7 @@ export const ReportCardPage: React.FC = () => {
 
           {learners.length > 0 && (
             <Tabs
+              className="print:hidden"
               tabs={[
                 { id: 'all', label: 'همهٔ کارنامه‌ها' },
                 { id: 'in_person', label: 'آزمون‌های حضوری' },
@@ -222,46 +362,66 @@ export const ReportCardPage: React.FC = () => {
             />
           )}
 
+          {/* ── official header of the document ── */}
           {learners.length > 0 && (
-            <Card className="text-right border-blue-200 dark:border-blue-900/50 bg-gradient-to-r from-blue-50/40 to-white dark:from-blue-950/20 dark:to-[#182231]">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                  <span className="text-xs text-[#526176] dark:text-[#B3C0D2] block">میانگین از ۲۰</span>
-                  <div className="text-2xl font-black text-[#2457C5] dark:text-[#8BAEFF] tabular-nums mt-1">
-                    {summary.avg === null ? '—' : formatScore(summary.avg)}
+            <div className="rounded-3xl border border-[#DCE3EE] dark:border-[#344257] bg-gradient-to-l from-[#F0F4FA] via-white to-white dark:from-[#101722] dark:via-[#182231] dark:to-[#182231] overflow-hidden">
+              <div className="p-5 flex flex-wrap items-center gap-5">
+                <div className="flex items-center gap-3.5 flex-1 min-w-[240px]">
+                  <div className="w-14 h-14 rounded-2xl bg-[#2457C5] dark:bg-[#8BAEFF] text-white dark:text-[#101722] flex items-center justify-center text-2xl font-black shrink-0">
+                    {initials}
                   </div>
-                  <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2] mt-0.5 block">
-                    بر مبنای نمرات منتشرشده
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-xs text-[#526176] dark:text-[#B3C0D2] block">دروس اعلام‌شده</span>
-                  <div className="text-2xl font-black text-[#202B3C] dark:text-[#F1F5FB] tabular-nums mt-1">
-                    {toPersianDigits(summary.subjectCount)}
-                  </div>
-                  <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2] mt-0.5 block">
-                    در {toPersianDigits(visible.length)} کارنامه
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-xs text-[#526176] dark:text-[#B3C0D2] block">آخرین ابلاغ رسمی</span>
-                  <div className="mt-1 text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-1.5">
-                    <Calendar size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" />
-                    <span>{summary.lastPublished ? formatJalaliDateTime(summary.lastPublished) : '—'}</span>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black text-[#202B3C] dark:text-[#F1F5FB] truncate">{learnerLabel || '—'}</h2>
+                    <p className="text-[11px] text-[#526176] dark:text-[#B3C0D2] mt-0.5">
+                      {visible[0]?.term ?? 'بدون ترم'} · {toPersianDigits(visible.length)} کارنامه منتشرشده
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <Badge variant="success"><CheckCircle2 size={12} /> منتشرشده و نهایی</Badge>
+                      {summary.lastPublished && (
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Calendar size={11} /> آخرین ابلاغ {formatJalaliDateTime(summary.lastPublished)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                <div>
-                  <span className="text-xs text-[#526176] dark:text-[#B3C0D2] block">وضعیت</span>
-                  <div className="mt-1 flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold text-xs">
-                    <CheckCircle2 size={16} />
-                    <span>منتشرشده و نهایی</span>
+                <div className="flex items-center gap-3">
+                  <ScoreRing avg={summary.avg} />
+                  <div className="text-right">
+                    <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2] block">میانگین کل از ۲۰</span>
+                    <span className={cn('text-sm font-bold', bandOf(summary.avg)?.text ?? 'text-slate-400')}>
+                      {bandOf(summary.avg)?.label ?? '—'}
+                    </span>
                   </div>
                 </div>
               </div>
-            </Card>
+
+              {/* descriptive distribution — how the file reads at a glance */}
+              {summary.subjectCount > 0 && (
+                <div className="px-5 pb-4">
+                  <div className="flex h-2 rounded-full overflow-hidden bg-[#F0F4FA] dark:bg-[#222F42]">
+                    {summary.counts.filter((c) => c.count > 0).map((c) => (
+                      <div key={c.band.key} className={c.band.bar} style={{ width: `${(c.count / summary.subjectCount) * 100}%` }} />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[10px] text-[#526176] dark:text-[#B3C0D2]">
+                    {summary.counts.map((c) => (
+                      <span key={c.band.key} className="flex items-center gap-1.5">
+                        <span className={cn('w-2 h-2 rounded-full', c.band.bar)} />
+                        {c.band.label}: {toPersianDigits(c.count)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 pt-0">
+                <StatTile icon={<BookOpenCheck size={13} />} label="دروس اعلام‌شده" value={`${toPersianDigits(summary.subjectCount)} درس`} hint={`در ${toPersianDigits(visible.length)} کارنامه`} />
+                <StatTile icon={<Sparkles size={13} />} label="برترین درس" value={summary.best ? summary.best.subject : '—'} hint={summary.best ? `${formatScore(summary.best.s20)} از ۲۰` : undefined} />
+                <StatTile icon={<TrendingUp size={13} />} label="وضعیت تحصیلی" value={bandOf(summary.avg)?.label ?? '—'} hint={summary.avg === null ? 'بدون نمره' : `${formatScore(summary.avg)} از ۲۰`} />
+                <StatTile icon={<FileText size={13} />} label="آخرین ابلاغ رسمی" value={summary.lastPublished ? formatJalaliDateTime(summary.lastPublished) : '—'} />
+              </div>
+            </div>
           )}
 
           {learners.length > 0 && visible.length === 0 && (
@@ -274,11 +434,13 @@ export const ReportCardPage: React.FC = () => {
           )}
 
           {visible.map((card) => (
-            <Card key={card.ulid}>
-              <div className="flex items-center justify-between gap-3 flex-wrap pb-3 border-b border-[#DCE3EE] dark:border-[#344257]">
-                <div className="flex items-center gap-2 text-right">
-                  <BookOpenCheck size={18} className="text-[#2457C5] dark:text-[#8BAEFF]" />
-                  <div className="text-right">
+            <section key={card.ulid} className="rounded-3xl border border-[#DCE3EE] dark:border-[#344257] bg-[#FAFBFD] dark:bg-[#131C2E] p-4 sm:p-5">
+              <header className="flex items-center justify-between gap-3 flex-wrap pb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-9 h-9 rounded-xl bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] flex items-center justify-center">
+                    <BookOpenCheck size={17} className="text-[#2457C5] dark:text-[#8BAEFF]" />
+                  </span>
+                  <div>
                     <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]">
                       {KIND_LABEL[card.kind] ?? 'کارنامه تحصیلی'}
                     </h3>
@@ -289,75 +451,37 @@ export const ReportCardPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={card.status === 'published' ? 'success' : 'neutral'}>
-                    {card.status === 'published'
-                      ? 'منتشرشده'
-                      : card.status === 'superseded'
-                      ? 'جایگزین‌شده'
-                      : 'پیش‌نویس'}
+                    {card.status === 'published' ? 'منتشرشده' : card.status === 'superseded' ? 'جایگزین‌شده' : 'پیش‌نویس'}
                   </Badge>
                   <span className="text-[11px] text-slate-400 flex items-center gap-1">
                     <FileText size={12} />
                     {card.publishedAt ? formatJalaliDateTime(card.publishedAt) : '—'}
                   </span>
                 </div>
-              </div>
+              </header>
 
-              <div className="overflow-x-auto pt-2">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="border-b border-[#DCE3EE] dark:border-[#344257] text-[#526176] dark:text-[#B3C0D2]">
-                      <th className="pb-3 pr-2 font-medium">عنوان درس</th>
-                      <th className="pb-3 font-medium text-center">نمره خام</th>
-                      <th className="pb-3 font-medium text-center">نمره از ۲۰</th>
-                      <th className="pb-3 font-medium text-center">نوع ارزشیابی</th>
-                      <th className="pb-3 font-medium">توضیح دبیر</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#DCE3EE]/60 dark:divide-[#344257]/60">
-                    {card.lines.map((line, idx) => (
-                      <tr key={`${card.ulid}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-3 pr-2 font-bold text-[#202B3C] dark:text-[#F1F5FB]">
-                          {line.subject ?? '—'}
-                        </td>
-                        <td className="py-3 text-center font-mono tabular-nums">
-                          {line.score === null
-                            ? '—'
-                            : line.maxScore
-                            ? `${formatScore(line.score)} از ${toPersianDigits(line.maxScore)}`
-                            : formatScore(line.score)}
-                        </td>
-                        <td className="py-3 text-center font-black text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
-                          {outOfTwenty(line)}
-                        </td>
-                        <td className="py-3 text-center text-[#526176] dark:text-[#B3C0D2]">
-                          {line.sourceType ? SOURCE_LABEL[line.sourceType] ?? line.sourceType : '—'}
-                        </td>
-                        <td className="py-3 text-[#526176] dark:text-[#B3C0D2]">{line.teacherComment ?? '—'}</td>
-                      </tr>
-                    ))}
-                    {card.lines.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-6 text-center text-slate-400">
-                          سطر نمره‌ای برای این کارنامه ثبت نشده است.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-[#DCE3EE] dark:border-[#344257] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#526176] dark:text-[#B3C0D2]">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={18} className="text-[#2457C5] dark:text-[#8BAEFF]" />
-                  <span>این کارنامه پس از تأیید معاونت آموزشی در سامانه صادر شده است.</span>
+              {card.lines.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#DCE3EE] dark:border-[#344257] p-8 text-center text-xs text-slate-400">
+                  سطر نمره‌ای برای این کارنامه ثبت نشده است.
                 </div>
-                <span className="font-mono text-[11px] tabular-nums">شناسه رسمی: {card.ulid}</span>
-              </div>
-            </Card>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {card.lines.map((line, idx) => <SubjectCard key={`${card.ulid}-${idx}`} line={line} index={idx} />)}
+                </div>
+              )}
+
+              <footer className="mt-4 pt-3 border-t border-[#DCE3EE] dark:border-[#344257] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#526176] dark:text-[#B3C0D2]">
+                <span className="flex items-center gap-2">
+                  <ShieldCheck size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" />
+                  این کارنامه پس از تأیید معاونت آموزشی در سامانه صادر شده است.
+                </span>
+                <span className="font-mono tabular-nums">شناسه رسمی: {card.ulid}</span>
+              </footer>
+            </section>
           ))}
 
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 text-right">
-            <Award size={13} />
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 print:hidden">
+            <AlertCircle size={13} />
             نمره‌هایی که هنوز منتشر نشده‌اند (پیش‌نویس یا تأییدشده) در این نمای رسمی نمایش داده نمی‌شوند.
           </div>
         </>
