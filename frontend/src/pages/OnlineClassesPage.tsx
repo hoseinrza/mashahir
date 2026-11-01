@@ -1,23 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { Video, Plus, LogIn, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Video, Plus, LogIn, X, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, PageHeader } from '../components/common';
 import { toPersianDigits } from '../utils/persian';
+import { formatJalaliDateTime, jalaliPreview } from '../utils/jalali';
 import { api, ApiError } from '../api/client';
 
 /**
- * کلاس آنلاین بر بستر اسکای‌روم: معلم/مدیر برمی‌دارد، همه با لینک مستقیم
- * وارد می‌شوند. برای دمو درایور fake فعال است؛ با SKYROOM_DRIVER=skyroom و
- * SKYROOM_URL واقعی به سرویس اصلی وصل می‌شود.
+ * کلاس آنلاین بر بستر اسکای‌روم: معلم/مدیر برمی‌دارد، همه با لینک مستقیم و با
+ * نام واقعی خودشان وارد می‌شوند (نقش معلم = ارائه‌دهنده). کلاس می‌تواند
+ * زمان‌بندی داشته باشد؛ ورود فقط داخل پنجره‌ی زمانی آن باز است. برای دمو
+ * درایور fake فعال است؛ با SKYROOM_DRIVER=skyroom و SKYROOM_URL واقعی به
+ * سرویس اصلی وصل می‌شود.
  */
+
+type Availability = 'open' | 'scheduled' | 'ended' | 'closed';
 
 interface OnlineClassRow {
   ulid: string;
   title: string;
   subject: string | null;
   classroom: string | null;
+  teacher: string | null;
   status: 'active' | 'closed';
+  availability: Availability;
+  starts_at: string | null;
+  ends_at: string | null;
 }
+
+const AVAILABILITY_META: Record<Availability, { label: string; variant: 'success' | 'warning' | 'neutral' }> = {
+  open: { label: 'باز', variant: 'success' },
+  scheduled: { label: 'زمان‌بندی‌شده', variant: 'warning' },
+  ended: { label: 'تمام‌شده', variant: 'neutral' },
+  closed: { label: 'بسته‌شده', variant: 'neutral' },
+};
+
+/** مقدار پیش‌فرض datetime-local: همین ساعت گردشده به دقیقه بعدی. */
+const defaultStartLocal = (): string => {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 export const OnlineClassesPage: React.FC = () => {
   const { hasAccess } = useAuth();
@@ -32,6 +56,8 @@ export const OnlineClassesPage: React.FC = () => {
   const [subjects, setSubjects] = useState<{ id: number; label: string }[]>([]);
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
+  const [startLocal, setStartLocal] = useState(defaultStartLocal);
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -47,10 +73,15 @@ export const OnlineClassesPage: React.FC = () => {
 
   const openCreate = () => {
     setTitle('');
+    setStartLocal(defaultStartLocal());
+    setDurationMinutes(60);
     setFormError(null);
-    api<{ data: { id: number; subject: string; classroom: string }[] }>('/v1/academic/my-subjects')
+    api<{ data: { id: number; subject: string; classroom: string; teacher?: string | null }[] }>('/v1/academic/my-subjects')
       .then((r) => {
-        setSubjects((r.data ?? []).map((s) => ({ id: s.id, label: s.subject + ' — ' + s.classroom })));
+        setSubjects((r.data ?? []).map((s) => ({
+          id: s.id,
+          label: s.subject + ' — ' + s.classroom + (s.teacher ? ' — ' + s.teacher : ''),
+        })));
         setSubjectId(r.data?.[0]?.id ?? null);
       })
       .catch(() => setSubjects([]));
@@ -63,11 +94,21 @@ export const OnlineClassesPage: React.FC = () => {
       setFormError('عنوان و درس-کلاس الزامی است.');
       return;
     }
+    const start = new Date(startLocal);
+    if (Number.isNaN(start.getTime())) {
+      setFormError('زمان شروع نامعتبر است.');
+      return;
+    }
     setSaving(true);
     try {
       await api('/v1/online-classes', {
         method: 'POST',
-        body: { classroom_subject_id: subjectId, title },
+        body: {
+          classroom_subject_id: subjectId,
+          title,
+          starts_at: start.toISOString(),
+          ends_at: new Date(start.getTime() + durationMinutes * 60 * 1000).toISOString(),
+        },
       });
       setIsCreateOpen(false);
       reload();
@@ -110,7 +151,11 @@ export const OnlineClassesPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="کلاس‌های آنلاین (اسکای‌روم)"
-        subtitle="برگزاری کلاس زنده با ورود مستقیم از همین‌جا — بدون نیاز به حساب جداگانه اسکای‌روم"
+        subtitle={canManage
+          ? 'ایجاد، مدیریت و ورود به کلاس‌های آنلاین مدرسه — ورود مستقیم بدون نیاز به حساب جداگانه اسکای‌روم'
+          : canCreate
+            ? 'برگزاری کلاس زنده برای درس‌کلاس‌های خودتان با ورود مستقیم — بدون نیاز به حساب جداگانه اسکای‌روم'
+            : 'کلاس‌های آنلاین کلاس شما — دکمه ورود در بازه برگزاری کلاس فعال می‌شود'}
       />
 
       <div className="flex justify-end">
@@ -133,36 +178,49 @@ export const OnlineClassesPage: React.FC = () => {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {classes.map((c) => (
-            <Card key={c.ulid} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold">{c.title}</h3>
-                  <Badge variant={c.status === 'active' ? 'success' : 'neutral'}>
-                    {c.status === 'active' ? 'فعال' : 'بسته‌شده'}
-                  </Badge>
+          {classes.map((c) => {
+            const meta = AVAILABILITY_META[c.availability] ?? AVAILABILITY_META.closed;
+            const enterable = c.availability === 'open';
+            return (
+              <Card key={c.ulid} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold">{c.title}</h3>
+                    <Badge variant={meta.variant}>{meta.label}</Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {[c.subject, c.classroom, c.teacher].filter(Boolean).join(' — ')}
+                  </p>
+                  {(c.starts_at || c.ends_at) && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Clock size={11} />
+                      {c.starts_at ? formatJalaliDateTime(c.starts_at) : '—'}
+                      {c.ends_at ? ' تا ' + formatJalaliDateTime(c.ends_at) : ''}
+                    </p>
+                  )}
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {[c.subject, c.classroom].filter(Boolean).join(' — ')}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {c.status === 'active' && (
-                  <Button variant="primary" size="sm" onClick={() => enterClass(c.ulid)} icon={<LogIn size={13} />}>
-                    ورود به کلاس
-                  </Button>
-                )}
-                {canManage && (
-                  <>
-                    {c.status === 'active' && (
-                      <Button variant="outline" size="sm" onClick={() => closeClass(c.ulid)}>بستن</Button>
-                    )}
-                    <Button variant="danger" size="sm" onClick={() => deleteClass(c.ulid)} icon={<X size={13} />}>حذف</Button>
-                  </>
-                )}
-              </div>
-            </Card>
-          ))}
+                <div className="flex items-center gap-2 shrink-0">
+                  {enterable ? (
+                    <Button variant="primary" size="sm" onClick={() => enterClass(c.ulid)} icon={<LogIn size={13} />}>
+                      ورود به کلاس
+                    </Button>
+                  ) : c.availability === 'scheduled' && (
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                      ورود از زمان شروع باز می‌شود
+                    </span>
+                  )}
+                  {canManage && (
+                    <>
+                      {c.status === 'active' && (
+                        <Button variant="outline" size="sm" onClick={() => closeClass(c.ulid)}>بستن</Button>
+                      )}
+                      <Button variant="danger" size="sm" onClick={() => deleteClass(c.ulid)} icon={<X size={13} />}>حذف</Button>
+                    </>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -178,6 +236,24 @@ export const OnlineClassesPage: React.FC = () => {
             <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder="مثلاً کلاس آنلاین ریاضی — فصل ۲"
               className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none focus:ring-2 focus:ring-[#2457C5]/40" />
+          </FormField>
+          <FormField label="زمان شروع" required>
+            <div className="space-y-1">
+              <input type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none focus:ring-2 focus:ring-[#2457C5]/40" />
+              {jalaliPreview(startLocal) && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">شروع: {jalaliPreview(startLocal)}</p>
+              )}
+            </div>
+          </FormField>
+          <FormField label="مدت کلاس">
+            <select value={durationMinutes} onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none">
+              <option value={45}>{toPersianDigits(45)} دقیقه</option>
+              <option value={60}>{toPersianDigits(60)} دقیقه</option>
+              <option value={90}>{toPersianDigits(90)} دقیقه</option>
+              <option value={120}>{toPersianDigits(120)} دقیقه</option>
+            </select>
           </FormField>
           {formError && (
             <div className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl p-3">

@@ -5,7 +5,7 @@
  * so no CORS setup is needed. Set VITE_API_URL to override the base path.
  */
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
 
 const TOKEN_KEY = 'mashahir_api_token';
 const PENDING_KEY = 'mashahir_pending_token';

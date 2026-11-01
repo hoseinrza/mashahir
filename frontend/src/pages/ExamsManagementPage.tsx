@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   FileText, Plus, Send, Edit3, BarChart3, Clock,
-  Loader2, AlertTriangle, CheckCircle2, X
+  Loader2, AlertTriangle, CheckCircle2, X, Image as ImageIcon
 } from 'lucide-react';
 import { Card, Button, Badge, Modal, FormField, PageHeader, SearchInput } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { formatJalaliDateTime, jalaliPreview } from '../utils/jalali';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../api/client';
+import { fileObjectUrl, isImage, formatSize, FileAttachment } from '../api/files';
 
 /**
  * Teacher/staff exam MANAGEMENT: design (draft), publish, results.
@@ -68,6 +69,18 @@ export const ExamsManagementPage: React.FC = () => {
   const [questions, setQuestions] = useState<ExamQuestionDraft[]>([]);
 
   const [resultsFor, setResultsFor] = useState<ExamRow | null>(null);
+
+  // Attachment lightbox for descriptive answer sheets (image/PDF, auth'd blob URL).
+  const [filePreview, setFilePreview] = useState<{ name: string; mime: string; url: string | null } | null>(null);
+
+  const openAnswerFile = async (f: FileAttachment) => {
+    setFilePreview({ name: f.original_name, mime: f.mime, url: null });
+    try {
+      setFilePreview({ name: f.original_name, mime: f.mime, url: await fileObjectUrl(f.ulid) });
+    } catch {
+      setFilePreview(null);
+    }
+  };
   const [results, setResults] = useState<any[] | null>(null);
   const [mySubjects, setMySubjects] = useState<{ id: number; subject: string; classroom: string }[]>([]);
   const [subjectId, setSubjectId] = useState<number | null>(null);
@@ -433,9 +446,21 @@ export const ExamsManagementPage: React.FC = () => {
                 {(a.answers ?? []).filter((ans: any) => ans.type === 'descriptive').map((ans: any) => (
                   <div key={ans.answer_id} className="bg-slate-50 dark:bg-[#131C2E] rounded-lg p-2.5 space-y-1.5">
                     <p className="text-[11px] font-medium">{ans.body}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-wrap">
-                      {ans.text || '(بدون پاسخ)'}
-                    </p>
+                    {ans.text && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-wrap">{ans.text}</p>
+                    )}
+                    {ans.file ? (
+                      <button
+                        type="button"
+                        onClick={() => openAnswerFile(ans.file)}
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-[#2457C5] dark:text-[#8BAEFF] hover:underline cursor-pointer"
+                      >
+                        {isImage(ans.file.mime) ? <ImageIcon size={13} /> : <FileText size={13} />}
+                        مشاهده برگه پاسخ ({ans.file.original_name} — {formatSize(ans.file.size)})
+                      </button>
+                    ) : !ans.text ? (
+                      <p className="text-[11px] text-slate-400">(بدون پاسخ)</p>
+                    ) : null}
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -471,6 +496,27 @@ export const ExamsManagementPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Attachment lightbox: image inline / PDF in an iframe */}
+      {filePreview && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={() => setFilePreview(null)}>
+          <div className="bg-white dark:bg-[#131C2E] rounded-2xl max-w-4xl w-full max-h-[90vh] p-4 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]">{filePreview.name}</span>
+              <button type="button" onClick={() => setFilePreview(null)} className="text-slate-400 hover:text-rose-500 cursor-pointer" aria-label="بستن">
+                <X size={18} />
+              </button>
+            </div>
+            {filePreview.url ? (
+              isImage(filePreview.mime)
+                ? <img src={filePreview.url} alt={filePreview.name} className="max-h-[75vh] w-auto mx-auto rounded-xl" />
+                : <iframe src={filePreview.url} title={filePreview.name} className="w-full h-[75vh] rounded-xl bg-white" />
+            ) : (
+              <div className="flex justify-center py-14"><Loader2 size={26} className="animate-spin text-[#2457C5]" /></div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

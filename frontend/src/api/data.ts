@@ -185,13 +185,296 @@ export const ApiAssignmentService = {
     const result = await api<{ data: any[] }>('/v1/assignments');
     return result.data ?? [];
   },
+
+  /**
+   * Submissions of one assignment, already scoped server-side:
+   * a teacher gets his class rows, a student only his own (sh3/sh4).
+   */
+  async submissionsOf(assignmentUlid: string): Promise<AssignmentSubmission[]> {
+    const result = await api<{ data: any[] }>(`/v1/assignments/${assignmentUlid}/submissions`);
+    return (result.data ?? []).map((s) => ({
+      id: s.id,
+      studentUlid: s.student_ulid ?? null,
+      studentName: s.student_name ?? '—',
+      status: s.status,
+      submittedAt: s.submitted_at ?? null,
+      score: s.score ?? null,
+      feedback: s.feedback ?? null,
+      text: s.text ?? null,
+      fileCount: (s.files ?? []).length,
+    }));
+  },
 };
+
+export interface AssignmentSummary {
+  ulid: string;
+  title: string;
+  description: string | null;
+  dueAt: string | null;
+  maxScore: number;
+  subject: string | null;
+  classroom: string | null;
+  fileCount: number;
+}
+
+export interface AssignmentSubmission {
+  id: number;
+  studentUlid: string | null;
+  studentName: string;
+  status: 'submitted' | 'late' | 'graded';
+  submittedAt: string | null;
+  score: number | null;
+  feedback: string | null;
+  text: string | null;
+  fileCount: number;
+}
+
+export interface TimetableSlot {
+  id: number;
+  /** 0 = Saturday, following the backend's Iran-standard weekday index. */
+  weekday: number;
+  period: number;
+  startsAt: string;
+  endsAt: string;
+  classroom: string | null;
+  classroomUlid: string | null;
+  subject: string | null;
+  teacherUlid: string | null;
+}
+
+export interface ClassroomSummary {
+  ulid: string;
+  title: string;
+  gradeLevel: string | null;
+  academicYear: string | null;
+}
+
+export interface ExamSummary {
+  ulid: string;
+  title: string;
+  subject: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  durationMinutes: number | null;
+  status: string;
+}
+
+export interface AttendanceSessionSummary {
+  id: number;
+  heldOn: string;
+  period: number;
+  status: 'draft' | 'finalized' | 'corrected';
+  subject: string | null;
+  classroomSubjectId: number;
+}
+
+export interface GradeSummary {
+  id: number;
+  studentUlid: string | null;
+  studentName: string;
+  subject: string | null;
+  term: string | null;
+  status: string;
+  sourceType: string | null;
+  score: number | null;
+  maxScore: number | null;
+}
+
+export interface TeachingSubject {
+  id: number;
+  subject: string;
+  classroom: string;
+  teacher: string | null;
+}
+
+export interface RosterStudent {
+  studentUlid: string;
+  studentName: string;
+  avgOutOf20: number | null;
+  finalStatus: string | null;
+  finalScore: number | null;
+  finalMax: number | null;
+}
+
+export interface GradeRoster {
+  subject: string | null;
+  classroom: string | null;
+  teacher: string | null;
+  classAvgOutOf20: number | null;
+  rows: RosterStudent[];
+}
+
+/**
+ * Academic structure + learner-facing lists. These power the role dashboards,
+ * so every number shown there comes from the live backend.
+ */
+export const ApiAcademicService = {
+  async assignments(): Promise<AssignmentSummary[]> {
+    const result = await api<{ data: any[] }>('/v1/assignments');
+    return (result.data ?? []).map((a) => ({
+      ulid: a.ulid,
+      title: a.title,
+      description: a.description ?? null,
+      dueAt: a.due_at ?? null,
+      maxScore: a.max_score ?? 20,
+      subject: a.subject ?? null,
+      classroom: a.classroom ?? null,
+      fileCount: (a.files ?? []).length,
+    }));
+  },
+
+  async timetable(): Promise<TimetableSlot[]> {
+    const result = await api<{ data: any[] }>('/v1/timetable');
+    return (result.data ?? []).map((s) => ({
+      id: s.id,
+      weekday: s.weekday,
+      period: s.period,
+      startsAt: s.starts_at ?? '',
+      endsAt: s.ends_at ?? '',
+      classroom: s.classroom ?? null,
+      classroomUlid: s.classroom_ulid ?? null,
+      subject: s.subject ?? null,
+      teacherUlid: s.teacher_ulid ?? null,
+    }));
+  },
+
+  async classrooms(): Promise<ClassroomSummary[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/classrooms');
+    return (result.data ?? []).map((c) => ({
+      ulid: c.ulid,
+      title: c.title,
+      gradeLevel: c.grade_level?.title ?? null,
+      academicYear: c.academic_year?.title ?? null,
+    }));
+  },
+
+  async exams(): Promise<ExamSummary[]> {
+    const result = await api<{ data: any[] }>('/v1/exams');
+    return (result.data ?? []).map((e) => ({
+      ulid: e.ulid,
+      title: e.title,
+      subject: e.subject ?? null,
+      opensAt: e.opens_at ?? null,
+      closesAt: e.closes_at ?? null,
+      durationMinutes: e.duration_minutes ?? null,
+      status: e.status,
+    }));
+  },
+
+  async attendanceSessions(): Promise<AttendanceSessionSummary[]> {
+    const result = await api<{ data: any[] }>('/v1/attendance/sessions');
+    return (result.data ?? []).map((s) => ({
+      id: s.id,
+      heldOn: s.held_on,
+      period: s.period,
+      status: s.status,
+      subject: s.subject ?? null,
+      classroomSubjectId: s.classroom_subject_id,
+    }));
+  },
+
+  async grades(): Promise<GradeSummary[]> {
+    const result = await api<{ data: any[] }>('/v1/grades');
+    return (result.data ?? []).map((g) => ({
+      id: g.id,
+      studentUlid: g.student_ulid ?? null,
+      studentName: g.student_name ?? '—',
+      subject: g.subject ?? null,
+      term: g.term ?? null,
+      status: g.status,
+      sourceType: g.source_type ?? null,
+      score: g.score ?? null,
+      maxScore: g.max_score ?? null,
+    }));
+  },
+
+  /** Students visible to the active role (sh2/sh3/sh4 scoping is server-side). */
+  async studentsInScope(): Promise<{ ulid: string; fullName: string }[]> {
+    const result = await api<{ data: any[] }>('/v1/students?per_page=100');
+    return (result.data ?? []).map((s) => ({
+      ulid: s.ulid,
+      fullName: `${s.first_name} ${s.last_name}`.trim(),
+    }));
+  },
+
+  /** Lesson-classes the active teacher is responsible for (ش۲). */
+  async mySubjects(): Promise<TeachingSubject[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/my-subjects');
+    return (result.data ?? []).map((s) => ({
+      id: s.id,
+      subject: s.subject,
+      classroom: s.classroom,
+      teacher: s.teacher ?? null,
+    }));
+  },
+
+  async terms(): Promise<{ id: number; title: string }[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/terms');
+    return (result.data ?? []).map((t) => ({ id: t.id, title: t.title }));
+  },
+
+  /** Grade book of one lesson-class: the roster the teacher enters scores for. */
+  async roster(classroomSubjectId: number, termId: number | null): Promise<GradeRoster> {
+    const query = `classroom_subject_id=${classroomSubjectId}${termId ? `&term_id=${termId}` : ''}`;
+    const result = await api<any>(`/v1/grades/roster?${query}`);
+    return {
+      subject: result.subject ?? null,
+      classroom: result.classroom ?? null,
+      teacher: result.teacher ?? null,
+      classAvgOutOf20: result.class_avg_out_of_20 ?? null,
+      rows: (result.data ?? []).map((r: any) => ({
+        studentUlid: r.student_ulid,
+        studentName: r.student_name,
+        avgOutOf20: r.avg_out_of_20 ?? null,
+        finalStatus: r.final_in_person?.status ?? null,
+        finalScore: r.final_in_person?.score ?? null,
+        finalMax: r.final_in_person?.max_score ?? null,
+      })),
+    };
+  },
+};
+
+export interface ReportCardLineRow {
+  subject: string | null;
+  score: number | null;
+  maxScore: number | null;
+  sourceType: string | null;
+  teacherComment: string | null;
+}
+
+export interface ReportCardRow {
+  ulid: string;
+  studentUlid: string | null;
+  studentName: string;
+  term: string | null;
+  kind: 'in_person' | 'online' | string;
+  version: number;
+  status: string;
+  publishedAt: string | null;
+  lines: ReportCardLineRow[];
+}
 
 /** Published report cards (guardian/student see only published versions). */
 export const ApiReportCardService = {
-  async list(): Promise<Record<string, unknown>[]> {
+  async list(): Promise<ReportCardRow[]> {
     const result = await api<{ data: any[] }>('/v1/report-cards');
-    return result.data ?? [];
+    return (result.data ?? []).map((c) => ({
+      ulid: c.ulid,
+      studentUlid: c.student_ulid ?? null,
+      studentName: c.student_name ?? '—',
+      term: c.term ?? null,
+      kind: c.kind ?? 'in_person',
+      version: c.version ?? 1,
+      status: c.status ?? 'published',
+      publishedAt: c.published_at ?? null,
+      lines: (c.lines ?? []).map((l: any) => ({
+        subject: l.subject ?? null,
+        score: l.score ?? null,
+        maxScore: l.max_score ?? null,
+        sourceType: l.source_type ?? null,
+        teacherComment: l.teacher_comment ?? null,
+      })),
+    }));
   },
 };
 

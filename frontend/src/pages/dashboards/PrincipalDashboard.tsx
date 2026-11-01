@@ -1,18 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, School, ShieldAlert, Award, FileText, CheckCircle2,
-  AlertTriangle, Clock, ArrowRight, Plus, Megaphone, ShieldCheck
+  AlertTriangle, Clock, ArrowRight, Plus, Megaphone, ShieldCheck,
+  ClipboardList, Inbox, Video
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Card, Button, Badge, PageHeader } from '../../components/common';
 import { toPersianDigits } from '../../utils/persian';
 import { AuditService, FamilyService } from '../../services';
+import { AdmissionsApi, PreRegistrationStats } from '../../api/admissions';
 
 export const PrincipalDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const auditLogs = AuditService.getAll();
   const legalRestrictions = FamilyService.getRestrictions();
+
+  // Landing-page pre-registration pipeline (پیش‌ثبت‌نام → دفتر مدیر)
+  const [prStats, setPrStats] = useState<PreRegistrationStats | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    AdmissionsApi.list()
+      .then((res) => { if (!cancelled) setPrStats(res.stats); })
+      .catch(() => { /* the admissions page shows its own error state */ });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -56,7 +68,34 @@ export const PrincipalDashboard: React.FC = () => {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Card className="text-right">
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">پیش‌ثبت‌نام‌های جدید لندینگ</span>
+          <div className="flex items-baseline justify-between mt-2">
+            <span className="text-2xl font-black text-amber-600 dark:text-amber-400 tabular-nums">
+              {toPersianDigits(prStats?.new ?? 0)}
+            </span>
+            <Badge variant="warning">پذیرش</Badge>
+          </div>
+          <Link to="/pre-registrations" className="text-[11px] text-[#2457C5] dark:text-[#8BAEFF] font-bold hover:underline inline-flex items-center gap-1 mt-2">
+            بررسی درخواست‌ها
+            <ArrowRight size={12} className="rotate-180" />
+          </Link>
+        </Card>
+
+        <Card className="text-right">
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">ثبت‌شده امروز</span>
+          <div className="flex items-baseline justify-between mt-2">
+            <span className="text-2xl font-black text-[#2457C5] dark:text-[#8BAEFF] tabular-nums">
+              {toPersianDigits(prStats?.today ?? 0)}
+            </span>
+            <Inbox size={17} className="text-blue-200 dark:text-blue-900" />
+          </div>
+          <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2] mt-2 block">
+            از فرم وب‌سایت مدرسه
+          </span>
+        </Card>
+
         <Card className="text-right">
           <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">کل دانش‌آموزان ثبت‌نامی</span>
           <div className="flex items-baseline justify-between mt-2">
@@ -156,6 +195,26 @@ export const PrincipalDashboard: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Users size={16} className="text-[#2457C5] dark:text-[#8BAEFF]" />
                     <span className="font-semibold text-[#202B3C] dark:text-[#F1F5FB]">مدیریت کاربران و انتساب نقش‌ها</span>
+                  </div>
+                  <ArrowRight size={14} className="rotate-180 text-slate-400" />
+                </div>
+              </Link>
+
+              <Link to="/online-classes" className="block">
+                <div className="p-3 rounded-xl border border-[#DCE3EE] dark:border-[#344257] hover:bg-[#F0F4FA] dark:hover:bg-[#222F42] transition-colors flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video size={16} className="text-[#2457C5] dark:text-[#8BAEFF]" />
+                    <span className="font-semibold text-[#202B3C] dark:text-[#F1F5FB]">کلاس‌های آنلاین مدرسه (اسکای‌روم)</span>
+                  </div>
+                  <ArrowRight size={14} className="rotate-180 text-slate-400" />
+                </div>
+              </Link>
+
+              <Link to="/pre-registrations" className="block">
+                <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList size={16} className="text-amber-600 dark:text-amber-400" />
+                    <span className="font-semibold text-[#202B3C] dark:text-[#F1F5FB]">پیش‌ثبت‌نام‌های پذیرش لندینگ</span>
                   </div>
                   <ArrowRight size={14} className="rotate-180 text-slate-400" />
                 </div>

@@ -12,7 +12,7 @@ import { Announcement } from '../types';
 
 export const AnnouncementsPage: React.FC = () => {
   const { currentUser, hasAccess } = useAuth();
-  const canPublish = hasAccess('announcements:create');
+  const canPublish = hasAccess('announcements:publish');
 
   const [mockAnnouncements] = useState<Announcement[]>(() =>
     AnnouncementService.getAll()

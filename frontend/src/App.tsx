@@ -16,6 +16,7 @@ import { ExamsManagementPage } from './pages/ExamsManagementPage';
 import { StudentExamsPage } from './pages/StudentExamsPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
 import { ReportCardPage } from './pages/ReportCardPage';
+import { GradeEntryPage } from './pages/GradeEntryPage';
 import { SmartPerformanceAnalysisPage } from './pages/SmartPerformanceAnalysisPage';
 import { CounselingPage } from './pages/CounselingPage';
 import { PtaPage } from './pages/PtaPage';
@@ -27,6 +28,7 @@ import { UserManagementPage } from './pages/UserManagementPage';
 import { RolesPermissionsPage } from './pages/RolesPermissionsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { SpecialRolesPage } from './pages/SpecialRolesPage';
+import { PreRegistrationsPage } from './pages/PreRegistrationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CreateSchoolPage } from './pages/CreateSchoolPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -105,6 +107,14 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <ReportCardPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/grade-entry"
+              element={
+                <DashboardLayout>
+                  <GradeEntryPage />
                 </DashboardLayout>
               }
             />
@@ -201,6 +211,14 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <SpecialRolesPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/pre-registrations"
+              element={
+                <DashboardLayout>
+                  <PreRegistrationsPage />
                 </DashboardLayout>
               }
             />

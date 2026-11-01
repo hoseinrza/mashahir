@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, CheckSquare, FileText, Award,
   Sparkles, HeartHandshake, Users, Megaphone, ShieldCheck,
-  UserCog, Settings, Menu, X,
+  UserCog, Settings, Menu, X, ClipboardList,
   Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -53,23 +53,27 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   // Sections a role cannot touch are REMOVED from navigation — no dead
   // links, no access-error pages. Phase-2 pages without a backend module
   // map to null (hidden until the module ships).
-  const NAV_PERMISSIONS: Record<string, string | null> = {
+  const NAV_PERMISSIONS: Record<string, string | string[] | null> = {
     '/announcements': 'announcements:view',
     '/attendance': 'attendance:view',
     '/assignments': 'assignments:view',
     '/exams': 'exams:results_view',
     '/essay-grading': 'exams:grade_descriptive',
     '/report-card': 'reportcards:view',
+    '/grade-entry': 'grades:record',
     '/consent-forms': 'consents:view_results',
     '/user-management': 'users:view',
     '/roles-permissions': 'roles:manage',
     '/audit-logs': 'audit:view',
     '/family-management': 'guardian_links:view',
+    '/pre-registrations': 'preregistrations:view',
     '/settings': 'schools:settings',
     '/create-school': 'schools:manage',
     '/special-roles': 'roles:manage',
-    '/online-classes': null,
-    '/performance-analytics': null,
+    '/online-classes': 'online_classes:view',
+    // Shipped from live grade data; every viewer of the report also holds one
+    // of these codes (learners get reportcards.view, staff get grades.*).
+    '/performance-analytics': ['grades:view', 'grades:record', 'reportcards:view'],
     '/counseling': null,
     '/pta': null,
   };
@@ -78,7 +82,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     if (!show) return false;
     if (!(href in NAV_PERMISSIONS)) return true;
     const perm = NAV_PERMISSIONS[href];
-    return perm !== null && hasAccess(perm);
+    if (perm === null) return false;
+    return (Array.isArray(perm) ? perm : [perm]).some((code) => hasAccess(code));
   };
 
   // Mandatory login + guest panel: no anonymous dashboards, and a role-less
@@ -121,11 +126,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       title: 'آموزش و یادگیری',
       items: [
         {
-          label: isFamily ? 'کلاس‌های آنلاین فرزند' : isStudent ? 'کلاس‌های آنلاین من' : isTeacher ? 'کلاس‌های آنلاین و جلسات' : 'کلاس‌های آنلاین مدرسه',
+          label: isStudent ? 'کلاس‌های آنلاین من' : isTeacher ? 'کلاس‌های آنلاین و جلسات' : 'کلاس‌های آنلاین مدرسه',
           href: '/online-classes',
           icon: <Video size={17} />,
-          show: !isBusDriver && (hasAccess('online_class:view') || isFamily || isStudent || isTeacher || isAdmin),
-          badge: isTeacher ? 'زنده' : undefined,
+          show: !isBusDriver && hasAccess('online_classes:view'),
+          badge: isTeacher ? 'زنده' : hasAccess('online_classes:manage') ? 'مدیریت' : undefined,
         },
         {
           label: isFamily ? 'حضور و غیاب فرزند' : isStudent ? 'حضور و غیاب من' : isTeacher ? 'حضور و غیاب کلاس‌ها' : 'حضور و غیاب مدرسه',
@@ -137,32 +142,40 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           label: isFamily ? 'تکالیف درسی فرزند' : isStudent ? 'تکالیف و ارسال پاسخ' : isTeacher ? 'تکالیف و تصحیح' : 'تکالیف درسی کلاسی',
           href: '/assignments',
           icon: <BookOpen size={17} />,
-          show: !isBusDriver && (hasAccess('assignment:create') || hasAccess('assignment:submit') || isFamily || isTeacher || isAdmin),
+          show: !isBusDriver && (hasAccess('assignments:view') || hasAccess('submissions:submit')),
         },
         {
           label: isStudent ? 'آزمون‌های آنلاین من' : isTeacher ? 'آزمون‌های من / طراحی آزمون' : 'بانک و آزمون‌های آنلاین',
           href: '/exams',
           icon: <FileText size={17} />,
-          show: !isBusDriver && !isFamily && (hasAccess('exam:create') || hasAccess('exam:take') || isTeacher || isAdmin),
+          show: !isBusDriver && (hasAccess('exams:results_view') || hasAccess('exams:take') || hasAccess('exams:manage')),
         },
         {
           label: 'تصحیح آزمون تشریحی',
           href: '/essay-grading',
           icon: <CheckSquare size={17} />,
-          show: !isBusDriver && !isFamily && !isStudent && (hasAccess('exam:grade_essay') || activeRole.id === 'teacher' || activeRole.id === 'essay_grader' || isAdmin),
+          show: !isBusDriver && hasAccess('exams:grade_descriptive'),
           badge: 'مصحح',
         },
         {
-          label: isFamily ? 'کارنامه تحصیلی فرزند' : isStudent ? 'کارنامه تحصیلی من' : isTeacher ? 'کارنامه دروس من' : 'کارنامه‌های تحصیلی',
+          // A teacher's grade book is دفتر نمره (/grade-entry); the report-card
+          // page is the learner/family view of published cards.
+          label: isFamily ? 'کارنامه تحصیلی فرزند' : isStudent ? 'کارنامه تحصیلی من' : 'کارنامه‌های تحصیلی',
           href: '/report-card',
           icon: <Award size={17} />,
-          show: !isBusDriver && (hasAccess('grades:view_own') || hasAccess('grades:manage') || isTeacher || isFamily || isStudent),
+          show: !isBusDriver && !isTeacher && (hasAccess('reportcards:view') || isFamily || isStudent),
+        },
+        {
+          label: 'ثبت نمرات کلاس',
+          href: '/grade-entry',
+          icon: <CheckCircle2 size={17} />,
+          show: !isBusDriver && !isFamily && !isStudent && (isTeacher || hasAccess('grades:record')),
         },
         {
           label: isTeacher ? 'تحلیل پیشرفت دانش‌آموزان' : isFamily ? 'تحلیل تحصیلی فرزند' : 'تحلیل هوشمند عملکرد',
           href: '/performance-analytics',
           icon: <Sparkles size={17} />,
-          show: !isBusDriver && activeRole.id !== 'security_guard' && (hasAccess('grades:view_own') || isAdmin || isFaculty),
+          show: !isBusDriver && activeRole.id !== 'security_guard' && (hasAccess('grades:view') || hasAccess('reportcards:view') || isAdmin || isFaculty),
         },
       ],
     },
@@ -206,6 +219,13 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           icon: <ShieldAlert size={17} />,
           show: !isBusDriver && !isStudent && !isFamily && (isAdmin || activeRole.id === 'school_registrar'),
           badge: 'ویژه حقوقی',
+        },
+        {
+          label: 'پیش‌ثبت‌نام‌های پذیرش',
+          href: '/pre-registrations',
+          icon: <ClipboardList size={17} />,
+          show: !isBusDriver && (isAdmin || hasAccess('preregistrations:view')),
+          badge: 'پذیرش',
         },
         {
           label: 'تأسیس واحد آموزشی (ویزارد)',
