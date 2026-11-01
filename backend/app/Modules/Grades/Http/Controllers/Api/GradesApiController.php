@@ -7,7 +7,9 @@ use App\Modules\Academic\Models\AcademicYear;
 use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Grades\Models\GradeItem;
 use App\Modules\Grades\Models\ReportCard;
+use App\Modules\Grades\Models\ReportCardLine;
 use App\Modules\Grades\Services\GradeService;
+use App\Modules\Grades\Services\ReportCardSheetService;
 use App\Modules\People\Models\Student;
 use App\Modules\People\Services\GuardianAccessService;
 use App\Support\Rbac\PermissionRegistrar;
@@ -22,6 +24,7 @@ class GradesApiController extends Controller
         private readonly GradeService $service,
         private readonly ScopeResolver $resolver,
         private readonly GuardianAccessService $access,
+        private readonly ReportCardSheetService $sheets,
     ) {
     }
 
@@ -291,37 +294,10 @@ class GradesApiController extends Controller
     {
         $this->authorize('reportcards.view');
 
-        $roleKey = app(PermissionRegistrar::class)->activeRole()?->role->key;
-        $registrar = app(PermissionRegistrar::class);
-
-        $query = ReportCard::query()->with(['student', 'term', 'lines.subject'])->orderByDesc('id');
-
-        if (in_array($roleKey, ['guardian', 'student'], true)) {
-            // sh3/sh4 + FR-25: only published versions.
-            $ids = $this->resolver->studentIds() ?? [];
-            $query->whereIn('student_id', $ids ?: [0])->where('status', ReportCard::STATUS_PUBLISHED);
-
-            if ($roleKey === 'guardian') {
-                $visible = collect($ids)->filter(
-                    fn ($sid) => $this->access->may($request->user()->id, $sid, 'can_view_grades'),
-                );
-                $query->whereIn('student_id', $visible ?: [0]);
-            }
-        } elseif (! $registrar->allows('reportcards.view_draft')) {
-            $query->where('status', ReportCard::STATUS_PUBLISHED);
-        }
-
-        $cards = $query->limit(100)->get();
-
-        // Cards published before the ceiling was frozen into the line payload
-        // still have to render as a real score out of 20 — read it from the
-        // source grade item instead of showing a raw out-of-100 number.
-        $ceilings = GradeItem::query()
-            ->with('classroomSubject')
-            ->whereIn('student_id', $cards->pluck('student_id')->unique()->all() ?: [0])
-            ->whereIn('term_id', $cards->pluck('term_id')->unique()->all() ?: [0])
-            ->get()
-            ->keyBy(fn (GradeItem $i) => $i->student_id.':'.$i->term_id.':'.($i->classroomSubject?->subject_id ?? 0));
+        // sh3/sh4 + FR-25: the printed sheet and this list share one scope, so
+        // the paper can never be wider than the screen.
+        $cards = $this->sheets->visibleQuery($request)->limit(100)->get();
+        $ceilings = $this->sheets->ceilingMap($cards);
 
         return response()->json([
             'data' => $cards->map(fn (ReportCard $c) => [
@@ -333,32 +309,8 @@ class GradesApiController extends Controller
                 'version' => $c->version,
                 'status' => $c->status,
                 'published_at' => $c->published_at?->toIso8601String(),
-                'lines' => $c->lines->map(fn ($l) => [
-                    'subject' => $l->subject?->title,
-                    'score' => $l->score,
-                    'max_score' => $l->data['max_score'] ?? $ceilings->get($c->student_id.':'.$c->term_id.':'.$l->subject_id)?->max_score,
-                    'source_type' => $l->data['source_type']
-                        ?? $ceilings->get($c->student_id.':'.$c->term_id.':'.$l->subject_id)?->source_type,
-                    'teacher_comment' => $l->teacher_comment,
-                ]),
+                'lines' => $c->lines->map(fn (ReportCardLine $l) => $this->sheets->lineData($c, $l, $ceilings)),
             ]),
         ]);
-    }
-
-    /**
-     * FR-26: PDF of a PUBLISHED report card only. Minimal HTML print view.
-     */
-    public function exportPdf(Request $request, ReportCard $card): \Illuminate\Http\Response
-    {
-        $this->authorize('reportcards.export_pdf');
-
-        $roleKey = app(PermissionRegistrar::class)->activeRole()?->role->key;
-        if (in_array($roleKey, ['guardian', 'student'], true) && $card->status !== ReportCard::STATUS_PUBLISHED) {
-            abort(404);
-        }
-
-        $html = view('grades.report-card', ['card' => $card->load(['student', 'term', 'lines.subject'])])->render();
-
-        return response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
     }
 }
