@@ -3,8 +3,8 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, CheckSquare, FileText, Award,
   Sparkles, HeartHandshake, Users, Megaphone, ShieldCheck,
-  UserCog, Settings, Menu, X, ClipboardList,
-  Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2
+  UserCog, Settings, Menu, X, ClipboardList, Send,
+  Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2, Printer
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestPanelPage } from '../pages/GuestPanelPage';
@@ -71,6 +71,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     '/create-school': 'schools:manage',
     '/special-roles': 'roles:manage',
     '/online-classes': 'online_classes:view',
+    // Monthly report-card cycle: the principal opens periods, the teacher
+    // fills and submits his own. Each page also gates itself.
+    '/report-cycle-admin': ['report_periods:manage', 'report_periods:review', 'report_periods:finalize'],
+    '/report-card-print': 'reportcards:export_pdf',
+    '/my-report-cycle': ['report_periods:record', 'report_periods:view'],
     // Shipped from live grade data; every viewer of the report also holds one
     // of these codes (learners get reportcards.view, staff get grades.*).
     '/performance-analytics': ['grades:view', 'grades:record', 'reportcards:view'],
@@ -170,6 +175,25 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           href: '/grade-entry',
           icon: <CheckCircle2 size={17} />,
           show: !isBusDriver && !isFamily && !isStudent && (isTeacher || hasAccess('grades:record')),
+        },
+        {
+          label: isTeacher ? 'کارنامه ماهانه من' : 'ثبت کارنامه معلمان',
+          href: '/my-report-cycle',
+          icon: <Send size={17} />,
+          show: !isBusDriver && !isFamily && !isStudent && (hasAccess('report_periods:record') || hasAccess('report_periods:view')),
+        },
+        {
+          label: 'دوره کارنامه ماهانه',
+          href: '/report-cycle-admin',
+          icon: <ClipboardList size={17} />,
+          show: isAdmin,
+          badge: isAdmin ? 'مدیریت' : undefined,
+        },
+        {
+          label: 'چاپ گروهی کارنامه',
+          href: '/report-card-print',
+          icon: <Printer size={17} />,
+          show: hasAccess('reportcards:export_pdf'),
         },
         {
           label: isTeacher ? 'تحلیل پیشرفت دانش‌آموزان' : isFamily ? 'تحلیل تحصیلی فرزند' : 'تحلیل هوشمند عملکرد',

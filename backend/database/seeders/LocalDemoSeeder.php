@@ -218,7 +218,7 @@ class LocalDemoSeeder extends Seeder
             ['classroom_id' => $classroom->id, 'subject_id' => $math->id],
             ['school_id' => $school->id, 'teacher_id' => $teacher->id],
         );
-        \App\Modules\Academic\Models\ClassroomSubject::query()->firstOrCreate(
+        $physicsCs = \App\Modules\Academic\Models\ClassroomSubject::query()->firstOrCreate(
             ['classroom_id' => $classroom->id, 'subject_id' => $physics->id],
             ['school_id' => $school->id, 'teacher_id' => $admin->id],
         );
@@ -490,6 +490,11 @@ class LocalDemoSeeder extends Seeder
                 ->publishReportCard($students[1]->id, $term->id, \App\Modules\Grades\Models\ReportCard::KIND_IN_PERSON, $admin->id);
         }
 
+        $this->seedOnlineReportCard($students[1], $term, $admin, [
+            [$mathCs, 'assignment', 17, 20, 'در تکالیف آنلاین منظم و دقیق است.'],
+            [$physicsCs, 'exam', 82, 100, 'در آزمون فصل ۲ به مرور مبحث نیرو نیاز دارد.'],
+        ]);
+
         \App\Modules\OnlineClasses\Models\OnlineClass::query()->firstOrCreate(
             ['title' => 'کلاس آنلاین ریاضی — فصل ۲', 'classroom_subject_id' => $mathCs->id],
             [
@@ -500,6 +505,193 @@ class LocalDemoSeeder extends Seeder
                 'created_by' => $teacher->id,
             ],
         );
+
+        $this->seedReportCycle($school, $students, $teacher, $admin, $mathCs, $year);
+    }
+
+    /**
+     * Monthly report-card cycle: the current month sits open with a few saved
+     * cards (so the teacher can finish and submit), and the month before it is
+     * archived (so the principal's archive view has real history).
+     */
+    /**
+     * کارنامهٔ «سنجش آنلاین و مستمر» — دومین کارنامهٔ منتشرشدهٔ همان دانش‌آموز،
+     * تا نمای کارنامهٔ دانش‌آموز چند درس و هر دو نوع ارزشیابی را داشته باشد.
+     *
+     * @param array<int, array{0: \App\Modules\Academic\Models\ClassroomSubject, 1: string, 2: float, 3: float, 4: string}> $lines
+     */
+    private function seedOnlineReportCard($student, $term, $admin, array $lines): void
+    {
+        foreach ($lines as [$cs, $source, $score, $max, $comment]) {
+            \App\Modules\Grades\Models\GradeItem::query()->firstOrCreate(
+                [
+                    'student_id' => $student->id, 'classroom_subject_id' => $cs->id,
+                    'term_id' => $term->id, 'source_type' => $source, 'delivery' => 'online',
+                ],
+                [
+                    'school_id' => $cs->school_id, 'status' => 'approved',
+                    'score' => $score, 'max_score' => $max,
+                    'recorded_by' => $admin->id, 'approved_by' => $admin->id,
+                ],
+            );
+        }
+
+        $card = \App\Modules\Grades\Models\ReportCard::query()
+            ->where('student_id', $student->id)->where('term_id', $term->id)
+            ->where('kind', \App\Modules\Grades\Models\ReportCard::KIND_ONLINE)
+            ->where('status', \App\Modules\Grades\Models\ReportCard::STATUS_PUBLISHED)
+            ->first();
+
+        if ($card === null) {
+            app(\App\Modules\Grades\Services\GradeService::class)->publishReportCard(
+                $student->id, $term->id, \App\Modules\Grades\Models\ReportCard::KIND_ONLINE, $admin->id,
+            );
+            $card = \App\Modules\Grades\Models\ReportCard::query()
+                ->where('student_id', $student->id)->where('term_id', $term->id)
+                ->where('kind', \App\Modules\Grades\Models\ReportCard::KIND_ONLINE)
+                ->where('status', \App\Modules\Grades\Models\ReportCard::STATUS_PUBLISHED)
+                ->first();
+        }
+
+        $remarks = [];
+        foreach ($lines as [$cs, , , , $comment]) {
+            $remarks[$cs->subject_id] = $comment;
+        }
+        foreach ($card?->lines ?? [] as $line) {
+            $remark = $remarks[$line->subject_id] ?? null;
+            if ($remark !== null && $line->teacher_comment !== $remark) {
+                $line->forceFill(['teacher_comment' => $remark])->save();
+            }
+        }
+    }
+
+    private function seedReportCycle($school, $students, $teacher, $admin, $mathCs, $year): void
+    {
+        $titles = \App\Modules\Grades\Http\Controllers\Api\ReportCycleApiController::JALALI_MONTHS;
+        $month = $this->currentJalaliMonth();
+
+        // ── the open month ──
+        $period = \App\Modules\Grades\Models\ReportPeriod::query()->firstOrCreate(
+            ['school_id' => $school->id, 'academic_year_id' => $year->id, 'month' => $month],
+            [
+                'title' => 'کارنامه '.($titles[$month] ?? $month),
+                'status' => \App\Modules\Grades\Models\ReportPeriod::STATUS_OPEN,
+                'due_at' => now()->addDays(5),
+                'opened_by' => $admin->id,
+                'opened_at' => now(),
+            ],
+        );
+
+        $open = \App\Modules\Grades\Models\TeacherReportSubmission::query()->firstOrCreate(
+            ['report_period_id' => $period->id, 'teacher_id' => $teacher->id],
+            ['school_id' => $school->id, 'status' => \App\Modules\Grades\Models\TeacherReportSubmission::STATUS_OPEN],
+        );
+
+        // Two cards already filled, the rest still blank — the panel opens mid-work.
+        foreach ([[$students[1], 18, 'خیلی‌خوب'], [$students[2], 15, 'قابل قبول']] as [$student, $score, $verdict]) {
+            \App\Modules\Grades\Models\StudentReportEntry::query()->firstOrCreate(
+                [
+                    'teacher_report_submission_id' => $open->id,
+                    'student_id' => $student->id,
+                    'classroom_subject_id' => $mathCs->id,
+                ],
+                [
+                    'school_id' => $school->id,
+                    'score' => $score,
+                    'max_score' => 20,
+                    'evaluation' => $verdict,
+                    'notes' => 'نظم در ارائه تکالیف قابل تقدیر است.',
+                ],
+            );
+        }
+
+        $this->cycleTrail($school, $period, null, 'report_period.created', $admin->id);
+        $this->cycleTrail($school, $period, null, 'report_period.opened', $admin->id);
+        $this->cycleTrail($school, $period, $open, 'report_entries.saved', $teacher->id);
+
+        // ── the archived month before it ──
+        $pastMonth = $month === 1 ? 12 : $month - 1;
+
+        $past = \App\Modules\Grades\Models\ReportPeriod::query()->firstOrCreate(
+            ['school_id' => $school->id, 'academic_year_id' => $year->id, 'month' => $pastMonth],
+            [
+                'title' => 'کارنامه '.($titles[$pastMonth] ?? $pastMonth),
+                'status' => \App\Modules\Grades\Models\ReportPeriod::STATUS_OPEN,
+                'opened_by' => $admin->id,
+                'opened_at' => now()->subDays(35),
+            ],
+        );
+
+        $archived = \App\Modules\Grades\Models\TeacherReportSubmission::query()->firstOrCreate(
+            ['report_period_id' => $past->id, 'teacher_id' => $teacher->id],
+            [
+                'school_id' => $school->id,
+                'status' => \App\Modules\Grades\Models\TeacherReportSubmission::STATUS_OPEN,
+                'submitted_at' => now()->subDays(29),
+                'reviewed_at' => now()->subDays(28),
+                'approved_at' => now()->subDays(28),
+                'finalized_at' => now()->subDays(27),
+                'archived_at' => now()->subDays(27),
+            ],
+        );
+
+        // Written while the submission is still open — the DB guard refuses a
+        // change once it rests in archived, exactly like the real cycle.
+        foreach ($students as $i => $student) {
+            \App\Modules\Grades\Models\StudentReportEntry::query()->firstOrCreate(
+                [
+                    'teacher_report_submission_id' => $archived->id,
+                    'student_id' => $student->id,
+                    'classroom_subject_id' => $mathCs->id,
+                ],
+                [
+                    'school_id' => $school->id,
+                    'score' => 17 - $i,
+                    'max_score' => 20,
+                    'evaluation' => 'خوب',
+                    'notes' => 'مشارکت در بحث‌های کلاسی خوب بود.',
+                ],
+            );
+        }
+
+        $archived->forceFill(['status' => \App\Modules\Grades\Models\TeacherReportSubmission::STATUS_ARCHIVED])->save();
+
+        $this->cycleTrail($school, $past, null, 'report_period.created', $admin->id);
+        $this->cycleTrail($school, $past, null, 'report_period.opened', $admin->id);
+        $this->cycleTrail($school, $past, $archived, 'report_submission.submitted', $teacher->id);
+        $this->cycleTrail($school, $past, $archived, 'report_submission.approved', $admin->id);
+        $this->cycleTrail($school, $past, $archived, 'report_submission.finalized', $admin->id);
+        $this->cycleTrail($school, $past, $archived, 'report_submission.archived', $admin->id);
+    }
+
+    private function cycleTrail($school, $period, $submission, string $action, int $actorId): void
+    {
+        $exists = \App\Modules\Grades\Models\ReportActivityLog::query()
+            ->where('report_period_id', $period->id)
+            ->where('action', $action)
+            ->where('teacher_report_submission_id', $submission?->id)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        \App\Modules\Grades\Models\ReportActivityLog::query()->create([
+            'school_id' => $school->id,
+            'report_period_id' => $period->id,
+            'teacher_report_submission_id' => $submission?->id,
+            'actor_id' => $actorId,
+            'action' => $action,
+            'created_at' => now(),
+        ]);
+    }
+
+    /** شماره ماه شمسی امروز (۱..۱۲) — دوره کارنامه بر پایه تقویم مدرسه باز می‌شود. */
+    private function currentJalaliMonth(): int
+    {
+        $calendar = \IntlCalendar::createInstance('Asia/Tehran', 'en_US@calendar=persian');
+
+        return $calendar->get(\IntlCalendar::FIELD_MONTH) + 1;
     }
 
     /** Store real bytes through the file manager — same validation as the UI. */

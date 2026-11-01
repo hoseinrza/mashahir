@@ -18,6 +18,9 @@ import { EssayGradingPage } from './pages/EssayGradingPage';
 import { ReportCardPage } from './pages/ReportCardPage';
 import { GradeEntryPage } from './pages/GradeEntryPage';
 import { SmartPerformanceAnalysisPage } from './pages/SmartPerformanceAnalysisPage';
+import { ReportCycleAdminPage } from './pages/ReportCycleAdminPage';
+import { ReportCardPrintPage } from './pages/ReportCardPrintPage';
+import { MyReportCyclePage } from './pages/MyReportCyclePage';
 import { CounselingPage } from './pages/CounselingPage';
 import { PtaPage } from './pages/PtaPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
@@ -123,6 +126,30 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <SmartPerformanceAnalysisPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/report-cycle-admin"
+              element={
+                <DashboardLayout>
+                  <ReportCycleAdminPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/report-card-print"
+              element={
+                <DashboardLayout>
+                  <ReportCardPrintPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/my-report-cycle"
+              element={
+                <DashboardLayout>
+                  <MyReportCyclePage />
                 </DashboardLayout>
               }
             />

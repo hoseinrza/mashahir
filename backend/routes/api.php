@@ -10,6 +10,8 @@ use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
 use App\Modules\Files\Http\Controllers\Api\FilesApiController;
 use App\Modules\Family\Http\Controllers\Api\ConsentsApiController;
 use App\Modules\Grades\Http\Controllers\Api\GradesApiController;
+use App\Modules\Grades\Http\Controllers\Api\ReportCardPrintController;
+use App\Modules\Grades\Http\Controllers\Api\ReportCycleApiController;
 use App\Modules\Identity\Http\Controllers\Api\AuthController;
 use App\Modules\OnlineClasses\Http\Controllers\Api\OnlineClassesApiController;
 use App\Modules\Identity\Http\Controllers\Api\RolesApiController;
@@ -150,7 +152,28 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/grades/{item}/change', [GradesApiController::class, 'changePublished']);
     Route::post('/report-cards/publish', [GradesApiController::class, 'publishReportCard']);
     Route::get('/report-cards', [GradesApiController::class, 'reportCards']);
-    Route::get('/report-cards/{card}/export', [GradesApiController::class, 'exportPdf']);
+    // Literal segment first: /report-cards/print must never bind as a card ulid.
+    Route::get('/report-cards/print', [ReportCardPrintController::class, 'bundle']);
+    Route::get('/report-cards/{card}/export', [ReportCardPrintController::class, 'single']);
+
+    // Monthly report-card cycle — principal's orders
+    Route::get('/report-periods', [ReportCycleApiController::class, 'index']);
+    Route::post('/report-periods', [ReportCycleApiController::class, 'store']);
+    Route::post('/report-periods/{period}/open', [ReportCycleApiController::class, 'open']);
+    // Before the {period} binding, otherwise "teachers" resolves as a ulid.
+    Route::get('/report-periods/teachers', [ReportCycleApiController::class, 'teachers']);
+    Route::get('/report-periods/{period}', [ReportCycleApiController::class, 'show']);
+    Route::get('/report-periods/{period}/submissions/{submission}', [ReportCycleApiController::class, 'submission']);
+    Route::post('/report-periods/{period}/submissions/{submission}/return', [ReportCycleApiController::class, 'returnForRevision']);
+    Route::post('/report-periods/{period}/submissions/{submission}/approve', [ReportCycleApiController::class, 'approve']);
+    Route::post('/report-periods/{period}/submissions/{submission}/finalize', [ReportCycleApiController::class, 'finalize']);
+    Route::post('/report-periods/{period}/submissions/{submission}/reopen', [ReportCycleApiController::class, 'reopen']);
+
+    // Monthly report-card cycle — the teacher's own bench
+    Route::get('/report-cycle/mine', [ReportCycleApiController::class, 'mine']);
+    Route::get('/report-cycle/{submission}/entries', [ReportCycleApiController::class, 'entries']);
+    Route::put('/report-cycle/{submission}/entries', [ReportCycleApiController::class, 'saveEntries']);
+    Route::post('/report-cycle/{submission}/submit', [ReportCycleApiController::class, 'submit']);
 
     // Online exams
     Route::get('/exams', [ExamsApiController::class, 'index']);

@@ -102,8 +102,33 @@ export async function api<T = any>(path: string, options: RequestOptions = {}): 
   return payload as T;
 }
 
-/** Auth context payload from GET /v1/auth/context */
-export interface AuthContextPayload {
+/**
+ * Fetch a server-rendered document (the printable report card) and hand it to
+ * the browser as an object URL. A new tab cannot attach the Bearer header, so
+ * the HTML is fetched here and only then opened.
+ */
+export async function apiDocument(path: string): Promise<string> {
+  const token = getToken();
+  const headers: Record<string, string> = { Accept: 'text/html' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE}${path}`, { headers });
+
+  if (!response.ok) {
+    let message = `خطای ${response.status}`;
+    try {
+      const payload = await response.json();
+      message = payload?.message ?? message;
+    } catch {
+      // an HTML error page has no message to read
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return URL.createObjectURL(new Blob([await response.text()], { type: 'text/html;charset=utf-8' }));
+}
+
+/** Auth context payload from GET /v1/auth/context */export interface AuthContextPayload {
   user: {
     ulid: string;
     first_name: string;

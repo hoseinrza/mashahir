@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, apiDocument } from './client';
 import { fetchMyChildren } from './auth';
 import type { AuditEvent, Student, User } from '../types';
 
@@ -478,8 +478,31 @@ export const ApiReportCardService = {
   },
 };
 
-/** Consent requests for the current viewer. */
-export const ApiConsentService = {
+/**
+ * The printable document. The server renders one fixed A4 template
+ * (resources/views/grades/print/document.blade.php) for a single card or for a
+ * whole selection, and the browser opens it as an authenticated blob.
+ */
+export const ApiReportCardPrintService = {
+  async bundle(options: { students?: string[]; all?: boolean; kind?: string }): Promise<string> {
+    const params = new URLSearchParams();
+    if (options.students && options.students.length > 0) {
+      params.set('students', options.students.join(','));
+    } else if (options.all) {
+      params.set('all', '1');
+    }
+    if (options.kind) params.set('kind', options.kind);
+
+    return apiDocument(`/v1/report-cards/print?${params.toString()}`);
+  },
+
+  /** One card by its own ulid — the same template, a single sheet. */
+  single(cardUlid: string): Promise<string> {
+    return apiDocument(`/v1/report-cards/${cardUlid}/export`);
+  },
+};
+
+/** Consent requests for the current viewer. */export const ApiConsentService = {
   async list(): Promise<Record<string, unknown>[]> {
     const result = await api<{ data: any[] }>('/v1/consents');
     return result.data ?? [];
