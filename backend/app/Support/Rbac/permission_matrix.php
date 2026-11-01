@@ -126,6 +126,12 @@ return [
             ['key' => 'reportcards.view', 'title' => 'مشاهده کارنامه منتشرشده'],
             ['key' => 'reportcards.view_draft', 'title' => 'مشاهده پیش‌نویس کارنامه'],
             ['key' => 'reportcards.export_pdf', 'title' => 'دریافت PDF کارنامه'],
+            ['key' => 'report_periods.manage', 'title' => 'ایجاد و باز کردن دوره کارنامه ماهانه'],
+            ['key' => 'report_periods.view', 'title' => 'مشاهده دوره‌ها و وضعیت کارنامه معلمان'],
+            ['key' => 'report_periods.record', 'title' => 'ثبت کارنامه دانش‌آموزان کلاس‌های خود'],
+            ['key' => 'report_periods.review', 'title' => 'برگشت کارنامه برای اصلاح و تأیید آن'],
+            ['key' => 'report_periods.finalize', 'title' => 'ثبت نهایی و بایگانی کارنامه هر معلم'],
+            ['key' => 'report_periods.reopen', 'title' => 'بازگشایی کارنامه بایگانی‌شده'],
         ],
 
         'notifications' => [
@@ -471,6 +477,36 @@ return [
             'academic_deputy' => true,
             'guardian' => ['sh3', 'sh6'],
             'student' => ['sh4', 'sh6'],
+        ],
+
+        // Monthly report-card cycle. Opening, reviewing, finalizing and
+        // reopening are the principal's orders (rule 1, 5, 9); the teacher only
+        // ever acts inside his own classes (rule 2, sh2).
+        'report_periods.manage' => [
+            'school_admin' => true,
+        ],
+
+        'report_periods.view' => [
+            'school_admin' => true,
+            'academic_deputy' => true,
+            'teacher' => 'sh2',
+        ],
+
+        'report_periods.record' => [
+            'school_admin' => true,
+            'teacher' => 'sh2',
+        ],
+
+        'report_periods.review' => [
+            'school_admin' => true,
+        ],
+
+        'report_periods.finalize' => [
+            'school_admin' => true,
+        ],
+
+        'report_periods.reopen' => [
+            'school_admin' => 'sh7',
         ],
 
         // ─── ح. اعلان و اطلاع‌رسانی ─────────────────────────────────────
