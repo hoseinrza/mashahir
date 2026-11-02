@@ -91,6 +91,20 @@ export const ApiAuditService = {
 };
 
 /** Guardian portal: children of the active guardian, mapped to Student. */
+export interface GuardianChildRow {
+  studentUlid: string;
+  studentName: string;
+  linkType: string;
+  linkLabel: string;
+  flags: {
+    can_view_grades: boolean;
+    can_view_attendance: boolean;
+    can_approve_consent: boolean;
+    can_pickup: boolean;
+    can_receive_sms: boolean;
+  };
+}
+
 export const ApiFamilyService = {
   async listMyChildren(): Promise<Student[]> {
     const children = await fetchMyChildren();
@@ -104,6 +118,24 @@ export const ApiFamilyService = {
       gender: 'male' as const,
       birthDate: '',
       enrollmentStatus: 'active' as const,
+    }));
+  },
+
+  /** Children of the active guardian with per-link effective flags (court orders included). */
+  async childrenWithFlags(): Promise<GuardianChildRow[]> {
+    const children = await fetchMyChildren();
+    return children.map((c) => ({
+      studentUlid: c.student_ulid,
+      studentName: c.student_name,
+      linkType: c.link_type ?? '',
+      linkLabel: c.link_label ?? '',
+      flags: {
+        can_view_grades: Boolean(c.effective_flags?.can_view_grades),
+        can_view_attendance: Boolean(c.effective_flags?.can_view_attendance),
+        can_approve_consent: Boolean(c.effective_flags?.can_approve_consent),
+        can_pickup: Boolean(c.effective_flags?.can_pickup),
+        can_receive_sms: Boolean(c.effective_flags?.can_receive_sms),
+      },
     }));
   },
 };

@@ -66,10 +66,22 @@ export async function logout(): Promise<void> {
 
 /** Guardian portal: children of the active guardian with effective flags. */
 export async function fetchMyChildren(): Promise<
-  { student_ulid: string; student_name: string; effective_flags: Record<string, boolean> }[]
+  {
+    student_ulid: string;
+    student_name: string;
+    link_type?: string;
+    link_label?: string;
+    effective_flags: Record<string, boolean>;
+  }[]
 > {
-  const result = await api<{ data: { student_ulid: string; student_name: string; effective_flags: Record<string, boolean> }[] }>(
-    '/v1/my/children',
-  );
+  const result = await api<{
+    data: {
+      student_ulid: string;
+      student_name: string;
+      link_type?: string;
+      link_label?: string;
+      effective_flags: Record<string, boolean>;
+    }[];
+  }>('/v1/my/children');
   return result.data ?? [];
 }

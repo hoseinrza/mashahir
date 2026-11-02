@@ -181,6 +181,8 @@ class GuardianLinksApiController extends Controller
             'data' => $links->map(fn (GuardianLink $link) => [
                 'student_ulid' => $link->student?->ulid,
                 'student_name' => $link->student?->fullName(),
+                'link_type' => $link->link_type,
+                'link_label' => self::linkTypes()[$link->link_type] ?? $link->link_type,
                 'effective_flags' => $this->access->effectiveFlags($link),
             ])->values(),
         ]);

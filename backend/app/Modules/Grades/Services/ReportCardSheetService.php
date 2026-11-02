@@ -342,6 +342,16 @@ class ReportCardSheetService
             return [];
         }
 
+        // The pool is the WHOLE class: a guardian sees only his own children,
+        // yet the child's standing must still be measured against every
+        // classmate with an issued card, visible to him or not. So the
+        // student → classroom map covers every learner of those classrooms,
+        // not merely the ones the caller can see.
+        $enrollments = Enrollment::query()
+            ->where('status', Enrollment::STATUS_ACTIVE)
+            ->whereIn('classroom_id', $classrooms->unique()->values()->all() ?: [0])
+            ->pluck('classroom_id', 'student_id');
+
         // Only issued versions compete: a draft or a superseded sheet never
         // moves anybody's rank.
         $peers = ReportCard::query()
@@ -349,7 +359,7 @@ class ReportCardSheetService
             ->where('status', ReportCard::STATUS_PUBLISHED)
             ->whereIn('term_id', $termIds)
             ->whereIn('kind', $kinds)
-            ->whereIn('student_id', $classrooms->keys()->all())
+            ->whereIn('student_id', $enrollments->keys()->all())
             ->get();
 
         $ceilings = $this->ceilingMap($peers);
@@ -358,7 +368,7 @@ class ReportCardSheetService
         $groups = [];
 
         foreach ($peers as $peer) {
-            $classroomId = $classrooms[$peer->student_id] ?? null;
+            $classroomId = $enrollments[$peer->student_id] ?? null;
 
             if ($classroomId === null) {
                 continue;

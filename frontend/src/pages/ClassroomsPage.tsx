@@ -101,6 +101,10 @@ export const ClassroomsPage: React.FC = () => {
   const [renameModal, setRenameModal] = useState<{ ulid: string; title: string } | null>(null);
   const [renaming, setRenaming] = useState(false);
 
+  // Ending an enrollment is a destructive, history-bearing action: the first
+  // click only arms the row, the second one commits.
+  const [armedEndId, setArmedEndId] = useState<number | null>(null);
+
   const selected = classrooms.find((c) => c.ulid === selectedUlid) ?? null;
 
   const load = useCallback(async () => {
@@ -209,6 +213,7 @@ export const ClassroomsPage: React.FC = () => {
     setNotice(null);
     try {
       await ApiClassroomAdminService.endEnrollment(row.enrollmentId, 'ended');
+      setArmedEndId(null);
       setNotice(`ثبت‌نام ${row.studentName} خاتمه یافت.`);
       await loadDetail(selected.ulid);
     } catch (e) {
@@ -513,8 +518,17 @@ export const ClassroomsPage: React.FC = () => {
                                   <td className="py-2 px-2 tabular-nums text-[#526176] dark:text-[#B3C0D2]">{toPersianDigits(formatJalaliDate(row.startsOn) || row.startsOn.slice(0, 10))}</td>
                                   {canEnroll && (
                                     <td className="py-2 px-2 text-left">
-                                      <Button variant="ghost" size="sm" onClick={() => endEnrollment(row)}>
-                                        <Trash2 size={13} /> خاتمه ثبت‌نام
+                                      <Button
+                                        variant={armedEndId === row.enrollmentId ? 'danger' : 'ghost'}
+                                        size="sm"
+                                        onClick={() =>
+                                          armedEndId === row.enrollmentId
+                                            ? endEnrollment(row)
+                                            : setArmedEndId(row.enrollmentId)
+                                        }
+                                      >
+                                        <Trash2 size={13} />
+                                        {armedEndId === row.enrollmentId ? 'تأیید قطعی خاتمه' : 'خاتمه ثبت‌نام'}
                                       </Button>
                                     </td>
                                   )}

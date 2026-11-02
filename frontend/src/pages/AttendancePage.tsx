@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2, XCircle, Clock, AlertCircle, Save, Send,
   Calendar, Check, UserCheck, ShieldCheck, MessageSquare,
   Search, Filter, ChevronDown, BookOpen, Users, PhoneCall,
-  FileSpreadsheet, Sparkles, RefreshCw, Eye
+  FileSpreadsheet, Sparkles, RefreshCw, Eye, Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Modal, FormField, PageHeader, AccessDeniedGate } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
+import { formatJalaliDate } from '../utils/jalali';
 import { AttendanceService, ScheduleService } from '../services';
 import { AttendanceRecord, AttendanceStatus, WeeklyTimetableSlot } from '../types';
 import { INITIAL_STUDENTS, INITIAL_CLASSROOMS, INITIAL_WEEKLY_TIMETABLE } from '../data/mockData';
+import { ApiFamilyService, ApiAttendanceService, GuardianChildRow } from '../api/data';
+import { ApiError } from '../api/client';
 
 export const AttendancePage: React.FC = () => {
   const { currentUser, activeRole, hasAccess } = useAuth();
@@ -53,6 +56,54 @@ export const AttendancePage: React.FC = () => {
   const [isExcuseModalOpen, setIsExcuseModalOpen] = useState(false);
   const [excuseText, setExcuseText] = useState('');
   const [excuseSuccessMessage, setExcuseSuccessMessage] = useState(false);
+
+  // ── real, flag-aware data for the family view ──
+  // The server already enforces the per-link attendance flag (404 = denied);
+  // the flag in the payload only decides what the UI bothers asking for.
+  const [children, setChildren] = useState<GuardianChildRow[]>([]);
+  const [childTimeline, setChildTimeline] = useState<{ date: string; period: number; subject: string | null; status: string; late_minutes: number | null }[]>([]);
+  const [childAttendanceDenied, setChildAttendanceDenied] = useState(false);
+
+  useEffect(() => {
+    if (!isFamily) return;
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await ApiFamilyService.childrenWithFlags();
+        if (!alive) return;
+        setChildren(rows);
+        setSelectedChildId((prev) => (rows.some((c) => c.studentUlid === prev) ? prev : rows[0]?.studentUlid ?? ''));
+      } catch {
+        if (alive) setChildren([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [isFamily]);
+
+  useEffect(() => {
+    if (!isFamily) return;
+    const child = children.find((c) => c.studentUlid === selectedChildId);
+    if (!child) {
+      setChildTimeline([]);
+      return;
+    }
+    let alive = true;
+    setChildTimeline([]);
+    setChildAttendanceDenied(false);
+    if (!child.flags.can_view_attendance) {
+      setChildAttendanceDenied(true);
+      return;
+    }
+    (async () => {
+      try {
+        const rows = await ApiAttendanceService.studentTimeline(child.studentUlid);
+        if (alive) setChildTimeline(rows);
+      } catch (e) {
+        if (alive && e instanceof ApiError && e.status === 404) setChildAttendanceDenied(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, [isFamily, children, selectedChildId]);
 
   if (!canView) {
     return (
@@ -126,13 +177,24 @@ export const AttendancePage: React.FC = () => {
   const classLateCount = currentClassAttendanceList.filter((r) => r.status === 'late').length;
   const classAbsentCount = currentClassAttendanceList.filter((r) => r.status === 'absent').length;
 
-  // Single-student attendance records for Parent / Student view
-  const targetStudent = isStudent
-    ? INITIAL_STUDENTS.find((s) => s.userId === currentUser.id) || INITIAL_STUDENTS[0]
-    : INITIAL_STUDENTS.find((s) => s.id === selectedChildId) || INITIAL_STUDENTS[0];
+  // Single-student attendance for Parent / Student view. Family reads the
+  // real per-session timeline of the selected child; the server has already
+  // enforced the per-link attendance flag (denied → locked UI below).
+  const selectedChild = isFamily
+    ? children.find((c) => c.studentUlid === selectedChildId) ?? children[0] ?? null
+    : null;
 
-  const studentRecords = records
-    .filter((r) => r.studentId === targetStudent.id)
+  const studentRecords = (isFamily
+    ? childTimeline.map((r, i) => ({
+        id: `att_${i}`,
+        date: formatJalaliDate(r.date) || r.date,
+        recordedAt: '',
+        status: r.status as AttendanceStatus,
+        delayMinutes: r.late_minutes,
+        note: r.subject ? `زنگ ${r.period} — ${r.subject}` : '',
+        smsNotificationSent: false,
+      }))
+    : records.filter((r) => r.studentId === (INITIAL_STUDENTS.find((s) => s.userId === currentUser.id)?.id ?? '')))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const studentTotalRecorded = studentRecords.length || 1;
@@ -249,7 +311,9 @@ export const AttendancePage: React.FC = () => {
   // VIEW A: PARENT / GUARDIAN & STUDENT VIEW
   // ==========================================
   if (isFamily || isStudent) {
-    const childClass = INITIAL_CLASSROOMS.find((c) => c.id === targetStudent.classroomId);
+    const childClass = isStudent ? INITIAL_CLASSROOMS.find((c) => c.id === INITIAL_STUDENTS.find((s) => s.userId === currentUser.id)?.classroomId) : null;
+    const childName = isFamily ? selectedChild?.studentName : INITIAL_STUDENTS.find((s) => s.userId === currentUser.id)?.fullName;
+    const smsActive = isFamily ? Boolean(selectedChild?.flags.can_receive_sms) : true;
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto px-2 sm:px-4 py-2">
@@ -274,7 +338,7 @@ export const AttendancePage: React.FC = () => {
               {isFamily ? 'گزارش و کارنامه حضور و غیاب فرزند' : 'دفتر حضور و غیاب من'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              مشاهده سوابق تردد، ساعت ورود، غیبت‌ها، تأخیرها و ثبت موجه‌سازی با گواهی پزشکی
+              مشاهده سوابق جلسات، غیبت‌ها و تأخیرها بر پایهٔ ثبت واقعی کلاس‌ها
             </p>
           </div>
 
@@ -289,35 +353,71 @@ export const AttendancePage: React.FC = () => {
           )}
         </div>
 
+        {/* Child switcher — ولی با چند فرزند */}
+        {isFamily && children.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {children.map((c) => (
+              <button
+                key={c.studentUlid}
+                type="button"
+                onClick={() => setSelectedChildId(c.studentUlid)}
+                className={cn(
+                  'rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors',
+                  c.studentUlid === selectedChild?.studentUlid
+                    ? 'border-blue-600 bg-blue-50 text-slate-900 dark:border-blue-500 dark:bg-slate-800 dark:text-white'
+                    : 'border-slate-200 text-slate-500 hover:border-blue-600/60 dark:border-slate-700 dark:text-slate-400',
+                )}
+              >
+                {c.studentName}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Student Profile Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-xl flex items-center justify-center shadow-md">
-                {targetStudent.fullName.slice(0, 1)}
+                {(childName || '—').slice(0, 1)}
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                  {targetStudent.fullName}
+                  {childName || '—'}
                 </h2>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  <span>شماره دانش‌آموزی: {toPersianDigits(targetStudent.studentNumber)}</span>
-                  <span>·</span>
-                  <span>{childClass?.name}</span>
-                  <span>·</span>
-                  <span>کد ملی: {toPersianDigits(targetStudent.nationalId)}</span>
+                  {isFamily && selectedChild && <span>نوع پیوند: {selectedChild.linkLabel}</span>}
+                  {isStudent && <span>{childClass?.name}</span>}
                 </div>
               </div>
             </div>
 
-            {/* SMS Service Badge */}
-            <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-3 py-2 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
-              <PhoneCall size={14} className="text-emerald-600 dark:text-emerald-400" />
-              <span>سرویس پیامک ورود و خروج فعال است</span>
+            {/* SMS Service Badge — بر اساس پرچم واقعی پیوند */}
+            <div
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-xl text-xs border',
+                smsActive
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400',
+              )}
+            >
+              <PhoneCall size={14} className={smsActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
+              <span>{smsActive ? 'سرویس پیامک ورود و خروج فعال است' : 'پیامک ورود و خروج برای این پیوند فعال نیست'}</span>
             </div>
           </div>
 
-          {/* Quick Metrics */}
+          {/* Quick Metrics — فقط با مجوز حضور این پیوند */}
+          {isFamily && childAttendanceDenied && (
+            <div className="mt-6 p-6 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+              <Lock size={20} className="mx-auto text-slate-400 mb-2" />
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                مشاهدهٔ حضور و غیاب برای پیوند شما فعال نیست (محدودیت نوع پیوند یا دادنامهٔ قضایی).
+                <br />
+                در صورت نیاز با دفتر مدرسه تماس بگیرید.
+              </p>
+            </div>
+          )}
+          {!(isFamily && childAttendanceDenied) && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
             <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
               <span className="text-xs text-slate-500 dark:text-slate-400 block mb-1">درصد نظم و حضور</span>
@@ -344,8 +444,18 @@ export const AttendancePage: React.FC = () => {
               </span>
             </div>
           </div>
+          )}
         </div>
 
+        {isFamily && childAttendanceDenied ? (
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+            <Lock size={20} className="mx-auto text-slate-400 mb-2" />
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              سوابق جلسات برای پیوند شما قابل نمایش نیست.
+            </p>
+          </div>
+        ) : (
+        <>
         {/* History Records Table / Cards */}
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">سوابق روزانه حضور و غیاب</h3>
@@ -420,6 +530,8 @@ export const AttendancePage: React.FC = () => {
             </div>
           </div>
         </div>
+        </>
+        )}
 
         {/* Modal Submit Excuse Request */}
         <Modal

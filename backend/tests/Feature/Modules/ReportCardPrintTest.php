@@ -335,4 +335,21 @@ class ReportCardPrintTest extends TestCase
         $this->assertTrue($ulids->contains($mine->ulid), 'his own classroom stays visible');
         $this->assertFalse($ulids->contains($stranger->ulid), 'a parallel classroom must not leak');
     }
+
+    public function test_a_child_stays_ranked_against_the_whole_class_for_his_guardian(): void
+    {
+        // The guardian sees only his own children, but the standing must come
+        // from the full class pool — the invisible classmate still counts.
+        $top = $this->studentWithPublishedCard(92);
+        $this->studentWithPublishedCard(85);
+        $this->studentWithPublishedCard(70);
+
+        $this->linkGuardian($top, true);
+        $this->actingWithRole('guardian', user: $this->guardian);
+
+        $payload = collect($this->getJson('/api/v1/report-cards')->assertOk()->json('data'))
+            ->firstWhere('student_ulid', $top->ulid);
+
+        $this->assertSame([1, 3], [$payload['rank'], $payload['rank_of']], 'rank pool is the whole class');
+    }
 }
