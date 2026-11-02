@@ -12,6 +12,7 @@ class ReportCardLine extends Model
     protected function casts(): array
     {
         return [
+            'score' => 'float', // decimal column; pgsql would otherwise hand back a string
             'data' => 'array',
         ];
     }

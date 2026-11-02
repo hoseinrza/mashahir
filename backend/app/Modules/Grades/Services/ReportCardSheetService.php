@@ -113,6 +113,17 @@ class ReportCardSheetService
             $query->where('status', ReportCard::STATUS_PUBLISHED);
         }
 
+        // sh2: a teacher's list covers his own classrooms only — the status
+        // filtering above still decides what he may read inside that. Without
+        // this, a subject teacher could read every card of the school.
+        if ($roleKey === 'teacher') {
+            $classroomIds = $this->resolver->classroomIds() ?? [];
+
+            $query->whereHas('student.enrollments', fn ($q) => $q
+                ->whereIn('classroom_id', $classroomIds ?: [0])
+                ->where('status', Enrollment::STATUS_ACTIVE));
+        }
+
         return $query;
     }
 

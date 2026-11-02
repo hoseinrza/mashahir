@@ -5,6 +5,7 @@ namespace Tests\Feature\Modules;
 use App\Modules\Grades\Models\GradeItem;
 use App\Modules\Grades\Models\ReportCard;
 use App\Modules\Academic\Models\Classroom;
+use App\Modules\Identity\Models\User;
 use App\Modules\People\Models\Student;
 use App\Support\Jalali;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,12 +46,12 @@ class ReportCardPrintTest extends TestCase
         $this->guardian = $this->makeUser();
     }
 
-    private function studentWithPublishedCard(int $score = 92, ?Classroom $classroom = null, ?int $classroomSubjectId = null): Student
+    private function studentWithPublishedCard(int $score = 92, ?Classroom $classroom = null, ?int $classroomSubjectId = null, ?User $asTeacher = null): Student
     {
         $student = $this->makeStudent();
         $this->enroll($student, $classroom ?? $this->classroom);
 
-        $this->actingWithRole('teacher', user: $this->teacher);
+        $this->actingWithRole('teacher', user: $asTeacher ?? $this->teacher);
         $this->postJson('/api/v1/grades', [
             'student_ulid' => $student->ulid,
             'classroom_subject_id' => $classroomSubjectId ?? $this->subjectId,
@@ -274,5 +275,64 @@ class ReportCardPrintTest extends TestCase
         $this->assertSame(1, $byStudent[$second->ulid]['rank']);
         $this->assertSame(3, $byStudent[$third->ulid]['rank']);
         $this->assertSame(3, $byStudent[$first->ulid]['rank_of']);
+    }
+
+    public function test_one_subject_with_several_approved_exams_publishes_as_one_aggregated_line(): void
+    {
+        // A subject normally holds more than one exam (midterm + final); the
+        // card's per-subject line must fold them onto the /20 scale — a second
+        // insert used to crash on the unique (card, subject) constraint.
+        $student = $this->makeStudent();
+        $this->enroll($student, $this->classroom);
+
+        $this->actingWithRole('teacher', user: $this->teacher);
+        foreach ([92, 70] as $score) { // ۱۸٫۴ و ۱۴٫۰ روی مقیاس ۲۰
+            $this->postJson('/api/v1/grades', [
+                'student_ulid' => $student->ulid,
+                'classroom_subject_id' => $this->subjectId,
+                'term_id' => $this->termId,
+                'score' => $score,
+                'source_type' => 'in_person_exam',
+                'delivery' => 'in_person',
+            ])->assertCreated();
+        }
+
+        $this->actingWithRole('academic_deputy');
+        foreach (GradeItem::query()->where('student_id', $student->id)->get() as $item) {
+            $this->postJson("/api/v1/grades/{$item->id}/approve")->assertOk();
+        }
+
+        $this->actingWithRole('school_admin');
+        $this->postJson('/api/v1/report-cards/publish', [
+            'student_ulid' => $student->ulid,
+            'term_id' => $this->termId,
+            'kind' => 'in_person',
+        ])->assertCreated();
+
+        $card = collect($this->getJson('/api/v1/report-cards')->assertOk()->json('data'))
+            ->firstWhere('student_ulid', $student->ulid);
+
+        $this->assertCount(1, $card['lines'], 'one line per subject, not per exam');
+        $this->assertSame(16.2, $card['lines'][0]['score']); // (۱۸٫۴ + ۱۴٫۰) / ۲
+        $this->assertSame(20, $card['lines'][0]['max_score']);
+    }
+
+    public function test_a_teacher_lists_only_his_own_classrooms_cards(): void
+    {
+        // sh2 on the wire: the matrix promises a teacher his classes, so a
+        // parallel classroom's issued card must be invisible to his list —
+        // including from the screen, not just from the printer.
+        $mine = $this->studentWithPublishedCard(92);
+        $otherTeacher = $this->makeUser();
+        $otherRoom = $this->makeClassroom();
+        $otherCsId = $this->assignTeacher($otherTeacher, $otherRoom, $this->makeSubject())->id;
+        $stranger = $this->studentWithPublishedCard(88, $otherRoom, $otherCsId, $otherTeacher);
+
+        $this->actingWithRole('teacher', user: $this->teacher);
+        $ulids = collect($this->getJson('/api/v1/report-cards')->assertOk()->json('data'))
+            ->pluck('student_ulid');
+
+        $this->assertTrue($ulids->contains($mine->ulid), 'his own classroom stays visible');
+        $this->assertFalse($ulids->contains($stranger->ulid), 'a parallel classroom must not leak');
     }
 }

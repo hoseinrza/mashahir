@@ -80,6 +80,7 @@ final class GradeService
                 ->where('delivery', $kind === ReportCard::KIND_ONLINE ? 'online' : 'in_person')
                 ->where('status', GradeItem::STATUS_APPROVED)
                 ->with('classroomSubject.subject')
+                ->orderBy('id')
                 ->get();
 
             if ($items->isEmpty()) {
@@ -109,21 +110,58 @@ final class GradeService
                 'published_at' => now(),
             ]);
 
-            foreach ($items as $item) {
+            // One subject, one line — the card's table has a unique per-subject
+            // row. A subject with several approved exams in the term (midterm +
+            // final, quiz + test) folds onto the /20 scale so a 100-point paper
+            // and a 20-point quiz mix fairly; a single exam keeps the teacher's
+            // raw score and its ceiling exactly as recorded.
+            $lines = $items
+                ->groupBy(fn (GradeItem $item) => $item->classroomSubject->subject_id)
+                ->map(function (\Illuminate\Support\Collection $group) {
+                    if ($group->count() === 1) {
+                        $item = $group->first();
+
+                        return [
+                            'subject_id' => $item->classroomSubject->subject_id,
+                            'score' => $item->score,
+                            'data' => ['max_score' => $item->max_score, 'source_type' => $item->source_type],
+                        ];
+                    }
+
+                    $onTwenty = $group->map(fn (GradeItem $item) => ! $item->max_score || (float) $item->max_score === 20.0
+                        ? (float) $item->score
+                        : ((float) $item->score / (float) $item->max_score) * 20);
+
+                    $last = $group->last();
+
+                    return [
+                        'subject_id' => $last->classroomSubject->subject_id,
+                        'score' => round($onTwenty->sum() / $onTwenty->count(), 2),
+                        'data' => ['max_score' => 20, 'source_type' => $last->source_type],
+                    ];
+                });
+
+            foreach ($lines as $line) {
                 ReportCardLine::query()->create([
                     'report_card_id' => $card->id,
-                    'subject_id' => $item->classroomSubject->subject_id,
-                    'score' => $item->score,
+                    'subject_id' => $line['subject_id'],
+                    'score' => $line['score'],
                     // Frozen with the card: the raw score is meaningless without
                     // its ceiling, and a later max_score edit must not move history.
-                    'data' => ['max_score' => $item->max_score, 'source_type' => $item->source_type],
+                    'data' => $line['data'],
                 ]);
-
-                $item->forceFill(['status' => GradeItem::STATUS_PUBLISHED, 'published_at' => now()])->save();
             }
 
+            $items->each(fn (GradeItem $item) => $item->forceFill([
+                'status' => GradeItem::STATUS_PUBLISHED,
+                'published_at' => now(),
+            ])->save());
+
             $this->audit->log('report_card.published', $card, new: [
-                'version' => $version, 'kind' => $kind, 'lines' => $items->count(),
+                'version' => $version,
+                'kind' => $kind,
+                'lines' => $lines->count(),
+                'items' => $items->count(),
             ]);
 
             return $card->fresh(['lines.subject']);
