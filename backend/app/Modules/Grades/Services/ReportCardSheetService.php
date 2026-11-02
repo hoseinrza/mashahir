@@ -127,6 +127,7 @@ class ReportCardSheetService
         $ceilings = $this->ceilingMap($cards);
         $classrooms = $this->classroomTitles($cards);
         $issuers = $this->issuerNames($cards);
+        $ranks = $this->rankMap($cards);
 
         return [
             'school' => $this->schoolHeader($cards),
@@ -161,6 +162,8 @@ class ReportCardSheetService
                 'issued_by' => $issuers[$c->published_by] ?? '—',
                 'lines' => $c->lines->map(fn (ReportCardLine $l) => $this->printableLine($c, $l, $ceilings))->values()->all(),
                 'avg' => $this->average($c, $ceilings),
+                'rank' => $ranks[$c->ulid]['rank'] ?? null,
+                'rank_of' => $ranks[$c->ulid]['of'] ?? null,
                 'band_counts' => $this->bandCounts($c, $ceilings),
             ])->all(),
         ];
@@ -267,8 +270,8 @@ class ReportCardSheetService
         return round(((float) $score / (float) $max) * 20, 2);
     }
 
-    /** @return array{value: string, band: string}|null */
-    private function average(ReportCard $card, Collection $ceilings): ?array
+    /** The card's mean on the /20 scale, before formatting. */
+    public function averageValue(ReportCard $card, Collection $ceilings): ?float
     {
         $scores = $card->lines
             ->map(fn (ReportCardLine $l) => $this->toTwenty(
@@ -278,14 +281,120 @@ class ReportCardSheetService
             ->filter()
             ->values();
 
-        if ($scores->isEmpty()) {
+        return $scores->isEmpty() ? null : $scores->sum() / $scores->count();
+    }
+
+    /** @return array{value: string, band: string}|null */
+    private function average(ReportCard $card, Collection $ceilings): ?array
+    {
+        $avg = $this->averageValue($card, $ceilings);
+
+        if ($avg === null) {
             return null;
         }
 
-        $avg = $scores->sum() / $scores->count();
-        $band = $this->band($avg);
+        return [
+            'value' => Jalali::digits(number_format($avg, 2)),
+            'band' => $this->band($avg)['label'] ?? '—',
+        ];
+    }
 
-        return ['value' => Jalali::digits(number_format($avg, 2)), 'band' => $band['label'] ?? '—'];
+    /**
+     * Class standing: where a card's mean sits among the published cards of
+     * the same classroom, for the same term and delivery. Peers = classmates
+     * (active enrollment) holding a published card of the same term and kind;
+     * a learner counts once, at their newest published version. Equal means
+     * share the better rank — like a podium, not a lottery. A class with a
+     * single ranked card has no standing: a rank against nobody is not one.
+     *
+     * @param  Collection<int, ReportCard>  $cards
+     * @return array<string, array{rank: int, of: int}> card ulid => standing
+     */
+    public function rankMap(Collection $cards): array
+    {
+        $studentIds = $cards->pluck('student_id')->unique()->all();
+
+        if ($studentIds === []) {
+            return [];
+        }
+
+        // Learner → classroom, so each card can find the peers it is judged against.
+        $classrooms = Enrollment::query()
+            ->where('status', Enrollment::STATUS_ACTIVE)
+            ->whereIn('student_id', $studentIds)
+            ->pluck('classroom_id', 'student_id');
+
+        $termIds = $cards->pluck('term_id')->unique()->filter()->all();
+        $kinds = $cards->pluck('kind')->unique()->filter()->all();
+
+        if ($termIds === [] || $kinds === [] || $classrooms->isEmpty()) {
+            return [];
+        }
+
+        // Only issued versions compete: a draft or a superseded sheet never
+        // moves anybody's rank.
+        $peers = ReportCard::query()
+            ->with('lines')
+            ->where('status', ReportCard::STATUS_PUBLISHED)
+            ->whereIn('term_id', $termIds)
+            ->whereIn('kind', $kinds)
+            ->whereIn('student_id', $classrooms->keys()->all())
+            ->get();
+
+        $ceilings = $this->ceilingMap($peers);
+
+        // classroom:term:kind → one slot per learner, newest published version.
+        $groups = [];
+
+        foreach ($peers as $peer) {
+            $classroomId = $classrooms[$peer->student_id] ?? null;
+
+            if ($classroomId === null) {
+                continue;
+            }
+
+            $key = $classroomId.':'.$peer->term_id.':'.$peer->kind;
+            $version = (int) $peer->version;
+
+            if (! isset($groups[$key][$peer->student_id]) || $version > $groups[$key][$peer->student_id]['version']) {
+                $groups[$key][$peer->student_id] = [
+                    'ulid' => $peer->ulid,
+                    'version' => $version,
+                    'avg' => $this->averageValue($peer, $ceilings),
+                ];
+            }
+        }
+
+        $standings = [];
+
+        foreach ($groups as $slots) {
+            $ranked = collect($slots)
+                ->filter(fn (array $slot) => $slot['avg'] !== null)
+                ->sortByDesc(fn (array $slot) => round((float) $slot['avg'], 2))
+                ->values();
+
+            $of = $ranked->count();
+
+            if ($of < 2) {
+                continue;
+            }
+
+            $rank = 0;
+            $previous = null;
+
+            foreach ($ranked as $position => $slot) {
+                $mean = round((float) $slot['avg'], 2);
+
+                if ($previous === null || $mean !== $previous) {
+                    $rank = $position + 1;
+                    $previous = $mean;
+                }
+
+                $standings[$slot['ulid']] = ['rank' => $rank, 'of' => $of];
+            }
+        }
+
+        return $standings;
     }
 
     /** @return array<string, int> band key => count */

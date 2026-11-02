@@ -202,7 +202,13 @@ export const ReportCardPage: React.FC = () => {
       band: b,
       count: scored.filter((x) => bandOf(x.s20)?.key === b.key).length,
     }));
-    return { subjectCount: scored.length, avg, best, lastPublished, counts };
+    // Standing of the learner's newest ranked card in this view (the server
+    // ranks among published classmates of the same term and delivery).
+    const newestRanked = visible
+      .filter((c) => c.rank !== null)
+      .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '') || b.version - a.version)[0];
+    const standing = newestRanked ? { rank: newestRanked.rank as number, of: newestRanked.rankOf as number } : null;
+    return { subjectCount: scored.length, avg, best, lastPublished, counts, standing };
   }, [visible]);
 
   if (isBusDriver) {
@@ -415,10 +421,11 @@ export const ReportCardPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 pt-0">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-5 pt-0">
                 <StatTile icon={<BookOpenCheck size={13} />} label="دروس اعلام‌شده" value={`${toPersianDigits(summary.subjectCount)} درس`} hint={`در ${toPersianDigits(visible.length)} کارنامه`} />
                 <StatTile icon={<Sparkles size={13} />} label="برترین درس" value={summary.best ? summary.best.subject : '—'} hint={summary.best ? `${formatScore(summary.best.s20)} از ۲۰` : undefined} />
                 <StatTile icon={<TrendingUp size={13} />} label="وضعیت تحصیلی" value={bandOf(summary.avg)?.label ?? '—'} hint={summary.avg === null ? 'بدون نمره' : `${formatScore(summary.avg)} از ۲۰`} />
+                <StatTile icon={<Users size={13} />} label="رتبه در کلاس" value={summary.standing ? `${toPersianDigits(summary.standing.rank)} از ${toPersianDigits(summary.standing.of)}` : '—'} hint={summary.standing ? 'میان کارنامه‌های منتشرشدهٔ هم‌کلاسی‌ها' : 'هم‌کلاسی رتبه‌گیری نشده'} />
                 <StatTile icon={<FileText size={13} />} label="آخرین ابلاغ رسمی" value={summary.lastPublished ? formatJalaliDateTime(summary.lastPublished) : '—'} />
               </div>
             </div>
@@ -450,6 +457,11 @@ export const ReportCardPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {card.rank !== null && card.rankOf !== null && (
+                    <Badge variant="neutral">
+                      <Users size={12} /> رتبه {toPersianDigits(card.rank)} از {toPersianDigits(card.rankOf)}
+                    </Badge>
+                  )}
                   <Badge variant={card.status === 'published' ? 'success' : 'neutral'}>
                     {card.status === 'published' ? 'منتشرشده' : card.status === 'superseded' ? 'جایگزین‌شده' : 'پیش‌نویس'}
                   </Badge>

@@ -4,6 +4,7 @@ namespace Tests\Feature\Modules;
 
 use App\Modules\Grades\Models\GradeItem;
 use App\Modules\Grades\Models\ReportCard;
+use App\Modules\Academic\Models\Classroom;
 use App\Modules\People\Models\Student;
 use App\Support\Jalali;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -44,15 +45,15 @@ class ReportCardPrintTest extends TestCase
         $this->guardian = $this->makeUser();
     }
 
-    private function studentWithPublishedCard(int $score = 92): Student
+    private function studentWithPublishedCard(int $score = 92, ?Classroom $classroom = null, ?int $classroomSubjectId = null): Student
     {
         $student = $this->makeStudent();
-        $this->enroll($student, $this->classroom);
+        $this->enroll($student, $classroom ?? $this->classroom);
 
         $this->actingWithRole('teacher', user: $this->teacher);
         $this->postJson('/api/v1/grades', [
             'student_ulid' => $student->ulid,
-            'classroom_subject_id' => $this->subjectId,
+            'classroom_subject_id' => $classroomSubjectId ?? $this->subjectId,
             'term_id' => $this->termId,
             'score' => $score,
             'source_type' => 'in_person_exam',
@@ -110,7 +111,9 @@ class ReportCardPrintTest extends TestCase
         $this->assertStringContainsString('مهر و امضای مدیر مدرسه', $html);
         $this->assertStringContainsString('خیلی خوب', $html);
         // The signature block names the staff member who issued the card.
-        $this->assertStringContainsString($this->actor->fullName(), $html);
+        // Blade always escapes, so the needle must be the escaped form — an
+        // issuer named "O'Reilly" otherwise flakes the suite.
+        $this->assertStringContainsString(e($this->actor->fullName()), $html);
         $this->assertStringContainsString('window.print()', $html);
     }
 
@@ -227,5 +230,49 @@ class ReportCardPrintTest extends TestCase
         );
         $this->assertStringContainsString(Jalali::digits(number_format(18.4, 2)), $html);
         $this->assertStringNotContainsString('92 از', $html);
+    }
+
+    public function test_sheet_ranks_the_card_among_published_classmates(): void
+    {
+        $top = $this->studentWithPublishedCard(92); // ۱۸٫۴
+        $mid = $this->studentWithPublishedCard(85); // ۱۷٫۰
+        $low = $this->studentWithPublishedCard(70); // ۱۴٫۰
+
+        // A parallel classroom never leaks into this ranking — and a class
+        // holding a single ranked card has no standing at all.
+        $parallel = $this->makeClassroom();
+        $parallelCsId = $this->assignTeacher($this->teacher, $parallel, $this->makeSubject())->id;
+        $outside = $this->studentWithPublishedCard(95, $parallel, $parallelCsId);
+
+        $this->actingWithRole('school_admin');
+        $byStudent = collect($this->getJson('/api/v1/report-cards')->assertOk()->json('data'))
+            ->keyBy('student_ulid');
+
+        $this->assertSame([1, 3], [$byStudent[$top->ulid]['rank'], $byStudent[$top->ulid]['rank_of']]);
+        $this->assertSame([2, 3], [$byStudent[$mid->ulid]['rank'], $byStudent[$mid->ulid]['rank_of']]);
+        $this->assertSame([3, 3], [$byStudent[$low->ulid]['rank'], $byStudent[$low->ulid]['rank_of']]);
+        $this->assertNull($byStudent[$outside->ulid]['rank']);
+
+        // The paper carries the standing next to the average, with Persian digits.
+        $html = $this->getJson('/api/v1/report-cards/print?all=1')->assertOk()->getContent();
+        $this->assertStringContainsString('رتبه در کلاس', $html);
+        $this->assertStringContainsString('میان کارنامه‌های منتشرشدهٔ هم‌کلاسی‌ها', $html);
+        $this->assertStringContainsString(Jalali::digits(1).' از '.Jalali::digits(3), $html);
+    }
+
+    public function test_equal_averages_share_the_better_rank(): void
+    {
+        $first = $this->studentWithPublishedCard(90); // ۱۸٫۰
+        $second = $this->studentWithPublishedCard(90); // ۱۸٫۰
+        $third = $this->studentWithPublishedCard(60); // ۱۲٫۰
+
+        $this->actingWithRole('school_admin');
+        $byStudent = collect($this->getJson('/api/v1/report-cards')->assertOk()->json('data'))
+            ->keyBy('student_ulid');
+
+        $this->assertSame(1, $byStudent[$first->ulid]['rank']);
+        $this->assertSame(1, $byStudent[$second->ulid]['rank']);
+        $this->assertSame(3, $byStudent[$third->ulid]['rank']);
+        $this->assertSame(3, $byStudent[$first->ulid]['rank_of']);
     }
 }

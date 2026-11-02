@@ -108,6 +108,13 @@
             <span class="note">بر پایهٔ نمره‌های منتشرشده</span>
         </div>
         <div class="tile">
+            <span class="label">رتبه در کلاس</span>
+            <span class="value" style="font-size: 13px">
+                {{ $sheet['rank'] !== null ? Jalali::digits($sheet['rank']).' از '.Jalali::digits($sheet['rank_of']) : '—' }}
+            </span>
+            <span class="note">{{ $sheet['rank'] !== null ? 'میان کارنامه‌های منتشرشدهٔ هم‌کلاسی‌ها' : 'هم‌کلاسی رتبه‌گیری نشده' }}</span>
+        </div>
+        <div class="tile">
             <span class="label">درس‌های اعلام‌شده</span>
             <span class="value">{{ Jalali::digits(count($sheet['lines'])) }}</span>
             <span class="note">سطر نمره در این دوره</span>

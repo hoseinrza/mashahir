@@ -298,6 +298,7 @@ class GradesApiController extends Controller
         // the paper can never be wider than the screen.
         $cards = $this->sheets->visibleQuery($request)->limit(100)->get();
         $ceilings = $this->sheets->ceilingMap($cards);
+        $ranks = $this->sheets->rankMap($cards);
 
         return response()->json([
             'data' => $cards->map(fn (ReportCard $c) => [
@@ -309,6 +310,9 @@ class GradesApiController extends Controller
                 'version' => $c->version,
                 'status' => $c->status,
                 'published_at' => $c->published_at?->toIso8601String(),
+                // Class standing over issued cards only: a draft has no rank yet.
+                'rank' => $ranks[$c->ulid]['rank'] ?? null,
+                'rank_of' => $ranks[$c->ulid]['of'] ?? null,
                 'lines' => $c->lines->map(fn (ReportCardLine $l) => $this->sheets->lineData($c, $l, $ceilings)),
             ]),
         ]);

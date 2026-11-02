@@ -451,6 +451,9 @@ export interface ReportCardRow {
   version: number;
   status: string;
   publishedAt: string | null;
+  /** Class standing among published classmates' cards; null while unrankable. */
+  rank: number | null;
+  rankOf: number | null;
   lines: ReportCardLineRow[];
 }
 
@@ -467,6 +470,8 @@ export const ApiReportCardService = {
       version: c.version ?? 1,
       status: c.status ?? 'published',
       publishedAt: c.published_at ?? null,
+      rank: c.rank ?? null,
+      rankOf: c.rank_of ?? null,
       lines: (c.lines ?? []).map((l: any) => ({
         subject: l.subject ?? null,
         score: l.score ?? null,
