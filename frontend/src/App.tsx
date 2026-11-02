@@ -16,6 +16,7 @@ import { ExamsManagementPage } from './pages/ExamsManagementPage';
 import { StudentExamsPage } from './pages/StudentExamsPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
 import { ReportCardPage } from './pages/ReportCardPage';
+import { ClassroomsPage } from './pages/ClassroomsPage';
 import { GradeEntryPage } from './pages/GradeEntryPage';
 import { SmartPerformanceAnalysisPage } from './pages/SmartPerformanceAnalysisPage';
 import { ReportCycleAdminPage } from './pages/ReportCycleAdminPage';
@@ -102,6 +103,14 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <EssayGradingPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/classrooms"
+              element={
+                <DashboardLayout>
+                  <ClassroomsPage />
                 </DashboardLayout>
               }
             />

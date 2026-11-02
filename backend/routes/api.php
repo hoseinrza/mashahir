@@ -72,11 +72,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/academic/grade-levels', [AcademicApiController::class, 'gradeLevels']);
     Route::post('/academic/grade-levels', [AcademicApiController::class, 'storeGradeLevel']);
     Route::patch('/academic/grade-levels/{gradeLevel}', [AcademicApiController::class, 'updateGradeLevel']);
+    Route::get('/academic/years', [AcademicApiController::class, 'indexYears']);
+    Route::get('/academic/subjects', [AcademicApiController::class, 'indexSubjects']);
+    Route::get('/academic/teachers', [AcademicApiController::class, 'indexTeachers']);
     Route::post('/academic/subjects', [AcademicApiController::class, 'storeSubject']);
     Route::patch('/academic/subjects/{subject}', [AcademicApiController::class, 'updateSubject']);
     Route::get('/academic/classrooms', [AcademicApiController::class, 'indexClassrooms']);
     Route::post('/academic/classrooms', [AcademicApiController::class, 'storeClassroom']);
     Route::patch('/academic/classrooms/{classroom}', [AcademicApiController::class, 'updateClassroom']);
+    Route::get('/academic/classrooms/{classroom}/enrollments', [AcademicApiController::class, 'classroomEnrollments']);
     Route::post('/academic/classrooms/{classroom}/subjects', [AcademicApiController::class, 'assignSubject']);
     Route::post('/academic/enrollments', [AcademicApiController::class, 'storeEnrollment']);
     Route::post('/academic/enrollments/{enrollment}/end', [AcademicApiController::class, 'endEnrollment']);

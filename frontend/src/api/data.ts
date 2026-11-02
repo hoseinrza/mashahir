@@ -434,6 +434,144 @@ export const ApiAcademicService = {
   },
 };
 
+/** ── Classroom management (کلاس‌ها، ثبت‌نام، تخصیص دبیر، برنامه هفتگی) ── */
+
+export interface ClassroomAdminRow {
+  ulid: string;
+  title: string;
+  gradeLevel: string;
+  academicYear: string;
+}
+
+export interface EnrollmentRow {
+  enrollmentId: number;
+  studentUlid: string;
+  studentName: string;
+  studentCode: string;
+  startsOn: string;
+}
+
+export interface IdTitleOption {
+  id: number;
+  title: string;
+}
+
+export interface TeacherOption {
+  ulid: string;
+  name: string;
+}
+
+export interface TimetableSlotRow {
+  id: number;
+  weekday: number;
+  period: number;
+  startsAt: string;
+  endsAt: string;
+  subject: string | null;
+}
+
+export const ApiClassroomAdminService = {
+  async list(): Promise<ClassroomAdminRow[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/classrooms');
+    return (result.data ?? []).map((c: any) => ({
+      ulid: c.ulid,
+      title: c.title,
+      gradeLevel: c.grade_level?.title ?? '—',
+      academicYear: c.academic_year?.title ?? '—',
+    }));
+  },
+
+  async create(body: { title: string; academic_year_id: number; grade_level_id: number }): Promise<void> {
+    await api('/v1/academic/classrooms', { method: 'POST', body });
+  },
+
+  async rename(ulid: string, title: string): Promise<void> {
+    await api(`/v1/academic/classrooms/${ulid}`, { method: 'PATCH', body: { title } });
+  },
+
+  async enrollments(classroomUlid: string): Promise<EnrollmentRow[]> {
+    const result = await api<{ data: any[] }>(`/v1/academic/classrooms/${classroomUlid}/enrollments`);
+    return (result.data ?? []).map((e: any) => ({
+      enrollmentId: e.enrollment_id,
+      studentUlid: e.student_ulid,
+      studentName: e.student_name ?? '—',
+      studentCode: e.student_code ?? '—',
+      startsOn: e.starts_on ?? '',
+    }));
+  },
+
+  async enroll(classroomUlid: string, studentUlid: string, startsOn: string): Promise<void> {
+    await api('/v1/academic/enrollments', {
+      method: 'POST',
+      body: { classroom_ulid: classroomUlid, student_ulid: studentUlid, starts_on: startsOn },
+    });
+  },
+
+  async endEnrollment(enrollmentId: number, status: 'transferred' | 'ended'): Promise<void> {
+    await api(`/v1/academic/enrollments/${enrollmentId}/end`, {
+      method: 'POST',
+      body: { ends_on: new Date().toISOString().slice(0, 10), status },
+    });
+  },
+
+  async subjects(): Promise<IdTitleOption[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/subjects');
+    return (result.data ?? []).map((s: any) => ({ id: s.id, title: s.title }));
+  },
+
+  async teachers(): Promise<TeacherOption[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/teachers');
+    return (result.data ?? []).map((t: any) => ({ ulid: t.ulid, name: t.name }));
+  },
+
+  async years(): Promise<IdTitleOption[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/years');
+    return (result.data ?? []).map((y: any) => ({ id: y.id, title: y.title }));
+  },
+
+  async gradeLevels(): Promise<IdTitleOption[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/grade-levels');
+    return (result.data ?? []).map((g: any) => ({ id: g.id, title: g.title }));
+  },
+
+  async timetable(classroomUlid: string): Promise<TimetableSlotRow[]> {
+    const result = await api<{ data: any[] }>(`/v1/timetable?classroom_ulid=${classroomUlid}`);
+    return (result.data ?? []).map((s: any) => ({
+      id: s.id,
+      weekday: s.weekday,
+      period: s.period,
+      startsAt: (s.starts_at ?? '').slice(0, 5),
+      endsAt: (s.ends_at ?? '').slice(0, 5),
+      subject: s.subject ?? null,
+    }));
+  },
+
+  async createSlot(body: {
+    classroom_subject_id: number;
+    weekday: number;
+    period: number;
+    starts_at: string;
+    ends_at: string;
+  }): Promise<void> {
+    await api('/v1/timetable', { method: 'POST', body });
+  },
+
+  async updateSlot(id: number, body: { weekday: number; period: number; starts_at: string; ends_at: string }): Promise<void> {
+    await api(`/v1/timetable/${id}`, { method: 'PATCH', body });
+  },
+
+  async deleteSlot(id: number): Promise<void> {
+    await api(`/v1/timetable/${id}`, { method: 'DELETE' });
+  },
+
+  async assignTeacher(classroomUlid: string, subjectId: number, teacherUlid: string | null): Promise<void> {
+    await api(`/v1/academic/classrooms/${classroomUlid}/subjects`, {
+      method: 'POST',
+      body: { subject_id: subjectId, teacher_ulid: teacherUlid },
+    });
+  },
+};
+
 export interface ReportCardLineRow {
   subject: string | null;
   score: number | null;
@@ -454,6 +592,8 @@ export interface ReportCardRow {
   /** Class standing among published classmates' cards; null while unrankable. */
   rank: number | null;
   rankOf: number | null;
+  /** Raw term id — the publish action posts ids, not display titles. */
+  termId: number | null;
   lines: ReportCardLineRow[];
 }
 
@@ -472,6 +612,7 @@ export const ApiReportCardService = {
       publishedAt: c.published_at ?? null,
       rank: c.rank ?? null,
       rankOf: c.rank_of ?? null,
+      termId: c.term_id ?? null,
       lines: (c.lines ?? []).map((l: any) => ({
         subject: l.subject ?? null,
         score: l.score ?? null,
@@ -480,6 +621,14 @@ export const ApiReportCardService = {
         teacherComment: l.teacher_comment ?? null,
       })),
     }));
+  },
+
+  /** Issue the official card for one learner: folds approved scores into a version. */
+  async publish(studentUlid: string, termId: number, kind: string): Promise<void> {
+    await api('/v1/report-cards/publish', {
+      method: 'POST',
+      body: { student_ulid: studentUlid, term_id: termId, kind },
+    });
   },
 };
 

@@ -76,6 +76,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     '/report-cycle-admin': ['report_periods:manage', 'report_periods:review', 'report_periods:finalize'],
     '/report-card-print': 'reportcards:export_pdf',
     '/my-report-cycle': ['report_periods:record', 'report_periods:view'],
+    // Classroom structure: rosters, teacher assignment, weekly timetable.
+    '/classrooms': 'academic:view',
     // Shipped from live grade data; every viewer of the report also holds one
     // of these codes (learners get reportcards.view, staff get grades.*).
     '/performance-analytics': ['grades:view', 'grades:record', 'reportcards:view'],
@@ -161,6 +163,13 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           icon: <CheckSquare size={17} />,
           show: !isBusDriver && hasAccess('exams:grade_descriptive'),
           badge: 'مصحح',
+        },
+        {
+          // Classroom structure: rosters, teacher assignment, weekly timetable.
+          label: 'کلاس‌ها و برنامهٔ هفتگی',
+          href: '/classrooms',
+          icon: <Layers size={17} />,
+          show: !isBusDriver && !isFamily && !isStudent && hasAccess('academic:view'),
         },
         {
           // A teacher's grade book is دفتر نمره (/grade-entry); the report-card

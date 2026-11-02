@@ -151,6 +151,8 @@ export const ReportCardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'in_person' | 'online'>('all');
   const [printing, setPrinting] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,6 +256,22 @@ export const ReportCardPage: React.FC = () => {
     }
   };
 
+  // Fold the approved scores into an official version — the draft then reads
+  // as published here and reaches the family's paper.
+  const publishCard = async (card: ReportCardRow) => {
+    if (card.termId === null || !card.studentUlid) return;
+    setPublishing(card.ulid);
+    setPublishError(null);
+    try {
+      await ApiReportCardService.publish(card.studentUlid, card.termId, card.kind);
+      await load();
+    } catch (e) {
+      setPublishError(e instanceof ApiError ? e.firstError() : 'خطا در انتشار کارنامه');
+    } finally {
+      setPublishing(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -264,7 +282,9 @@ export const ReportCardPage: React.FC = () => {
             ? `کارنامه تحصیلی فرزند — ${learnerLabel}`
             : `کارنامه تحصیلی — ${learnerLabel || 'انتخاب پرونده'}`
         }
-        subtitle="فقط کارنامه‌های منتشرشده در این نمای رسمی نمایش داده می‌شوند"
+        subtitle={hasAccess('reportcards:view_draft')
+          ? 'کارنامه‌های منتشرشده و پیش‌نویسِ مجاز در این نما می‌آید؛ برگهٔ چاپی فقط از نسخهٔ منتشرشده صادر می‌شود'
+          : 'فقط کارنامه‌های منتشرشده در این نمای رسمی نمایش داده می‌شوند'}
         actions={
           <div className="flex items-center gap-2 print:hidden">
             <RolePermissionBadge level="view_only" scopeLabel="کارنامه منتشرشده" />
@@ -289,6 +309,15 @@ export const ReportCardPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200">
             <AlertCircle size={15} />
             <span className="font-bold">{printError}</span>
+          </div>
+        </Card>
+      )}
+
+      {publishError && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 print:hidden">
+          <div className="flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200">
+            <AlertCircle size={15} />
+            <span className="font-bold">{publishError}</span>
           </div>
         </Card>
       )}
@@ -457,6 +486,18 @@ export const ReportCardPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {hasAccess('grades:publish') && (card.status === 'draft' || card.status === 'approved') && card.termId !== null && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={publishing === card.ulid}
+                      onClick={() => publishCard(card)}
+                      className="print:hidden"
+                    >
+                      {publishing === card.ulid ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                      انتشار رسمی
+                    </Button>
+                  )}
                   {card.rank !== null && card.rankOf !== null && (
                     <Badge variant="neutral">
                       <Users size={12} /> رتبه {toPersianDigits(card.rank)} از {toPersianDigits(card.rankOf)}

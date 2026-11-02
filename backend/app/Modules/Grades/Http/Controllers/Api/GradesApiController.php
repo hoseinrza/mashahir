@@ -306,6 +306,8 @@ class GradesApiController extends Controller
                 'student_ulid' => $c->student?->ulid,
                 'student_name' => $c->student?->fullName(),
                 'term' => $c->term?->title,
+                // The publish action needs the raw ids, not the display title.
+                'term_id' => $c->term_id,
                 'kind' => $c->kind,
                 'version' => $c->version,
                 'status' => $c->status,

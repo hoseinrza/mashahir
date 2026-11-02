@@ -183,6 +183,42 @@ class ConsentsTimetableImportsTest extends TestCase
         $this->assertSame('08:00:00', $slots[0]['starts_at']);
     }
 
+    public function test_classroom_roster_and_reference_lists_for_the_admin(): void
+    {
+        // The classroom-management page lives on these three small lists:
+        // the roster of one classroom, the school's teachers, its years.
+        $teacher = $this->makeUser();
+        $classroom = $this->makeClassroom();
+        $this->assignTeacher($teacher, $classroom, $this->makeSubject());
+        $this->enroll($this->student, $classroom);
+
+        $this->actingWithRole('school_admin');
+
+        $roster = $this->getJson('/api/v1/academic/classrooms/'.$classroom->ulid.'/enrollments')
+            ->assertOk()
+            ->json('data');
+        $this->assertCount(1, $roster, 'only the active enrollment shows');
+        $this->assertSame($this->student->ulid, $roster[0]['student_ulid']);
+        $this->assertSame($this->student->student_code, $roster[0]['student_code']);
+
+        $teachers = collect($this->getJson('/api/v1/academic/teachers')->assertOk()->json('data'));
+        $this->assertTrue($teachers->contains('ulid', $teacher->ulid), 'the classroom-subject teacher is listed');
+
+        $this->assertNotEmpty($this->getJson('/api/v1/academic/years')->assertOk()->json('data'));
+        $this->assertNotEmpty($this->getJson('/api/v1/academic/subjects')->assertOk()->json('data'));
+
+        // A learner never reads rosters: academic.view is for the timetable,
+        // not the management data.
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('student');
+        $this->getJson('/api/v1/academic/classrooms/'.$classroom->ulid.'/enrollments')->assertForbidden();
+
+        // The class's own teacher reads his roster (sh2).
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('teacher', user: $teacher);
+        $this->getJson('/api/v1/academic/classrooms/'.$classroom->ulid.'/enrollments')->assertOk();
+    }
+
     public function test_csv_import_reports_row_errors(): void
     {
         $this->actingWithRole('office_manager');

@@ -71,6 +71,100 @@ class AcademicApiController extends Controller
         return ClassroomResource::collection($query->get());
     }
 
+    /** سال‌های تحصیلی مدرسه — فرم ساخت کلاس. */
+    public function indexYears(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        return response()->json([
+            'data' => \App\Modules\Academic\Models\AcademicYear::query()
+                ->where('school_id', $request->attributes->get('school_id'))
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (\App\Modules\Academic\Models\AcademicYear $y) => ['id' => $y->id, 'title' => $y->title]),
+        ]);
+    }
+
+    /** درس‌های مدرسه — فرم تخصیص دبیر. */
+    public function indexSubjects(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        return response()->json([
+            'data' => Subject::query()
+                ->orderBy('title')
+                ->get()
+                ->map(fn (Subject $s) => ['id' => $s->id, 'title' => $s->title]),
+        ]);
+    }
+
+    /** دبیران مدرسه (نقش معلم یا دبیر یک کلاس‌درس) — فرم تخصیص درس. */
+    public function indexTeachers(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        $viaRole = \App\Modules\Identity\Models\UserRole::query()
+            ->where('school_id', $request->attributes->get('school_id'))
+            ->whereHas('role', fn ($q) => $q->where('key', 'teacher'))
+            ->pluck('user_id');
+
+        $viaSubject = ClassroomSubject::query()
+            ->where('school_id', $request->attributes->get('school_id'))
+            ->pluck('teacher_id');
+
+        $ids = $viaRole->merge($viaSubject)->filter()->unique()->values();
+
+        return response()->json([
+            'data' => \App\Modules\Identity\Models\User::query()
+                ->whereIn('id', $ids)
+                ->orderBy('last_name')
+                ->get()
+                ->map(fn (\App\Modules\Identity\Models\User $u) => ['ulid' => $u->ulid, 'name' => $u->fullName()]),
+        ]);
+    }
+
+    /** ثبت‌نام‌های فعال یک کلاس — فهرست دانش‌آموزان کلاس برای مدیر. */
+    public function classroomEnrollments(Request $request, Classroom $classroom): JsonResponse
+    {
+        $this->authorize('viewAny', Classroom::class);
+
+        // A roster with student codes is management data: enrollment/academic
+        // managers read any classroom, a teacher only his own (sh2), and a
+        // learner or guardian — who hold academic.view for the timetable —
+        // never reads rosters through this endpoint.
+        $registrar = app(\App\Support\Rbac\PermissionRegistrar::class);
+        $isStaff = $registrar->allows('enrollments.manage') || $registrar->allows('academic.manage');
+        $teacherIds = $this->resolver->classroomIds(); // null for every role but teacher (sh2)
+
+        if (! $isStaff && $teacherIds === null) {
+            abort(403);
+        }
+
+        $scoped = Classroom::query()
+            ->whereKey($classroom->getKey())
+            ->when($teacherIds !== null, fn ($q) => $q->whereIn('id', $teacherIds ?: [0]))
+            ->first();
+
+        abort_unless($scoped !== null, 404);
+
+        $rows = Enrollment::query()
+            ->where('classroom_id', $scoped->id)
+            ->where('status', Enrollment::STATUS_ACTIVE)
+            ->with('student')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json([
+            'data' => $rows->map(fn (Enrollment $e) => [
+                'enrollment_id' => $e->id,
+                'student_ulid' => $e->student?->ulid,
+                'student_name' => $e->student?->fullName(),
+                'student_code' => $e->student?->student_code,
+                'starts_on' => $e->starts_on,
+            ]),
+        ]);
+    }
+
     public function storeClassroom(Request $request): ClassroomResource
     {
         $this->authorize('create', Classroom::class);
