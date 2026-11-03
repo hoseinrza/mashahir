@@ -346,11 +346,13 @@ export const PageHeader: React.FC<{
 }> = ({ title, subtitle, actions }) => {
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-[#DCE3EE] dark:border-[#344257]">
-      <div>
+      {/* min-w-0: a long subtitle must wrap inside its own box, never slide
+          under the sibling actions row and appear to float behind it. */}
+      <div className="min-w-0">
         <h1 className="text-xl md:text-2xl font-bold text-[#202B3C] dark:text-[#F1F5FB] tracking-tight">{title}</h1>
-        {subtitle && <p className="text-xs md:text-sm text-[#526176] dark:text-[#B3C0D2] mt-1">{subtitle}</p>}
+        {subtitle && <p className="text-xs md:text-sm text-[#526176] dark:text-[#B3C0D2] mt-1 break-words">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-3 shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-3 justify-end shrink-0">{actions}</div>}
     </div>
   );
 };
