@@ -355,12 +355,14 @@ export interface Announcement {
   id: string;
   title: string;
   content: string;
-  category: 'official' | 'educational' | 'urgent' | 'pta';
+  /** Derived from the backend's importance: urgent → urgent, important → official, info → educational. */
+  category: 'official' | 'educational' | 'urgent';
   targetAudience: ('all' | 'teachers' | 'students' | 'guardians' | 'pta')[];
   authorName: string;
   authorRole: string;
   publishedDate: string;
   isPinned: boolean;
+  expiresAt?: string | null;
 }
 
 export interface Notification {

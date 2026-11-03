@@ -148,19 +148,25 @@ export const ApiAnnouncementService = {
       id: a.ulid,
       title: a.title,
       content: a.body,
-      category: a.importance === 'urgent' ? 'urgent' : 'official',
+      category: a.importance === 'urgent' ? 'urgent' : a.importance === 'info' ? 'educational' : 'official',
       targetAudience: ['all'],
       authorName: a.publisher ?? 'اداره مدرسه',
       authorRole: 'کانال رسمی',
       publishedDate: formatTimestamp(a.published_at),
       isPinned: false,
+      expiresAt: a.expires_at ?? null,
     }));
   },
 
-  async create(title: string, body: string, importance: 'info' | 'important' | 'urgent'): Promise<void> {
+  async create(
+    title: string,
+    body: string,
+    importance: 'info' | 'important' | 'urgent',
+    expiresAt?: string,
+  ): Promise<void> {
     await api('/v1/announcements', {
       method: 'POST',
-      body: { title, body, importance },
+      body: { title, body, importance, ...(expiresAt ? { expires_at: expiresAt } : {}) },
     });
   },
 };

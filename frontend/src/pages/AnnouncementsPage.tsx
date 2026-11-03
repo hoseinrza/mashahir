@@ -1,82 +1,93 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Megaphone, Pin, Calendar, User, Plus, Filter,
-  Bell, CheckCircle2, AlertTriangle, Send, Radio
+  Megaphone, Calendar, Plus,
+  Send, Radio, AlertCircle, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button, Badge, Modal, FormField, PageHeader } from '../components/common';
+import { Card, Button, Badge, Modal, FormField, PageHeader, EmptyState } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
-import { AnnouncementService } from '../services';
 import { ApiAnnouncementService } from '../api/data';
+import { ApiError } from '../api/client';
 import { Announcement } from '../types';
 
+const CATEGORY_BADGE: Record<Announcement['category'], { label: string; variant: 'danger' | 'primary' | 'neutral' }> = {
+  urgent: { label: 'فوری', variant: 'danger' },
+  official: { label: 'بخشنامهٔ رسمی', variant: 'primary' },
+  educational: { label: 'آموزشی', variant: 'neutral' },
+};
+
+const firstError = (e: unknown, fallback: string): string =>
+  e instanceof ApiError ? e.firstError() : fallback;
+
 export const AnnouncementsPage: React.FC = () => {
-  const { currentUser, hasAccess } = useAuth();
+  const { hasAccess } = useAuth();
   const canPublish = hasAccess('announcements:publish');
 
-  const [mockAnnouncements] = useState<Announcement[]>(() =>
-    AnnouncementService.getAll()
-  );
-  const [liveAnnouncements, setLiveAnnouncements] = useState<Announcement[] | null>(null);
-  const announcements = liveAnnouncements ?? mockAnnouncements;
+  // The official channel is backed by the backend alone — an empty school
+  // shows an empty channel, never a fabricated bulletin.
+  const [announcements, setAnnouncements] = useState<Announcement[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // The official channel is backed by the backend; demo data stays as fallback.
   useEffect(() => {
     let cancelled = false;
     ApiAnnouncementService.list()
-      .then((rows) => { if (!cancelled && rows.length > 0) setLiveAnnouncements(rows); })
-      .catch(() => { /* keep demo data */ });
+      .then((rows) => { if (!cancelled) setAnnouncements(rows); })
+      .catch((e) => { if (!cancelled) setError(firstError(e, 'خطا در دریافت بخشنامه‌ها')); });
     return () => { cancelled = true; };
   }, []);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // New announcement form
+  // New announcement form — importance and expiry are the backend's fields.
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newCategory, setNewCategory] = useState<'official' | 'educational' | 'urgent' | 'pta'>('official');
-  const [isPinned, setIsPinned] = useState(false);
+  const [newImportance, setNewImportance] = useState<'info' | 'important' | 'urgent'>('important');
+  const [newExpiresAt, setNewExpiresAt] = useState('');
+  const [publishing, setPublishing] = useState(false);
 
-  const handleCreateAnnouncement = (e: React.FormEvent) => {
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !newContent) return;
-
-    const created = AnnouncementService.create({
-      title: newTitle,
-      content: newContent,
-      category: newCategory,
-      targetAudience: ['all'],
-      authorName: currentUser.fullName,
-      authorRole: 'مدیریت دبیرستان',
-      isPinned,
-    });
-
-    // Publish through the real channel; the demo store is the fallback.
-    ApiAnnouncementService.create(
-      newTitle,
-      newContent,
-      newCategory === 'urgent' ? 'urgent' : 'important',
-    )
-      .then(() => ApiAnnouncementService.list())
-      .then((rows) => setLiveAnnouncements(rows))
-      .catch(() => setLiveAnnouncements([created, ...announcements]));
-
-    setIsCreateModalOpen(false);
-    setNewTitle('');
-    setNewContent('');
+    if (!newTitle.trim() || !newContent.trim()) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      await ApiAnnouncementService.create(
+        newTitle.trim(),
+        newContent.trim(),
+        newImportance,
+        newExpiresAt || undefined,
+      );
+      const rows = await ApiAnnouncementService.list();
+      setAnnouncements(rows);
+      setIsCreateModalOpen(false);
+      setNewTitle('');
+      setNewContent('');
+      setNewExpiresAt('');
+    } catch (err) {
+      setError(firstError(err, 'خطا در انتشار اطلاعیه'));
+    } finally {
+      setPublishing(false);
+    }
   };
 
-  const filtered = announcements.filter((a) => {
+  const filtered = (announcements ?? []).filter((a) => {
     if (selectedCategory !== 'all' && a.category !== selectedCategory) return false;
     return true;
   });
+
+  const tabs = [
+    { id: 'all', label: 'همه' },
+    { id: 'official', label: 'بخشنامه‌های رسمی' },
+    { id: 'educational', label: 'اطلاعیه‌های آموزشی' },
+    { id: 'urgent', label: 'فوری' },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="کانال اطلاع‌رسانی و بخشنامه‌های رسمی دبیرستان"
-        subtitle="اطلاعیه‌های آموزشی، تقویم جلسات، برنامه‌های اردویی و رویدادهای مهم مدرسه"
+        subtitle="هر بخشنامه با نام صادرکننده و تاریخ انتشار رسمی ثبت می‌شود و پس از انتشار برای مخاطبانش ابلاغ می‌گردد"
         actions={
           canPublish && (
             <Button
@@ -91,71 +102,99 @@ export const AnnouncementsPage: React.FC = () => {
         }
       />
 
+      {error && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30">
+          <div className="flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200">
+            <AlertCircle size={15} />
+            <span className="font-bold">{error}</span>
+          </div>
+        </Card>
+      )}
+
       {/* Categories Bar */}
       <div className="flex items-center gap-1.5 pb-2 border-b border-[#DCE3EE] dark:border-[#344257] overflow-x-auto">
-        {[
-          { id: 'all', label: 'همه اطلاعیه‌ها' },
-          { id: 'official', label: 'بخشنامه‌های رسمی' },
-          { id: 'educational', label: 'اطلاعیه‌های آموزشی' },
-          { id: 'urgent', label: 'موارد فوری و مهم' },
-          { id: 'pta', label: 'انجمن اولیا' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSelectedCategory(tab.id)}
-            className={cn(
-              'px-3.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer',
-              selectedCategory === tab.id
-                ? 'bg-[#2457C5] text-white dark:bg-[#8BAEFF] dark:text-[#101722]'
-                : 'bg-white dark:bg-[#182231] text-[#526176] dark:text-[#B3C0D2] border border-[#DCE3EE] dark:border-[#344257]'
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const count = tab.id === 'all'
+            ? (announcements?.length ?? 0)
+            : (announcements ?? []).filter((a) => a.category === tab.id).length;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedCategory(tab.id)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer whitespace-nowrap',
+                selectedCategory === tab.id
+                  ? 'bg-[#2457C5] text-white dark:bg-[#8BAEFF] dark:text-[#101722]'
+                  : 'bg-white dark:bg-[#182231] text-[#526176] dark:text-[#B3C0D2] border border-[#DCE3EE] dark:border-[#344257]',
+              )}
+            >
+              {tab.label}
+              <span className="opacity-70 tabular-nums mr-1.5">({toPersianDigits(count)})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Announcements Feed */}
-      <div className="space-y-4">
-        {filtered.map((ann) => (
-          <Card key={ann.id} className="text-right">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DCE3EE] dark:border-[#344257]">
-              <div className="flex items-center gap-2">
-                {ann.isPinned && (
-                  <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-md">
-                    <Pin size={12} className="rotate-45" />
-                    <span>سنجاق‌شده</span>
+      {announcements === null ? (
+        <Card>
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#526176] dark:text-[#B3C0D2]">
+            <Loader2 size={18} className="animate-spin" /> در حال دریافت کانال رسمی…
+          </div>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Radio size={22} className="text-[#2457C5] dark:text-[#8BAEFF]" />}
+            title="این بخش از کانال خالی است"
+            description={
+              announcements.length === 0
+                ? 'هنوز بخشنامه‌ای در کانال اطلاع‌رسانی رسمی منتشر نشده است؛ نخستین اطلاعیه با دکمهٔ «انتشار اطلاعیه جدید» ثبت می‌شود.'
+                : 'در این دسته‌بندی بخشنامه‌ای نیست؛ تب‌های دیگر را ببینید.'
+            }
+          />
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((ann) => (
+            <Card key={ann.id} className="text-right">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DCE3EE] dark:border-[#344257]">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge variant={CATEGORY_BADGE[ann.category].variant}>
+                    {CATEGORY_BADGE[ann.category].label}
+                  </Badge>
+                  <h3 className="text-base font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{ann.title}</h3>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-[#526176] dark:text-[#B3C0D2] shrink-0">
+                  <Calendar size={13} className="text-[#2457C5]" />
+                  <span className="tabular-nums">{ann.publishedDate}</span>
+                </div>
+              </div>
+
+              <p className="text-xs md:text-sm text-[#526176] dark:text-[#B3C0D2] py-3 leading-relaxed whitespace-pre-line">
+                {ann.content}
+              </p>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                <span>صادرکننده: <strong>{ann.authorName}</strong> ({ann.authorRole})</span>
+                {ann.expiresAt && (
+                  <span className="flex items-center gap-1">
+                    <Megaphone size={11} />
+                    اعتبار تا {ann.expiresAt}
                   </span>
                 )}
-                <Badge variant={ann.category === 'urgent' ? 'danger' : ann.category === 'official' ? 'primary' : 'neutral'}>
-                  {ann.category === 'urgent' ? 'فوری' : ann.category === 'official' ? 'رسمی' : 'آموزشی'}
-                </Badge>
-                <h3 className="text-base font-bold text-[#202B3C] dark:text-[#F1F5FB]">{ann.title}</h3>
               </div>
-
-              <div className="flex items-center gap-2 text-xs text-[#526176] dark:text-[#B3C0D2]">
-                <Calendar size={13} className="text-[#2457C5]" />
-                <span className="font-mono tabular-nums">{ann.publishedDate}</span>
-              </div>
-            </div>
-
-            <p className="text-xs md:text-sm text-[#526176] dark:text-[#B3C0D2] py-3 leading-relaxed">
-              {ann.content}
-            </p>
-
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-              <span>صادرکننده: <strong>{ann.authorName}</strong> ({ann.authorRole})</span>
-              <span>مخاطبان: عموم اولیا و دانش‌آموزان</span>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Create Modal */}
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="انتشار اطلاعیه یا بخشنامه رسمی"
+        title="انتشار اطلاعیه یا بخشنامهٔ رسمی"
         maxWidth="md"
       >
         <form onSubmit={handleCreateAnnouncement} className="space-y-4 text-right">
@@ -165,21 +204,20 @@ export const AnnouncementsPage: React.FC = () => {
               required
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="مثال: دعوت به جلسه مجمع عمومی انجمن اولیا"
+              placeholder="مثال: دعوت به جلسهٔ مجمع عمومی انجمن اولیا"
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             />
           </FormField>
 
-          <FormField label="دسته‌بندی" required>
+          <FormField label="اهمیت و سطح ابلاغ" required>
             <select
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value as any)}
+              value={newImportance}
+              onChange={(e) => setNewImportance(e.target.value as 'info' | 'important' | 'urgent')}
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             >
-              <option value="official">بخشنامه رسمی مدرسه</option>
-              <option value="educational">اطلاعیه آموزشی و امتحانات</option>
+              <option value="info">اطلاعیهٔ آموزشی و رویدادها</option>
+              <option value="important">بخشنامهٔ رسمی مدرسه</option>
               <option value="urgent">فوری و اضطراری</option>
-              <option value="pta">انجمن اولیا و مربیان</option>
             </select>
           </FormField>
 
@@ -194,22 +232,21 @@ export const AnnouncementsPage: React.FC = () => {
             />
           </FormField>
 
-          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <FormField label="تاریخ اعتبار (اختیاری — پس از این تاریخ اطلاعیه منقضی تلقی می‌شود)">
             <input
-              type="checkbox"
-              checked={isPinned}
-              onChange={(e) => setIsPinned(e.target.checked)}
-              className="rounded"
+              type="date"
+              value={newExpiresAt}
+              onChange={(e) => setNewExpiresAt(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             />
-            <span>سنجاق کردن در بالای فهرست اطلاعیه‌ها (پین)</span>
-          </label>
+          </FormField>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" type="button" onClick={() => setIsCreateModalOpen(false)}>
               انصراف
             </Button>
-            <Button variant="primary" type="submit" icon={<Send size={14} />}>
-              انتشار عمومی
+            <Button variant="primary" type="submit" icon={<Send size={14} />} disabled={publishing}>
+              {publishing ? 'در حال انتشار…' : 'انتشار در کانال رسمی'}
             </Button>
           </div>
         </form>
