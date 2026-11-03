@@ -208,12 +208,97 @@ export const ApiNotificationCenter = {
 };
 
 /** Attendance timeline of one student (guardian/student view). */
+export interface AttendanceSessionRow {
+  id: number;
+  heldOn: string;
+  period: number;
+  status: string;
+  subject: string | null;
+  classroomSubjectId: number;
+}
+
+export interface AttendanceRosterRow {
+  studentUlid: string;
+  studentId: number;
+  studentName: string;
+  status: string | null;
+  lateMinutes: number | null;
+  recordId: number | null;
+}
+
+const mapAttendanceSession = (s: any): AttendanceSessionRow => ({
+  id: s.id,
+  heldOn: s.held_on ?? '',
+  period: s.period,
+  status: s.status ?? 'not_taken',
+  subject: s.subject ?? null,
+  classroomSubjectId: s.classroom_subject_id,
+});
+
 export const ApiAttendanceService = {
   async studentTimeline(studentUlid: string): Promise<
     { date: string; period: number; subject: string | null; status: string; late_minutes: number | null }[]
   > {
     const result = await api<{ data: any[] }>(`/v1/attendance/students/${studentUlid}/records`);
     return result.data ?? [];
+  },
+
+  /** ── Roll-call console (teacher/staff) ── */
+
+  async createSession(classroomSubjectId: number, heldOn: string, period: number): Promise<AttendanceSessionRow> {
+    const result = await api<any>('/v1/attendance/sessions', {
+      method: 'POST',
+      body: { classroom_subject_id: classroomSubjectId, held_on: heldOn, period },
+    });
+    return mapAttendanceSession(result);
+  },
+
+  async listSessions(classroomSubjectId: number, heldOn: string): Promise<AttendanceSessionRow[]> {
+    const result = await api<{ data: any[] }>(
+      `/v1/attendance/sessions?classroom_subject_id=${classroomSubjectId}&held_on=${heldOn}`,
+    );
+    return (result.data ?? []).map(mapAttendanceSession);
+  },
+
+  async showSession(id: number): Promise<{ session: AttendanceSessionRow; roster: AttendanceRosterRow[] }> {
+    const result = await api<{ session: any; data: any[] }>(`/v1/attendance/sessions/${id}`);
+    return {
+      session: mapAttendanceSession(result.session),
+      roster: (result.data ?? []).map((r) => ({
+        studentUlid: r.student_ulid,
+        studentId: r.student_id,
+        studentName: r.student_name,
+        status: r.status ?? null,
+        lateMinutes: r.late_minutes ?? null,
+        recordId: r.record_id ?? null,
+      })),
+    };
+  },
+
+  async saveRecords(
+    sessionId: number,
+    rows: { studentId: number; status: 'present' | 'absent' | 'late'; lateMinutes: number | null }[],
+  ): Promise<void> {
+    await api(`/v1/attendance/sessions/${sessionId}/records`, {
+      method: 'POST',
+      body: { rows: rows.map((r) => ({ student_id: r.studentId, status: r.status, late_minutes: r.lateMinutes })) },
+    });
+  },
+
+  async finalizeSession(sessionId: number): Promise<void> {
+    await api(`/v1/attendance/sessions/${sessionId}/finalize`, { method: 'POST' });
+  },
+
+  async correctRecord(
+    recordId: number,
+    status: 'present' | 'absent' | 'late',
+    reason: string,
+    lateMinutes?: number | null,
+  ): Promise<void> {
+    await api(`/v1/attendance/records/${recordId}/correct`, {
+      method: 'POST',
+      body: { status, reason, ...(lateMinutes !== null && lateMinutes !== undefined ? { late_minutes: lateMinutes } : {}) },
+    });
   },
 };
 

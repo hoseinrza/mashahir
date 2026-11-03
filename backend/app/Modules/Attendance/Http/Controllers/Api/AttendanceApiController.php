@@ -95,8 +95,12 @@ class AttendanceApiController extends Controller
             'data' => $roster->map(fn ($enrollment) => [
                 'student_ulid' => $enrollment->student?->ulid,
                 'student_name' => $enrollment->student?->fullName(),
-                'status' => $records[$enrollment->student_id]->status ?? null,
-                'late_minutes' => $records[$enrollment->student_id]->late_minutes ?? null,
+                // Internal ids the roll-call UI needs: saveRecords posts
+                // student_id, and correcting a finalized record needs record_id.
+                'student_id' => $enrollment->student_id,
+                'record_id' => $records->get($enrollment->student_id)?->id,
+                'status' => $records->get($enrollment->student_id)->status ?? null,
+                'late_minutes' => $records->get($enrollment->student_id)->late_minutes ?? null,
             ]),
         ]);
     }
