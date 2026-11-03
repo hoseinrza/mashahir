@@ -374,7 +374,7 @@ export const ReportCardPrintPage: React.FC = () => {
 
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
             <ShieldCheck size={13} />
-            دامنهٔ دسترسی در بک‌اند اعمال می‌شود: آنچه در این جدول می‌بینید، همان چیزی است که قابل چاپ هم هست.
+            دامنهٔ دسترسی سمت سرور اعمال می‌شود: آنچه در این جدول می‌بینید، همان چیزی است که قابل چاپ هم هست.
           </div>
         </>
       )}

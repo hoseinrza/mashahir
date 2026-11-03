@@ -282,7 +282,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           badge: activeRole.id === 'educational_deputy' ? 'معاونت' : undefined,
         },
         {
-          label: 'نقش‌ها و دسترسی‌ها (RBAC)',
+          label: 'نقش‌ها و دسترسی‌ها',
           href: '/roles-permissions',
           icon: <Layers size={17} />,
           show: isAdmin,
@@ -420,10 +420,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           <div className="px-4 pt-5 pb-4 shrink-0">{brandBlock}</div>
           <div className="px-3 pb-3 shrink-0">{userCard}</div>
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-3 pb-4">{renderNav()}</div>
-          <div className="shrink-0 px-3 pb-4 pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739] flex items-center justify-between gap-2">
-            <span className="text-[9px] font-bold text-[#8CA0BC] dark:text-[#5E7391] bg-[#F0F4FA] dark:bg-[#141E30] px-2 py-1 rounded-md">
-              دسترسی بر پایهٔ RBAC
-            </span>
+          <div className="shrink-0 px-3 pb-4 pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739] flex items-center justify-end gap-2">
             <button
               onClick={() => logout()}
               className="flex items-center gap-1.5 text-[11px] font-bold text-[#8CA0BC] dark:text-[#7C8CA5] hover:text-rose-600 dark:hover:text-rose-400 px-2 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
@@ -446,7 +443,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
                 <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی مشاهیر آینده</p>
                 <span className="text-[10px] bg-blue-50 text-[#2457C5] dark:bg-[#12203A] dark:text-[#8BAEFF] px-2 py-0.5 rounded-md">
-                  سامانه یکپارچه مبتنی بر RBAC و امنیت روابط خانوادگی
+                  سامانه یکپارچه با کنترل دسترسی نقش‌محور و حفظ حریم خصوصی خانواده‌ها
                 </span>
               </div>
             </footer>

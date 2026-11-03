@@ -5,6 +5,7 @@ import {
   Lock, ArrowRight, ShieldCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { cn, toPersianDigits } from '../../utils/persian';
 
 // School Insignia Logo SVG
@@ -403,7 +404,7 @@ export const AccessDeniedGate: React.FC<{
 }> = ({
   title = 'عدم دسترسی به این بخش',
   requiredRoleOrPermission = 'مجوز مدیریت ارشد یا مسئول اداری',
-  reason = 'این صفحه طبق ماتریس دسترسی RBAC سامانه مشاهیر آینده، تنها برای نقش‌های دارای اختیارات قانونی مشخص فعال است.',
+  reason = 'این صفحه بر پایهٔ سیاست دسترسی نقش‌محور سامانه مشاهیر آینده، تنها برای نقش‌های دارای اختیارات مشخص فعال است.',
   currentRoleTitle,
 }) => {
   const navigate = useNavigate();
@@ -464,6 +465,12 @@ export const RolePermissionBadge: React.FC<{
   level: 'full' | 'view_only' | 'restricted' | 'special';
   scopeLabel?: string;
 }> = ({ level, scopeLabel }) => {
+  const { activeRole } = useAuth();
+  // Access-control jargon is staff vocabulary: learners and their families
+  // see a clean page without RBAC badges.
+  if (activeRole.group === 'student' || activeRole.group === 'family') {
+    return null;
+  }
   const configs = {
     full: {
       text: 'دسترسی کامل (ثبت و ویرایش)',

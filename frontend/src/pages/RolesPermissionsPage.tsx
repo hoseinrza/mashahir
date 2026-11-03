@@ -30,7 +30,7 @@ export const RolesPermissionsPage: React.FC = () => {
   if (!isAuthorized) {
     return (
       <AccessDeniedGate
-        title="دسترسی به ماتریس نقش‌ها و مدیریت مجوزهای RBAC"
+        title="دسترسی به مدیریت نقش‌ها و مجوزهای سامانه"
         requiredRoleOrPermission="school_principal یا platform_super_admin"
         reason="تعریف الگوهای دسترسی، افزودن نقش‌های سفارشی و تغییر مجوزها تنها در صلاحیت مدیریت مدرسه و ادمین پلتفرم است."
         currentRoleTitle={activeRole.persianTitle}
@@ -94,7 +94,7 @@ export const RolesPermissionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="مدیریت نقش‌ها، مجوزها و معماری RBAC"
+        title="مدیریت نقش‌ها، مجوزها و سطوح دسترسی"
         subtitle="تعریف ۳۰ نقش پایه و امکان ایجاد نقش‌های سفارشی با انتخاب دقیق دسترسی‌ها و قلمرو"
         actions={
           <Button

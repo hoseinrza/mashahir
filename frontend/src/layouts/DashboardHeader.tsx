@@ -168,7 +168,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     { title: 'سرویس مدارس، رانندگان و مسیرها', href: '/special-roles', category: 'اجرایی', icon: <Bus size={16} /> },
     { title: 'روابط خانوادگی و احکام حضانت دادگاه', href: '/family-management', category: 'حقوقی', icon: <ShieldAlert size={16} /> },
     { title: 'مدیریت مدارس، کادر و کاربران', href: '/user-management', category: 'مدیریت', icon: <UserCog size={16} /> },
-    { title: 'ماتریس نقش‌ها و مجوزهای امنیتی (RBAC)', href: '/roles-permissions', category: 'امنیت', icon: <Layers size={16} /> },
+    { title: 'ماتریس نقش‌ها و مجوزهای امنیتی', href: '/roles-permissions', category: 'امنیت', icon: <Layers size={16} /> },
     { title: 'تاریخچه حساس و ممیزی سیستم (Audit Logs)', href: '/audit-logs', category: 'امنیت', icon: <Clock size={16} /> },
     { title: 'تنظیمات و پیکربندی سامانه', href: '/settings', category: 'سیستم', icon: <Settings size={16} /> },
   ];

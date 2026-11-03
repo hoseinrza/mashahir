@@ -89,7 +89,7 @@ export const SpecialRolesPage: React.FC = () => {
           <div className="p-3 bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2">
             <AlertCircle size={16} className="shrink-0" />
             <span>
-              <strong>محدوده دسترسی راننده:</strong> طبق معماری RBAC، راننده سرویس صرفاً به وضعیت سوار/پیاده شدن دانش‌آموزان خط خود دسترسی دارد و نمرات یا اطلاعات خصوصی خانواده‌ها برای وی غیرقابل دسترس است.
+              <strong>محدوده دسترسی راننده:</strong> بر پایهٔ کنترل دسترسی نقش‌محور، راننده سرویس صرفاً به وضعیت سوار/پیاده شدن دانش‌آموزان خط خود دسترسی دارد و نمرات یا اطلاعات خصوصی خانواده‌ها برای وی غیرقابل دسترس است.
             </span>
           </div>
 

@@ -568,7 +568,7 @@ export const UserManagementPage: React.FC = () => {
           )}
         >
           <Users size={14} />
-          <span>ماتریس جامع کاربران و RBAC</span>
+          <span>ماتریس جامع کاربران و دسترسی‌ها</span>
         </button>
       </div>
 

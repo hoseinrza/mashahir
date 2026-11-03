@@ -198,7 +198,7 @@ export const SmartPerformanceAnalysisPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={classView ? 'تحلیل پیشرفت دانش‌آموزان' : `تحلیل هوشمند و شناختی یادگیری${learner ? ` — ${learner}` : ''}`}
-        subtitle="محاسبه از نمرات و بازخوردهای ثبت‌شده در سامانه — بدون هیچ عدد ساختگی"
+        subtitle={isLearnerSide ? 'گزارش تحلیلی از نمرات منتشرشدهٔ شما — نقاط قوت، مباحث نیازمند تمرین و روند پیشرفت' : 'محاسبه از نمرات و بازخوردهای ثبت‌شده در سامانه — بدون هیچ عدد ساختگی'}
         actions={
           <div className="flex items-center gap-2">
             <RolePermissionBadge level="view_only" scopeLabel={classView ? 'دفتر نمره کلاس' : 'سوابق تحصیلی خود'} />
@@ -212,14 +212,14 @@ export const SmartPerformanceAnalysisPage: React.FC = () => {
         </div>
       )}
 
-      <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-xs text-[#202B3C] dark:text-[#F1F5FB] flex items-start gap-2 text-right">
+      {isStaff && (<div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-xs text-[#202B3C] dark:text-[#F1F5FB] flex items-start gap-2 text-right">
         <Sparkles size={16} className="text-[#2457C5] dark:text-[#8BAEFF] shrink-0 mt-0.5" />
         <span>
           <strong>یادداشت روش‌شناختی:</strong> میانگین‌ها از نمرات منتشرشده (تبدیل‌شده به مقیاس ۲۰) محاسبه می‌شوند.
           مقایسهٔ دروس و روند بین دوره‌ها فقط زمانی نمایش داده می‌شود که دست‌کم دو رکورد واقعی برای آن وجود داشته باشد؛
           این گزارش جایگزین ارزیابی حضوری دبیر و مشاور نیست.
         </span>
-      </div>
+      </div>)}
 
       {classView ? (
         <ClassAnalysis
