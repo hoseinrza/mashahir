@@ -31,7 +31,10 @@ interface LearnerRow {
 export const ReportCardPrintPage: React.FC = () => {
   const { activeRole, hasAccess } = useAuth();
 
-  const canPrint = hasAccess('reportcards:export_pdf');
+  // The bulk console is a staff tool: students and guardians hold export_pdf
+  // only for their own card's «چاپ نسخه رسمی» button, never for this page.
+  const isStaff = activeRole.group === 'school_admin' || activeRole.group === 'platform' || activeRole.group === 'faculty';
+  const canPrint = isStaff && hasAccess('reportcards:export_pdf');
 
   const [cards, setCards] = useState<ReportCardRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +154,7 @@ export const ReportCardPrintPage: React.FC = () => {
       <AccessDeniedGate
         title="عدم دسترسی به چاپ رسمی کارنامه"
         requiredRoleOrPermission="reportcards.export_pdf"
-        reason="صدور و چاپ سند رسمی کارنامه فقط برای مدیر و معاونت آموزشی (و برای هر خانواده نسبت به پرونده خود) تعریف شده است؛ این مجوز در بک‌اند لاراول بررسی می‌شود، نه در منوی رابط کاربری."
+        reason="چاپ گروهی ابزار کادر آموزشی (مدیر و معاونت) است. دانش‌آموز و ولی نسخهٔ رسمی کارنامهٔ خود را از دکمهٔ «چاپ نسخه رسمی» در صفحهٔ کارنامه صادر می‌کنند، نه از این کنسول."
         currentRoleTitle={activeRole.persianTitle}
       />
     );

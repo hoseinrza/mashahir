@@ -204,10 +204,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           badge: isAdmin ? 'مدیریت' : undefined,
         },
         {
+          // The bulk console is a staff tool: learners hold export_pdf for
+          // their own card's print button, not for this page.
           label: 'چاپ گروهی کارنامه',
           href: '/report-card-print',
           icon: <Printer size={17} />,
-          show: hasAccess('reportcards:export_pdf'),
+          show: !isBusDriver && !isFamily && !isStudent && hasAccess('reportcards:export_pdf'),
         },
         {
           label: isTeacher ? 'تحلیل پیشرفت دانش‌آموزان' : isFamily ? 'تحلیل تحصیلی فرزند' : 'تحلیل هوشمند عملکرد',
