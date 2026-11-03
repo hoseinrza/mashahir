@@ -287,7 +287,7 @@ export const ReportCardPage: React.FC = () => {
           : 'فقط کارنامه‌های منتشرشده در این نمای رسمی نمایش داده می‌شوند'}
         actions={
           <div className="flex items-center gap-2 print:hidden">
-            <RolePermissionBadge level="view_only" scopeLabel="کارنامه منتشرشده" />
+            <RolePermissionBadge level="view_only" />
             {hasAccess('reportcards:export_pdf') && (
               <Button
                 variant="outline"
