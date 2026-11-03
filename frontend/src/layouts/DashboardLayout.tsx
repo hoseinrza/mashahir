@@ -481,37 +481,58 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         </div>
       )}
 
-      {/* ── Mobile bottom navigation (thumb reach) ── */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0C1424]/95 backdrop-blur-md border-t border-[#E3EAF4] dark:border-[#1B2739] px-3 py-1.5 flex items-center justify-around shadow-lg">
-        {[
-          { href: '/dashboard', label: 'داشبورد', icon: <LayoutDashboard size={18} /> },
-          { href: '/attendance', label: 'حضور و غیاب', icon: <CheckSquare size={18} />, gated: itemAllowed('/attendance', true) },
-          { href: '/assignments', label: 'تکالیف', icon: <BookOpen size={18} />, gated: itemAllowed('/assignments', true) },
-        ].map((tab) =>
-          tab.gated === false ? null : (
-            <Link
-              key={tab.href}
-              to={tab.href}
-              className={cn(
-                'flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-[10px] font-bold transition-colors',
-                location.pathname === tab.href
-                  ? 'text-[#2457C5] dark:text-[#8BAEFF] bg-[#2457C5]/10 dark:bg-[#8BAEFF]/10'
-                  : 'text-[#8CA0BC] dark:text-[#5E7391]',
+      {/* ── Mobile floating dock: gliding indicator + icon pop ── */}
+      {(() => {
+        const tabs = [
+          { href: '/dashboard', label: 'داشبورد', icon: <LayoutDashboard size={19} /> },
+          ...(itemAllowed('/attendance', true) ? [{ href: '/attendance', label: 'حضور و غیاب', icon: <CheckSquare size={19} /> }] : []),
+          ...(itemAllowed('/assignments', true) ? [{ href: '/assignments', label: 'تکالیف', icon: <BookOpen size={19} /> }] : []),
+        ];
+        const activeIdx = tabs.findIndex((t) => location.pathname === t.href);
+        const slot = 100 / (tabs.length + 1); // +1 برای دکمهٔ منوی کامل
+        return (
+          <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40 animate-in slide-in-from-bottom-6 fade-in duration-700">
+            <div className="relative bg-white/92 dark:bg-[#0C1424]/95 backdrop-blur-xl border border-[#E3EAF4] dark:border-[#1B2739] rounded-[24px] shadow-xl shadow-black/10 dark:shadow-black/50 px-1.5 py-1.5 flex items-stretch">
+              {/* gliding pill — springs to the active tab */}
+              {activeIdx >= 0 && (
+                <span
+                  aria-hidden
+                  className="absolute top-1.5 bottom-1.5 rounded-2xl bg-[#2457C5]/10 dark:bg-[#8BAEFF]/10 border border-[#2457C5]/20 dark:border-[#8BAEFF]/25 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                  style={{ width: `calc(${slot}% - 8px)`, right: `calc(${activeIdx * slot}% + 4px)` }}
+                />
               )}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </Link>
-          ),
-        )}
-        <button
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-[10px] font-bold text-[#8CA0BC] dark:text-[#5E7391] cursor-pointer"
-        >
-          <Menu size={18} />
-          <span>منوی کامل</span>
-        </button>
-      </div>
+              {tabs.map((t) => {
+                const isActive = location.pathname === t.href;
+                return (
+                  <Link
+                    key={t.href}
+                    to={t.href}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'relative z-10 flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-2xl text-[10px] font-bold transition-all duration-200 active:scale-90 select-none',
+                      isActive
+                        ? 'text-[#2457C5] dark:text-[#8BAEFF]'
+                        : 'text-[#8CA0BC] dark:text-[#5E7391] hover:text-[#2457C5] dark:hover:text-[#8BAEFF]',
+                    )}
+                  >
+                    <span className={cn('transition-transform duration-300 ease-out', isActive && 'scale-110 -translate-y-0.5')}>
+                      {t.icon}
+                    </span>
+                    <span>{t.label}</span>
+                  </Link>
+                );
+              })}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="relative z-10 flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-2xl text-[10px] font-bold text-[#8CA0BC] dark:text-[#5E7391] hover:text-[#2457C5] dark:hover:text-[#8BAEFF] active:scale-90 transition-all cursor-pointer"
+              >
+                <Menu size={19} />
+                <span>منوی کامل</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
