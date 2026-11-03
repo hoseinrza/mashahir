@@ -4,7 +4,8 @@ import {
   LayoutDashboard, BookOpen, CheckSquare, FileText, Award,
   Sparkles, HeartHandshake, Users, Megaphone, ShieldCheck,
   UserCog, Settings, Menu, X, ClipboardList, Send,
-  Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2, Printer
+  Layers, Clock, ShieldAlert, Bus, Video, CheckCircle2, Lock, Building2, Printer,
+  LogOut, GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { GuestPanelPage } from '../pages/GuestPanelPage';
@@ -17,6 +18,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const {
     currentUser, activeRole, activeAssignment, hasAccess,
     isAuthenticated, isSessionLoading, needsRole, activeSchoolName,
+    logout,
   } = useAuth();
   const location = useLocation();
 
@@ -97,8 +99,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   // account never reaches data screens.
   if (isSessionLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F9FC] dark:bg-[#0c1322]">
-        <div className="w-8 h-8 border-2 border-[#2457C5] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F4F6FA] dark:bg-[#0A111D]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-9 h-9 border-2 border-[#2457C5] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-[#526176] dark:text-[#7C8CA5]">در حال آماده‌سازی پیشخوان…</span>
+        </div>
       </div>
     );
   }
@@ -296,215 +301,217 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     },
   ];
 
+  const groupsWithContent = navGroups
+    .map((group) => ({ ...group, items: group.items.filter((it) => itemAllowed(it.href, it.show)) }))
+    .filter((group) => group.items.length > 0);
+
+  /** One nav renderer for the desktop rail and the mobile drawer. */
+  const renderNav = (onNavigate?: () => void) => (
+    <div className="space-y-5">
+      {groupsWithContent.map((group) => (
+        <div key={group.title}>
+          <p className="text-[10px] font-bold text-[#8CA0BC] dark:text-[#5E7391] px-3 pb-1.5 tracking-wide">
+            {group.title}
+          </p>
+          <nav className="space-y-0.5">
+            {group.items.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={onNavigate}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'group relative flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all select-none',
+                    isActive
+                      ? 'bg-[#2457C5] text-white shadow-sm shadow-[#2457C5]/30 dark:bg-[#2457C5] dark:text-white'
+                      : 'text-[#526176] dark:text-[#AFC0D6] hover:bg-[#EEF2F9] dark:hover:bg-[#16202F] hover:text-[#202B3C] dark:hover:text-white',
+                  )}
+                >
+                  {/* active accent — a thin bar hugging the inline-start edge */}
+                  <span
+                    className={cn(
+                      'absolute inset-y-1.5 -right-3 w-1 rounded-full transition-opacity',
+                      isActive ? 'bg-[#2457C5] dark:bg-[#8BAEFF] opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={cn(
+                        'shrink-0 transition-colors',
+                        isActive
+                          ? 'text-white dark:text-[#8BAEFF]'
+                          : 'text-[#8CA0BC] dark:text-[#5E7391] group-hover:text-[#2457C5] dark:group-hover:text-[#8BAEFF]',
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  {item.badge && (
+                    <span
+                      className={cn(
+                        'shrink-0 text-[10px] px-1.5 py-0.5 rounded-md font-bold',
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
+                      )}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ))}
+    </div>
+  );
+
+  const brandBlock = (
+    <Link to="/dashboard" className="flex items-center gap-3 px-1 select-none group">
+      <div className="relative shrink-0">
+        <SchoolLogo size={40} />
+        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0D1523] rounded-full" />
+      </div>
+      <div className="min-w-0 text-right">
+        <span className="text-[15px] font-black text-[#2457C5] dark:text-[#8BAEFF] tracking-tight block leading-tight">
+          مشاهیر آینده
+        </span>
+        <span className="text-[10px] text-[#8CA0BC] dark:text-[#5E7391] font-medium block truncate">
+          {activeSchoolName ?? 'سامانه جامع آموزشی'}
+        </span>
+      </div>
+    </Link>
+  );
+
+  const userCard = (
+    <div className="mx-1 rounded-2xl bg-[#F4F7FC] dark:bg-[#141E30] border border-[#E3EAF4] dark:border-[#1E2A3D] p-3">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2457C5] to-[#173B8F] text-white dark:from-[#8BAEFF] dark:to-[#5F86D9] dark:text-[#0D1523] flex items-center justify-center font-black text-sm shrink-0">
+          {currentUser.fullName.slice(0, 1)}
+        </div>
+        <div className="overflow-hidden text-right">
+          <p className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{currentUser.fullName}</p>
+          <p className="text-[10px] text-[#526176] dark:text-[#B3C0D2] truncate flex items-center gap-1">
+            <GraduationCap size={11} className="shrink-0" />
+            {activeRole.persianTitle}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F9FC] dark:bg-[#101722] text-[#202B3C] dark:text-[#F1F5FB]">
+    <div className="h-screen overflow-hidden flex flex-col bg-[#F4F6FA] dark:bg-[#0A111D] text-[#202B3C] dark:text-[#F1F5FB]">
       {schoolSwitched && (
-        <div className="bg-emerald-600 dark:bg-emerald-700 text-white text-xs font-bold text-center py-2 px-4">
+        <div className="bg-emerald-600 dark:bg-emerald-700 text-white text-xs font-bold text-center py-2 px-4 shrink-0">
           ورود به {activeSchoolName ?? 'واحد آموزشی جدید'} انجام شد — داده‌ها برای این مدرسه بارگذاری شدند.
         </div>
       )}
-      {/* Top Bar Header (Redesigned) */}
-      <DashboardHeader
-        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-      />
 
-      {/* Main Workspace Frame */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 gap-6">
-        {/* Desktop Sidebar (RTL: right side) */}
-        <aside className="hidden lg:block w-64 shrink-0">
-          <div className="sticky top-20 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-2xl p-3.5 shadow-xs max-h-[calc(100vh-6rem)] overflow-y-auto no-scrollbar">
-            {/* User Profile Summary */}
-            <div className="pb-3.5 mb-3 border-b border-[#DCE3EE] dark:border-[#344257] text-right">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#2457C5]/10 dark:bg-[#8BAEFF]/20 text-[#2457C5] dark:text-[#8BAEFF] flex items-center justify-center font-bold text-sm shrink-0">
-                  {currentUser.fullName.slice(0, 1)}
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{currentUser.fullName}</p>
-                  <p className="text-xs text-[#526176] dark:text-[#B3C0D2] truncate">{activeRole.persianTitle}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation Groups */}
-            <div className="space-y-4">
-              {navGroups.map((group) => {
-                const visibleItems = group.items.filter((it) => itemAllowed(it.href, it.show));
-                if (visibleItems.length === 0) return null;
-                return (
-                  <div key={group.title}>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-3 py-1 uppercase tracking-wider">
-                      {group.title}
-                    </p>
-                    <nav className="space-y-0.5 mt-0.5">
-                      {visibleItems.map((item) => {
-                        const isActive = location.pathname === item.href;
-                        return (
-                          <Link
-                            key={item.href}
-                            to={item.href}
-                            className={cn(
-                              'flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all select-none',
-                              isActive
-                                ? 'bg-[#2457C5] text-white shadow-xs dark:bg-[#8BAEFF] dark:text-[#101722] font-semibold'
-                                : 'text-[#526176] dark:text-[#B3C0D2] hover:bg-[#F0F4FA] dark:hover:bg-[#222F42] hover:text-[#202B3C] dark:hover:text-white'
-                            )}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <span className={cn('shrink-0', isActive ? 'text-white dark:text-[#101722]' : 'text-slate-400 dark:text-slate-400')}>{item.icon}</span>
-                              <span className="truncate">{item.label}</span>
-                            </div>
-                            {item.badge && (
-                              <span
-                                className={cn(
-                                  'text-[10px] px-1.5 py-0.2 rounded-md font-bold',
-                                  isActive ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                                )}
-                              >
-                                {item.badge}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </nav>
-                  </div>
-                );
-              })}
-            </div>
+      <div className="flex-1 flex min-h-0">
+        {/* ── Desktop rail (RTL: hugs the right edge, full height) ── */}
+        <aside className="hidden lg:flex flex-col w-[272px] shrink-0 h-full bg-white dark:bg-[#0D1523] border-l border-[#E3EAF4] dark:border-[#1B2739]">
+          <div className="px-4 pt-5 pb-4 shrink-0">{brandBlock}</div>
+          <div className="px-3 pb-3 shrink-0">{userCard}</div>
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-3 pb-4">{renderNav()}</div>
+          <div className="shrink-0 px-3 pb-4 pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739] flex items-center justify-between gap-2">
+            <span className="text-[9px] font-bold text-[#8CA0BC] dark:text-[#5E7391] bg-[#F0F4FA] dark:bg-[#141E30] px-2 py-1 rounded-md">
+              دسترسی بر پایهٔ RBAC
+            </span>
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-[#8CA0BC] dark:text-[#7C8CA5] hover:text-rose-600 dark:hover:text-rose-400 px-2 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+            >
+              <LogOut size={13} /> خروج
+            </button>
           </div>
         </aside>
 
-        {/* Mobile Navigation Drawer */}
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsMobileMenuOpen(false)} />
-            <div className="relative z-10 w-72 max-w-[85%] bg-white dark:bg-[#182231] h-full p-4 overflow-y-auto border-l border-[#DCE3EE] dark:border-[#344257] shadow-2xl">
-              <div className="flex items-center justify-between pb-4 border-b border-[#DCE3EE] dark:border-[#344257] mb-4">
-                <div className="flex items-center gap-2">
-                  <SchoolLogo size={28} />
-                  <div>
-                    <span className="font-bold text-sm text-[#2457C5] dark:text-[#8BAEFF] block leading-tight">مشاهیر آینده</span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">پنل جامع پیشخوان</span>
-                  </div>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Mobile Drawer Groups */}
-              <div className="space-y-4">
-                {navGroups.map((group) => {
-                  const visibleItems = group.items.filter((it) => itemAllowed(it.href, it.show));
-                  if (visibleItems.length === 0) return null;
-                  return (
-                    <div key={group.title}>
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 px-2 py-1 uppercase tracking-wider">
-                        {group.title}
-                      </p>
-                      <nav className="space-y-0.5 mt-0.5">
-                        {visibleItems.map((item) => {
-                          const isActive = location.pathname === item.href;
-                          return (
-                            <Link
-                              key={item.href}
-                              to={item.href}
-                              onClick={() => setIsMobileMenuOpen(false)}
-                              className={cn(
-                                'flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors',
-                                isActive
-                                  ? 'bg-[#2457C5] text-white dark:bg-[#8BAEFF] dark:text-[#101722] font-semibold'
-                                  : 'text-[#526176] dark:text-[#B3C0D2] hover:bg-[#F0F4FA] dark:hover:bg-[#222F42]'
-                              )}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <span className="shrink-0">{item.icon}</span>
-                                <span className="truncate">{item.label}</span>
-                              </div>
-                              {item.badge && (
-                                <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 px-1.5 py-0.5 rounded font-bold">
-                                  {item.badge}
-                                </span>
-                              )}
-                            </Link>
-                          );
-                        })}
-                      </nav>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+        {/* ── Main column: header on top, content scrolls under it ── */}
+        <div className="flex-1 min-w-0 h-full flex flex-col">
+          <div className="shrink-0 bg-white/85 dark:bg-[#0C1424]/85 backdrop-blur-xl border-b border-[#E3EAF4] dark:border-[#1B2739]">
+            <DashboardHeader onToggleMobileMenu={() => setIsMobileMenuOpen(true)} />
           </div>
-        )}
-
-        {/* Content Viewport */}
-        <main className="flex-1 min-w-0 pb-20 lg:pb-0">
-          {children}
-        </main>
+          <main className="flex-1 min-h-0 overflow-y-auto scroll-smooth">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10">
+              {children}
+            </div>
+            <footer className="border-t border-[#E9EEF5] dark:border-[#16202F] py-5 px-4 text-center text-[11px] text-[#8CA0BC] dark:text-[#5E7391]">
+              <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+                <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی مشاهیر آینده</p>
+                <span className="text-[10px] bg-blue-50 text-[#2457C5] dark:bg-[#12203A] dark:text-[#8BAEFF] px-2 py-0.5 rounded-md">
+                  سامانه یکپارچه مبتنی بر RBAC و امنیت روابط خانوادگی
+                </span>
+              </div>
+            </footer>
+          </main>
+        </div>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (Thumb Reach) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#182231]/95 backdrop-blur-md border-t border-[#DCE3EE] dark:border-[#344257] px-2 py-1.5 flex items-center justify-around shadow-lg">
-        <Link
-          to="/dashboard"
-          className={cn(
-            'flex flex-col items-center gap-1 py-1 px-2 rounded-lg text-[10px] font-medium transition-colors',
-            location.pathname === '/dashboard' ? 'text-[#2457C5] dark:text-[#8BAEFF]' : 'text-slate-500 dark:text-slate-400'
-          )}
-        >
-          <LayoutDashboard size={18} />
-          <span>داشبورد</span>
-        </Link>
+      {/* ── Mobile drawer: same rail content, edge-to-edge ── */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="relative z-10 w-[290px] max-w-[86%] h-full bg-white dark:bg-[#0D1523] shadow-2xl flex flex-col border-l border-[#E3EAF4] dark:border-[#1B2739]">
+            <div className="px-4 pt-5 pb-3 flex items-center justify-between shrink-0">
+              {brandBlock}
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-[#16202F] cursor-pointer"
+                aria-label="بستن منو"
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="px-3 pb-3 shrink-0">{userCard}</div>
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-3 pb-4">{renderNav(() => setIsMobileMenuOpen(false))}</div>
+            <div className="shrink-0 px-3 pb-4 pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739]">
+              <button
+                onClick={() => logout()}
+                className="w-full flex items-center justify-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+              >
+                <LogOut size={14} /> خروج از حساب
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {itemAllowed('/attendance', true) && (
-        <Link
-          to="/attendance"
-          className={cn(
-            'flex flex-col items-center gap-1 py-1 px-2 rounded-lg text-[10px] font-medium transition-colors',
-            location.pathname === '/attendance' ? 'text-[#2457C5] dark:text-[#8BAEFF]' : 'text-slate-500 dark:text-slate-400'
-          )}
-        >
-          <CheckSquare size={18} />
-          <span>حضور و غیاب</span>
-        </Link>
+      {/* ── Mobile bottom navigation (thumb reach) ── */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0C1424]/95 backdrop-blur-md border-t border-[#E3EAF4] dark:border-[#1B2739] px-3 py-1.5 flex items-center justify-around shadow-lg">
+        {[
+          { href: '/dashboard', label: 'داشبورد', icon: <LayoutDashboard size={18} /> },
+          { href: '/attendance', label: 'حضور و غیاب', icon: <CheckSquare size={18} />, gated: itemAllowed('/attendance', true) },
+          { href: '/assignments', label: 'تکالیف', icon: <BookOpen size={18} />, gated: itemAllowed('/assignments', true) },
+        ].map((tab) =>
+          tab.gated === false ? null : (
+            <Link
+              key={tab.href}
+              to={tab.href}
+              className={cn(
+                'flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-[10px] font-bold transition-colors',
+                location.pathname === tab.href
+                  ? 'text-[#2457C5] dark:text-[#8BAEFF] bg-[#2457C5]/10 dark:bg-[#8BAEFF]/10'
+                  : 'text-[#8CA0BC] dark:text-[#5E7391]',
+              )}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </Link>
+          ),
         )}
-
-        {itemAllowed('/assignments', true) && (
-        <Link
-          to="/assignments"
-          className={cn(
-            'flex flex-col items-center gap-1 py-1 px-2 rounded-lg text-[10px] font-medium transition-colors',
-            location.pathname === '/assignments' ? 'text-[#2457C5] dark:text-[#8BAEFF]' : 'text-slate-500 dark:text-slate-400'
-          )}
-        >
-          <BookOpen size={18} />
-          <span>تکالیف</span>
-        </Link>
-        )}
-
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-col items-center gap-1 py-1 px-2 rounded-lg text-[10px] font-medium text-slate-500 dark:text-slate-400"
+          className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl text-[10px] font-bold text-[#8CA0BC] dark:text-[#5E7391] cursor-pointer"
         >
           <Menu size={18} />
           <span>منوی کامل</span>
         </button>
       </div>
-
-      {/* Footer */}
-      <footer className="border-t border-[#DCE3EE] dark:border-[#344257] py-6 px-4 bg-white/50 dark:bg-[#182231]/40 text-center text-xs text-[#526176] dark:text-[#B3C0D2]">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی و دبیرستان استعدادهای درخشان مشاهیر آینده</p>
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] bg-blue-50 text-[#2457C5] dark:bg-blue-950 dark:text-[#8BAEFF] px-2 py-0.5 rounded">
-              سامانه یکپارچه مبتنی بر RBAC و امنیت روابط خانوادگی
-            </span>
-          </div>
-        </div>
-      </footer>
-
     </div>
   );
 };

@@ -145,7 +145,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </button>
 
             {/* School Brand & Logo */}
-            <Link to="/dashboard" className="flex items-center gap-2.5 select-none group">
+            <Link to="/dashboard" className="lg:hidden flex items-center gap-2.5 select-none group">
               <div className="relative">
                 <SchoolLogo size={36} />
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0c1322] rounded-full" />
