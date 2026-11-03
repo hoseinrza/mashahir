@@ -67,6 +67,16 @@ export const AssignmentsPage: React.FC = () => {
   const canViewSubmissions = hasAccess('submissions:view');
   const hasAnyAccess = canManage || canSubmit || canViewSubmissions;
 
+  // The copy follows the viewer: a learner submits (and reads his own
+  // feedback), a guardian watches, the staff designs and grades.
+  const isFamily = activeRole.group === 'family';
+  const isLearnerView = isFamily || (canSubmit && !canManage);
+  const headerSubtitle = isFamily
+    ? 'تکالیف و پروژه‌های درسی فرزندتان، مهلت تحویل و بازخورد دبیران — در یک نگاه'
+    : isLearnerView
+      ? 'پاسخ تکالیف و پروژه‌ها را با پیوست تصویر یا PDF تا مهلت مقرر بفرستید و بازخورد دبیر را همین‌جا ببینید'
+      : 'ارسال برگه تکلیف به‌صورت تصویر یا PDF، مشاهده پاسخ دانش‌آموزان و نمره‌دهی همراه با بازخورد';
+
   const [assignments, setAssignments] = useState<AssignmentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -270,8 +280,8 @@ export const AssignmentsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="تکالیف و پروژه‌های درسی"
-        subtitle="ارسال برگه تکلیف به‌صورت تصویر یا PDF، مشاهده پاسخ دانش‌آموزان و نمره‌دهی همراه با بازخورد"
+        title={isLearnerView ? 'تکالیف و پروژه‌های درسی من' : 'تکالیف و پروژه‌های درسی'}
+        subtitle={headerSubtitle}
         actions={canManage && (
           <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => setIsCreateOpen(true)}>
             تعریف تکلیف جدید
@@ -286,7 +296,10 @@ export const AssignmentsPage: React.FC = () => {
       )}
 
       {assignments.length === 0 && !loading ? (
-        <EmptyState title="تکلیفی ثبت نشده است" description="هنوز تکلیفی برای کلاس‌های شما تعریف نشده است." />
+        <EmptyState
+          title="تکلیفی ثبت نشده است"
+          description={canManage ? 'هنوز تکلیفی برای کلاس‌های شما تعریف نشده است.' : 'هنوز تکلیفی برای شما تعریف نشده است؛ به‌محض تعریف توسط دبیر همین‌جا نمایش داده می‌شود.'}
+        />
       ) : (
         <div className="space-y-4">
           {assignments.map((asg) => (
