@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Bell, Sun, Moon, LogOut, Menu, ChevronDown,
   ArrowLeftRight, ShieldCheck, Video, CheckSquare, BookOpen, FileText,
   Award, Sparkles, HeartHandshake, Users, Megaphone, Bus, ShieldAlert,
   UserCog, Layers, Clock, Settings, Search, Check,
-  Building2, X, ChevronRight, UserCheck
+  Building2, X, ChevronRight, UserCheck, Archive, Inbox, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { SchoolLogo } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
-import { NotificationService } from '../services';
+import { ApiNotificationCenter } from '../api/data';
+import { ApiError } from '../api/client';
 
 interface DashboardHeaderProps {
   onToggleMobileMenu: () => void;
@@ -44,7 +45,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
-  const [notifications, setNotifications] = useState(() => NotificationService.getAll());
+  const [notifications, setNotifications] = useState<import('../types').Notification[]>([]);
+  const [serverUnread, setServerUnread] = useState(0);
+  const [notifsLoading, setNotifsLoading] = useState(false);
 
   // School Data
   // The school comes from the live session context — no mock school list.
@@ -82,21 +85,70 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // ── Real notification center: the bell reads the signed-in user's own
+  // notifications — never a fabricated sample — and every action hits the API.
+  const unreadCount = serverUnread;
 
-  const markNotifRead = (id: string) => {
-    const updated = NotificationService.markAsRead(id);
-    setNotifications(updated);
+  const loadNotifications = useCallback(async () => {
+    setNotifsLoading(true);
+    try {
+      const res = await ApiNotificationCenter.list('all');
+      setNotifications(res.items);
+      setServerUnread(res.unreadCount);
+    } catch {
+      setNotifications([]);
+      setServerUnread(0);
+    } finally {
+      setNotifsLoading(false);
+    }
+  }, []);
+
+  const markNotifRead = async (id: string) => {
+    const item = notifications.find((n) => n.id === id);
+    if (!item || item.isRead) return;
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    setServerUnread((c) => Math.max(0, c - 1));
+    try {
+      await ApiNotificationCenter.markRead(Number(id));
+    } catch (e) {
+      if (e instanceof ApiError) loadNotifications();
+    }
   };
 
-  const markAllNotifsRead = () => {
-    const updated = notifications.map((n) => ({ ...n, isRead: true }));
-    setNotifications(updated);
-    try {
-      localStorage.setItem('mashahir_notifications', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
+  const markAllNotifsRead = async () => {
+    const unread = notifications.filter((n) => !n.isRead);
+    if (unread.length === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setServerUnread(0);
+    for (const n of unread) {
+      try {
+        await ApiNotificationCenter.markRead(Number(n.id));
+      } catch {
+        // server is the source of truth — the next open re-syncs
+      }
     }
+  };
+
+  const archiveNotif = async (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setServerUnread((c) => Math.max(0, c - (notifications.find((n) => n.id === id)?.isRead ? 0 : 1)));
+    try {
+      await ApiNotificationCenter.archive(Number(id));
+    } catch (e) {
+      if (e instanceof ApiError) loadNotifications();
+    }
+  };
+
+  const openNotifDropdown = () => {
+    const next = !isNotifDropdownOpen;
+    setIsNotifDropdownOpen(next);
+    if (next) loadNotifications();
+  };
+
+  const openNotifItem = async (id: string, linkUrl?: string) => {
+    await markNotifRead(id);
+    setIsNotifDropdownOpen(false);
+    if (linkUrl) navigate(linkUrl);
   };
 
   // Search items across application
@@ -191,38 +243,43 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </button>
 
 
-            {/* Notifications Dropdown */}
+            {/* Notifications Dropdown — live per-user notifications */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
-                className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer"
+                onClick={openNotifDropdown}
+                className={cn(
+                  'relative p-2 rounded-xl transition-all cursor-pointer border',
+                  isNotifDropdownOpen
+                    ? 'text-[#2457C5] dark:text-[#8BAEFF] bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700',
+                )}
                 title="مرکز اعلان‌ها"
                 aria-label="اعلان‌ها"
               >
                 <Bell size={18} />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs animate-pulse">
+                  <span className="absolute top-1 right-1 min-w-4 h-4 px-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
                     {toPersianDigits(unreadCount)}
                   </span>
                 )}
               </button>
 
               {isNotifDropdownOpen && (
-                <div className="absolute left-0 mt-2 w-80 sm:w-88 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 text-right">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800 mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <Bell size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" />
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">اعلان‌های سیستم</span>
+                <div className="absolute left-0 mt-2 w-80 sm:w-88 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 text-right overflow-hidden">
+                  {/* Panel header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-100">اعلان‌ها</span>
                       {unreadCount > 0 && (
-                        <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 px-1.5 py-0.2 rounded-full font-bold">
-                          {toPersianDigits(unreadCount)} جدید
+                        <span className="text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
+                          {toPersianDigits(unreadCount)} خوانده‌نشده
                         </span>
                       )}
                     </div>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllNotifsRead}
-                        className="text-[10px] text-[#2457C5] dark:text-[#8BAEFF] hover:underline font-medium cursor-pointer"
+                        className="text-[10px] font-bold text-[#2457C5] dark:text-[#8BAEFF] hover:underline cursor-pointer"
                       >
                         خواندن همه
                       </button>
@@ -230,65 +287,103 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   </div>
 
                   {/* Filter tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl mb-2 text-xs">
+                  <div className="flex items-center gap-1 px-3 pt-3 pb-2">
                     <button
                       onClick={() => setNotifFilter('all')}
                       className={cn(
-                        "flex-1 py-1 rounded-lg font-semibold text-center transition-colors cursor-pointer text-[11px]",
+                        'flex-1 py-1.5 rounded-lg font-bold text-center transition-colors cursor-pointer text-[11px]',
                         notifFilter === 'all'
-                          ? "bg-white dark:bg-[#151f32] text-slate-800 dark:text-slate-100 shadow-2xs"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100'
+                          : 'text-slate-400 dark:text-slate-500 hover:text-slate-600',
                       )}
                     >
-                      همه ({toPersianDigits(notifications.length)})
+                      همه
                     </button>
                     <button
                       onClick={() => setNotifFilter('unread')}
                       className={cn(
-                        "flex-1 py-1 rounded-lg font-semibold text-center transition-colors cursor-pointer text-[11px]",
+                        'flex-1 py-1.5 rounded-lg font-bold text-center transition-colors cursor-pointer text-[11px]',
                         notifFilter === 'unread'
-                          ? "bg-white dark:bg-[#151f32] text-slate-800 dark:text-slate-100 shadow-2xs"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100'
+                          : 'text-slate-400 dark:text-slate-500 hover:text-slate-600',
                       )}
                     >
-                      خوانده‌نشده ({toPersianDigits(unreadCount)})
+                      خوانده‌نشده
                     </button>
                   </div>
 
-                  <div className="space-y-1.5 max-h-68 overflow-y-auto pr-0.5">
-                    {notifications
-                      .filter((n) => notifFilter === 'all' || !n.isRead)
-                      .slice(0, 5)
-                      .map((notif) => (
-                        <div
-                          key={notif.id}
-                          onClick={() => markNotifRead(notif.id)}
-                          className={cn(
-                            'p-2.5 rounded-xl text-xs transition-colors cursor-pointer text-right border',
-                            notif.isRead
-                              ? 'bg-slate-50/60 dark:bg-slate-800/30 border-transparent text-slate-600 dark:text-slate-400'
-                              : 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200/60 dark:border-blue-900/50 text-slate-800 dark:text-slate-100'
-                          )}
-                        >
-                          <div className="flex items-center justify-between font-semibold mb-1">
-                            <span className="text-xs truncate max-w-[190px]">{notif.title}</span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono shrink-0">{notif.createdAt}</span>
+                  {/* List */}
+                  <div className="max-h-80 overflow-y-auto px-2 pb-2">
+                    {notifsLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-10 text-xs text-slate-400">
+                        <Loader2 size={16} className="animate-spin" /> در حال دریافت…
+                      </div>
+                    ) : (
+                      <>
+                        {notifications
+                          .filter((n) => notifFilter === 'all' || !n.isRead)
+                          .slice(0, 8)
+                          .map((notif) => (
+                            <div
+                              key={notif.id}
+                              onClick={() => openNotifItem(notif.id, notif.linkUrl)}
+                              className={cn(
+                                'group relative p-3 rounded-xl text-xs transition-colors cursor-pointer text-right mb-1',
+                                notif.isRead
+                                  ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                                  : notif.isImportant
+                                    ? 'bg-amber-50/80 dark:bg-amber-950/30 text-slate-800 dark:text-slate-100'
+                                    : 'bg-blue-50/70 dark:bg-blue-950/40 text-slate-800 dark:text-slate-100',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-0.5">
+                                <span className="font-bold leading-snug flex items-center gap-1.5 min-w-0">
+                                  {!notif.isRead && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2457C5] dark:bg-[#8BAEFF] shrink-0" />
+                                  )}
+                                  <span className="truncate">{notif.title}</span>
+                                  {notif.isImportant && (
+                                    <span className="shrink-0 text-[9px] font-bold px-1 py-px rounded bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                                      مهم
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">{notif.createdAt}</span>
+                              </div>
+                              {notif.message && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                  {notif.message}
+                                </p>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  archiveNotif(notif.id);
+                                }}
+                                title="بایگانی"
+                                className="absolute left-2 top-2 p-1 rounded-lg text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                              >
+                                <Archive size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        {notifications.filter((n) => notifFilter === 'all' || !n.isRead).length === 0 && (
+                          <div className="py-10 flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
+                            <Inbox size={26} className="opacity-60" />
+                            <p className="text-xs">اعلانی ندارید — رویدادهای جدید همین‌جا می‌آیند.</p>
                           </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">{notif.message}</p>
-                        </div>
-                      ))}
-                    {notifications.filter((n) => notifFilter === 'all' || !n.isRead).length === 0 && (
-                      <p className="text-center py-6 text-xs text-slate-400">اعلانی وجود ندارد</p>
+                        )}
+                      </>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mt-2 text-center">
+                  <div className="border-t border-slate-100 dark:border-slate-800 py-2.5 text-center">
                     <Link
                       to="/notifications"
                       onClick={() => setIsNotifDropdownOpen(false)}
                       className="text-xs font-bold text-[#2457C5] dark:text-[#8BAEFF] hover:underline inline-flex items-center gap-1"
                     >
-                      <span>ورود به مرکز اعلان‌ها</span>
+                      <span>مرکز اعلان‌ها</span>
                       <ChevronRight size={12} className="rotate-180" />
                     </Link>
                   </div>
