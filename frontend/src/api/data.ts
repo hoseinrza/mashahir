@@ -217,6 +217,42 @@ export const ApiAttendanceService = {
   },
 };
 
+/** Consent inbox of the signed-in guardian (trips and activities of their children). */
+export interface ConsentRow {
+  ulid: string;
+  title: string;
+  body: string;
+  policy: 'one_parent' | 'both_parents' | string;
+  dueAt: string | null;
+  studentName: string;
+  satisfied: boolean;
+  myDecision: 'approved' | 'rejected' | null;
+}
+
+export const ApiConsentService = {
+  async list(): Promise<ConsentRow[]> {
+    const result = await api<{ data: any[] }>('/v1/consents');
+    return (result.data ?? []).map((c) => ({
+      ulid: c.ulid,
+      title: c.title,
+      body: c.body ?? '',
+      policy: c.policy ?? 'one_parent',
+      dueAt: c.due_at ?? null,
+      studentName: c.student_name ?? '—',
+      satisfied: Boolean(c.satisfied),
+      myDecision: c.my_decision ?? null,
+    }));
+  },
+
+  async respond(ulid: string, decision: 'approved' | 'rejected'): Promise<{ satisfied: boolean }> {
+    const result = await api<{ satisfied: boolean }>(`/v1/consents/${ulid}/respond`, {
+      method: 'POST',
+      body: { decision },
+    });
+    return { satisfied: Boolean(result?.satisfied) };
+  },
+};
+
 /** Assignments list mapped to the page's Assignment shape (subset). */
 export const ApiAssignmentService = {
   async list(): Promise<Record<string, unknown>[]> {
@@ -691,13 +727,6 @@ export const ApiReportCardPrintService = {
   /** One card by its own ulid — the same template, a single sheet. */
   single(cardUlid: string): Promise<string> {
     return apiDocument(`/v1/report-cards/${cardUlid}/export`);
-  },
-};
-
-/** Consent requests for the current viewer. */export const ApiConsentService = {
-  async list(): Promise<Record<string, unknown>[]> {
-    const result = await api<{ data: any[] }>('/v1/consents');
-    return result.data ?? [];
   },
 };
 

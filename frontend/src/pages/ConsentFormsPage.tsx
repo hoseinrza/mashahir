@@ -1,16 +1,151 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ShieldCheck, Calendar, Clock, MapPin, CheckCircle2,
   XCircle, FileText, Check, AlertCircle, Printer, Download,
   Filter, Search, Users, Bus, Plus, Sparkles, Phone, ChevronRight,
-  Shield, CheckSquare, Info, RefreshCw, BarChart3, HelpCircle
+  Shield, CheckSquare, Info, RefreshCw, BarChart3, HelpCircle,
+  Loader2, Inbox
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button, Badge, Modal, PageHeader, FormField } from '../components/common';
+import { Card, Button, Badge, Modal, PageHeader, FormField, EmptyState } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
+import { formatJalaliDate, formatJalaliDateTime } from '../utils/jalali';
 import { ConsentService, UserService } from '../services';
 import { ConsentForm } from '../types';
+import { ApiConsentService, ConsentRow } from '../api/data';
+import { ApiError } from '../api/client';
 import { INITIAL_CLASSROOMS } from '../data/mockData';
+
+/**
+ * The parents' real consent inbox: trips and activities of their children,
+ * straight from the API. Approval follows the link's can_approve_consent
+ * flag — the server has the final word (court orders included).
+ */
+const FamilyConsentInbox: React.FC = () => {
+  const [rows, setRows] = useState<ConsentRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await ApiConsentService.list());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.firstError() : 'خطا در دریافت رضایت‌نامه‌ها');
+      setRows([]);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const respond = async (row: ConsentRow, decision: 'approved' | 'rejected') => {
+    setBusy(row.ulid);
+    setError(null);
+    setNotice(null);
+    try {
+      await ApiConsentService.respond(row.ulid, decision);
+      setNotice(decision === 'approved' ? 'پاسخ شما (موافقم) به‌عنوان سند رسمی ثبت شد.' : 'پاسخ شما (موافق نیستم) ثبت شد.');
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.firstError() : 'خطا در ثبت پاسخ');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="رضایت‌نامه‌های فرزند — اردوها و فعالیت‌ها"
+        subtitle="هر اردو یا فعالیتی که مدرسه برای فرزند شما ثبت می‌کند، همین‌جا برای تأیید یا رد می‌آید"
+      />
+
+      {notice && (
+        <Card className="border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 size={15} /> <span className="font-bold">{notice}</span>
+          </div>
+        </Card>
+      )}
+      {error && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30">
+          <div className="flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200">
+            <AlertCircle size={15} /> <span className="font-bold">{error}</span>
+          </div>
+        </Card>
+      )}
+
+      {rows === null ? (
+        <Card>
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#526176] dark:text-[#B3C0D2]">
+            <Loader2 size={18} className="animate-spin" /> در حال دریافت…
+          </div>
+        </Card>
+      ) : rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Inbox size={24} />}
+            title="رضایت‌نامه‌ای در انتظار شما نیست"
+            description="اردوها و فعالیت‌های جدیدی که مدرسه برای فرزند شما ثبت می‌کند، همین‌جا برای تأیید می‌آید."
+          />
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {rows.map((row) => {
+            const decided = row.myDecision !== null;
+            return (
+              <Card key={row.ulid} className="text-right">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DCE3EE] dark:border-[#344257]">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <Badge variant="primary">
+                      <Bus size={12} /> {row.studentName}
+                    </Badge>
+                    <h3 className="text-base font-bold text-[#202B3C] dark:text-[#F1F5FB] truncate">{row.title}</h3>
+                  </div>
+                  {decided ? (
+                    row.myDecision === 'approved'
+                      ? <Badge variant="success"><CheckCircle2 size={12} /> موافقم</Badge>
+                      : <Badge variant="danger"><XCircle size={12} /> موافق نیستم</Badge>
+                  ) : (
+                    <Badge variant="warning"><Clock size={12} /> در انتظار تصمیم شما</Badge>
+                  )}
+                </div>
+
+                {row.body && (
+                  <p className="text-xs md:text-sm text-[#526176] dark:text-[#B3C0D2] py-3 leading-relaxed whitespace-pre-line">
+                    {row.body}
+                  </p>
+                )}
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={11} />
+                    {row.dueAt ? `مهلت پاسخ: ${formatJalaliDateTime(row.dueAt)}` : 'بدون مهلت مشخص'}
+                  </span>
+                  <span>
+                    {row.policy === 'both_parents' ? 'رضایت هر دو ولی لازم است' : 'رضایت یکی از اولیا کافی است'}
+                    {row.satisfied ? ' — تأمین شده' : ''}
+                  </span>
+                </div>
+
+                {!decided && !row.satisfied && (
+                  <div className="flex items-center justify-end gap-2 pt-3">
+                    <Button variant="outline" size="sm" disabled={busy === row.ulid} onClick={() => respond(row, 'rejected')}>
+                      <XCircle size={14} /> موافق نیستم
+                    </Button>
+                    <Button variant="primary" size="sm" disabled={busy === row.ulid} onClick={() => respond(row, 'approved')}>
+                      {busy === row.ulid ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} تأیید می‌کنم
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ConsentFormsPage: React.FC = () => {
   const { currentUser, activeRole, hasAccess } = useAuth();
@@ -168,6 +303,12 @@ export const ConsentFormsPage: React.FC = () => {
     setNewTripDestination('');
     setNewTripDescription('');
   };
+
+  // The parents' panel is the REAL consent inbox — trips and activities of
+  // their children arrive from the API for approval (see FamilyConsentInbox).
+  if (isFamily) {
+    return <FamilyConsentInbox />;
+  }
 
   return (
     <div className="space-y-6">

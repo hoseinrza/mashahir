@@ -232,6 +232,20 @@ class ExamsApiController extends Controller
 
         $exam->forceFill(['status' => Exam::STATUS_PUBLISHED])->save();
 
+        // Personal reminder to every learner of the classroom: the exam lands
+        // in their own bell with a deep link, not on a school-wide board.
+        app(\App\Modules\Notifications\Services\NotificationService::class)
+            ->notifyClassroomLearners(
+                $exam->classroomSubject->classroom_id,
+                'exam.published',
+                "آزمون آنلاین جدید: {$exam->title}",
+                'درس '.$exam->classroomSubject->subject?->title.' — از '
+                    .\App\Support\Jalali::dateTime($exam->opens_at)
+                    .' تا '.\App\Support\Jalali::dateTime($exam->closes_at).' فعال است؛ از بخش آزمون‌های آنلاین وارد شوید.',
+                '/exams',
+                \App\Modules\Notifications\Models\Notification::IMPORTANCE_IMPORTANT,
+            );
+
         return response()->json(['ulid' => $exam->ulid, 'status' => $exam->status]);
     }
 

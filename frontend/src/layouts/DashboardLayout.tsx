@@ -440,11 +440,8 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
               {children}
             </div>
             <footer className="border-t border-[#E9EEF5] dark:border-[#16202F] py-5 px-4 text-center text-[11px] text-[#8CA0BC] dark:text-[#5E7391]">
-              <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="max-w-7xl mx-auto">
                 <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی مشاهیر آینده</p>
-                <span className="text-[10px] bg-blue-50 text-[#2457C5] dark:bg-[#12203A] dark:text-[#8BAEFF] px-2 py-0.5 rounded-md">
-                  سامانه یکپارچه با کنترل دسترسی نقش‌محور و حفظ حریم خصوصی خانواده‌ها
-                </span>
               </div>
             </footer>
           </main>

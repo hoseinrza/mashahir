@@ -12,7 +12,7 @@ import { formatJalaliDate } from '../utils/jalali';
 import { AttendanceService, ScheduleService } from '../services';
 import { AttendanceRecord, AttendanceStatus, WeeklyTimetableSlot } from '../types';
 import { INITIAL_STUDENTS, INITIAL_CLASSROOMS, INITIAL_WEEKLY_TIMETABLE } from '../data/mockData';
-import { ApiFamilyService, ApiAttendanceService, GuardianChildRow } from '../api/data';
+import { ApiAcademicService, ApiFamilyService, ApiAttendanceService, GuardianChildRow } from '../api/data';
 import { ApiError } from '../api/client';
 
 export const AttendancePage: React.FC = () => {
@@ -105,6 +105,32 @@ export const AttendancePage: React.FC = () => {
     return () => { alive = false; };
   }, [isFamily, children, selectedChildId]);
 
+  // Student view: the own-record timeline. studentsInScope under sh4 returns
+  // exactly the learner himself.
+  const [ownStudent, setOwnStudent] = useState<{ ulid: string; fullName: string } | null>(null);
+
+  useEffect(() => {
+    if (!isStudent) return;
+    let alive = true;
+    (async () => {
+      try {
+        const scope = await ApiAcademicService.studentsInScope();
+        const own = scope[0] ?? null;
+        if (!alive) return;
+        setOwnStudent(own);
+        if (!own) {
+          setChildTimeline([]);
+          return;
+        }
+        const rows = await ApiAttendanceService.studentTimeline(own.ulid);
+        if (alive) setChildTimeline(rows);
+      } catch (e) {
+        if (alive) setChildTimeline([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [isStudent]);
+
   if (!canView) {
     return (
       <AccessDeniedGate
@@ -184,7 +210,7 @@ export const AttendancePage: React.FC = () => {
     ? children.find((c) => c.studentUlid === selectedChildId) ?? children[0] ?? null
     : null;
 
-  const studentRecords = (isFamily
+  const studentRecords = ((isFamily || isStudent)
     ? childTimeline.map((r, i) => ({
         id: `att_${i}`,
         date: formatJalaliDate(r.date) || r.date,
@@ -311,9 +337,8 @@ export const AttendancePage: React.FC = () => {
   // VIEW A: PARENT / GUARDIAN & STUDENT VIEW
   // ==========================================
   if (isFamily || isStudent) {
-    const childClass = isStudent ? INITIAL_CLASSROOMS.find((c) => c.id === INITIAL_STUDENTS.find((s) => s.userId === currentUser.id)?.classroomId) : null;
-    const childName = isFamily ? selectedChild?.studentName : INITIAL_STUDENTS.find((s) => s.userId === currentUser.id)?.fullName;
-    const smsActive = isFamily ? Boolean(selectedChild?.flags.can_receive_sms) : true;
+    const smsActive = Boolean(selectedChild?.flags.can_receive_sms);
+    const childName = isFamily ? selectedChild?.studentName : ownStudent?.fullName;
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto px-2 sm:px-4 py-2">
@@ -387,23 +412,24 @@ export const AttendancePage: React.FC = () => {
                 </h2>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {isFamily && selectedChild && <span>نوع پیوند: {selectedChild.linkLabel}</span>}
-                  {isStudent && <span>{childClass?.name}</span>}
                 </div>
               </div>
             </div>
 
-            {/* SMS Service Badge — بر اساس پرچم واقعی پیوند */}
-            <div
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-xs border',
-                smsActive
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400',
-              )}
-            >
-              <PhoneCall size={14} className={smsActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
-              <span>{smsActive ? 'سرویس پیامک ورود و خروج فعال است' : 'پیامک ورود و خروج برای این پیوند فعال نیست'}</span>
-            </div>
+            {/* SMS Service Badge — فقط برای پیوند ولی و بر اساس پرچم واقعی */}
+            {isFamily && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 rounded-xl text-xs border self-start',
+                  smsActive
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400',
+                )}
+              >
+                <PhoneCall size={14} className={smsActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
+                <span>{smsActive ? 'سرویس پیامک ورود و خروج فعال است' : 'پیامک ورود و خروج برای این پیوند فعال نیست'}</span>
+              </div>
+            )}
           </div>
 
           {/* Quick Metrics — فقط با مجوز حضور این پیوند */}
@@ -465,17 +491,16 @@ export const AttendancePage: React.FC = () => {
                 <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
                   <tr>
                     <th className="p-3.5 font-bold">تاریخ</th>
-                    <th className="p-3.5 font-bold">ساعت ثبت</th>
+                    <th className="p-3.5 font-bold">جلسه / درس</th>
                     <th className="p-3.5 font-bold">وضعیت حضور</th>
                     <th className="p-3.5 font-bold">میزان تأخیر / توضیحات</th>
-                    <th className="p-3.5 font-bold">پیامک ولی</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                   {studentRecords.map((rec) => (
                     <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                       <td className="p-3.5 font-mono font-medium">{rec.date}</td>
-                      <td className="p-3.5 font-mono text-slate-500">{rec.recordedAt || '۰۸:۰۵'}</td>
+                      <td className="p-3.5 text-slate-500 dark:text-slate-400">{rec.note || '—'}</td>
                       <td className="p-3.5">
                         {rec.status === 'present' && (
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
@@ -507,20 +532,8 @@ export const AttendancePage: React.FC = () => {
                           <span className="text-amber-600 dark:text-amber-400 font-medium font-mono">
                             {toPersianDigits(rec.delayMinutes)} دقیقه تأخیر
                           </span>
-                        ) : rec.note ? (
-                          <span className="text-slate-600 dark:text-slate-400">{rec.note}</span>
                         ) : (
                           <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="p-3.5">
-                        {rec.smsNotificationSent ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-medium flex items-center gap-1">
-                            <Check size={12} />
-                            ارسال شد
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">—</span>
                         )}
                       </td>
                     </tr>

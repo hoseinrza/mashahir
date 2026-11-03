@@ -108,6 +108,20 @@ class ConsentsApiController extends Controller
             }
         }
 
+        // The parents' panel: every active guardian link of the learner is
+        // told a new consent (trip, activity) is waiting for their approval.
+        app(\App\Modules\Notifications\Services\NotificationService::class)
+            ->notifyGuardiansOfLearners(
+                [$student->id],
+                'consent.request',
+                "رضایت‌نامهٔ جدید برای {$student->fullName()}: {$data['title']}",
+                $request2->due_at !== null
+                    ? 'تا '.\App\Support\Jalali::dateTime($request2->due_at).' برای تأیید یا رد پاسخ دهید.'
+                    : 'برای تأیید یا رد، از پنل اولیا پاسخ دهید.',
+                '/consent-forms',
+                \App\Modules\Notifications\Models\Notification::IMPORTANCE_IMPORTANT,
+            );
+
         return response()->json(['ulid' => $request2->ulid, 'policy' => $request2->policy], 201);
     }
 

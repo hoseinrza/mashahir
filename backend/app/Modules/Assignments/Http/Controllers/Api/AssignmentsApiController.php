@@ -88,6 +88,17 @@ class AssignmentsApiController extends Controller
 
         $this->syncFiles($assignment, $data['file_ulids'] ?? []);
 
+        // Deadline reminder to every learner of the classroom, in their own bell.
+        app(\App\Modules\Notifications\Services\NotificationService::class)
+            ->notifyClassroomLearners(
+                $subject->classroom_id,
+                'assignment.created',
+                "تکلیف جدید: {$assignment->title}",
+                'درس '.$subject->subject?->title.' — مهلت تحویل: '.\App\Support\Jalali::dateTime($assignment->due_at),
+                '/assignments',
+                \App\Modules\Notifications\Models\Notification::IMPORTANCE_INFO,
+            );
+
         return response()->json($this->assignmentPayload($assignment->fresh('files')), 201);
     }
 

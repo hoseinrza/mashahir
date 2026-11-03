@@ -112,6 +112,86 @@ final class NotificationService
         return $sent;
     }
 
+    /**
+     * Personal in-app notice to every active learner of the classroom who
+     * holds a user account — exam reminders and assignment deadlines land in
+     * the learner's own bell, never in a school-wide bulletin.
+     */
+    public function notifyClassroomLearners(
+        int $classroomId,
+        string $type,
+        string $title,
+        ?string $body = null,
+        ?string $link = null,
+        string $importance = Notification::IMPORTANCE_INFO,
+    ): int {
+        $enrollments = \App\Modules\Academic\Models\Enrollment::query()
+            ->where('status', 'active')
+            ->where('classroom_id', $classroomId)
+            ->with('student')
+            ->get();
+
+        $count = 0;
+
+        foreach ($enrollments as $enrollment) {
+            $userId = $enrollment->student?->user_id;
+
+            if (! $userId) {
+                continue; // a learner without an account has no bell to ring
+            }
+
+            $user = User::query()->find($userId);
+
+            if ($user === null) {
+                continue;
+            }
+
+            $this->notify($user, $enrollment->student_id, $type, $title, $body, $link, $importance);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * In-app notice to every active guardian link of the given learners —
+     * the parents' panel channel (trips, consents, per-child events).
+     */
+    public function notifyGuardiansOfLearners(
+        array $studentIds,
+        string $type,
+        string $title,
+        ?string $body = null,
+        ?string $link = null,
+        string $importance = Notification::IMPORTANCE_INFO,
+    ): int {
+        if ($studentIds === []) {
+            return 0;
+        }
+
+        $links = \App\Modules\People\Models\GuardianLink::query()
+            ->where('status', 'active')
+            ->whereIn('student_id', $studentIds)
+            ->with('student')
+            ->get();
+
+        $count = 0;
+
+        foreach ($links as $guardianLink) {
+            $user = $guardianLink->guardian_user_id ? User::query()->find($guardianLink->guardian_user_id) : null;
+
+            if ($user === null) {
+                continue;
+            }
+
+            // 6th arg is the deep-link URL — do not shadow it with the link model.
+            $this->notify($user, $guardianLink->student_id, $type, $title, $body, $link, $importance);
+            $count++;
+        }
+
+        return $count;
+    }
+
     private function sendSms(NotificationDelivery $delivery): void
     {
         $user = $delivery->notification->user;
