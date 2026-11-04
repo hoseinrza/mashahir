@@ -145,6 +145,8 @@ export const ClassroomsPage: React.FC = () => {
 
   const loadDetail = useCallback(async (classroomUlid: string) => {
     setDetailLoading(true);
+    setEnrollStudent('');
+    setArmedEndId(null);
     try {
       const [rows, slotRows] = await Promise.all([
         ApiClassroomAdminService.enrollments(classroomUlid),
@@ -168,6 +170,13 @@ export const ClassroomsPage: React.FC = () => {
     () => (selected ? assignments.filter((a) => a.classroom === selected.title) : []),
     [assignments, selected],
   );
+
+  // The enroll dropdown never offers learners who are already active in this
+  // classroom — the backend rejects duplicates, so the UI shouldn't list them.
+  const enrollableStudents = useMemo(() => {
+    const enrolled = new Set(enrollments.map((e) => e.studentUlid));
+    return students.filter((s) => !enrolled.has(s.ulid));
+  }, [students, enrollments]);
 
   const createClassroom = async () => {
     if (!newTitle.trim() || newYearId === '' || newGradeId === '') return;
@@ -543,8 +552,10 @@ export const ClassroomsPage: React.FC = () => {
                         <div className="flex flex-wrap items-end gap-2 pt-3 border-t border-[#DCE3EE]/70 dark:border-[#344257]/70 mt-3">
                           <div className="min-w-[220px] flex-1">
                             <select className={inputCls} value={enrollStudent} onChange={(e) => setEnrollStudent(e.target.value)}>
-                              <option value="">— انتخاب دانش‌آموز —</option>
-                              {students.map((s) => (
+                              <option value="">
+                                {enrollableStudents.length === 0 ? '— همهٔ دانش‌آموزان این کلاس ثبت‌نام دارند —' : '— انتخاب دانش‌آموز —'}
+                              </option>
+                              {enrollableStudents.map((s) => (
                                 <option key={s.ulid} value={s.ulid}>{s.fullName}</option>
                               ))}
                             </select>
