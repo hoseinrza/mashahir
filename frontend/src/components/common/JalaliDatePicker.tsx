@@ -30,9 +30,9 @@ export const JalaliDatePicker: React.FC<{
   disabled?: boolean;
   className?: string;
 }> = ({ value, onChange, placeholder = 'انتخاب تاریخ', disabled, className }) => {
-  const dateObject = value
-    ? new DateObject({ date: value, calendar: persian, locale: persian_fa })
-    : undefined;
+  // The incoming value is Gregorian ISO — parse it on the Gregorian base;
+  // the calendar prop below is what DISPLAYS it as Jalali (۱۴۰۵/۰۸/۱۳).
+  const dateObject = value ? new DateObject(value) : undefined;
 
   return (
     <DatePicker
