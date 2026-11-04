@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, School, Trash2, Users, CalendarDays, GraduationCap, Pencil } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, PageHeader, EmptyState, AccessDeniedGate, Modal } from '../components/common';
+import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
 import { toPersianDigits, cn } from '../utils/persian';
 import { formatJalaliDate } from '../utils/jalali';
 import {
@@ -560,12 +561,13 @@ export const ClassroomsPage: React.FC = () => {
                               ))}
                             </select>
                           </div>
-                          <input
-                            type="date"
-                            className={cn(inputCls, 'w-[150px]')}
-                            value={enrollDate}
-                            onChange={(e) => setEnrollDate(e.target.value)}
-                          />
+                          <div className="w-[170px]">
+                            <JalaliDatePicker
+                              value={enrollDate}
+                              onChange={setEnrollDate}
+                              placeholder="تاریخ شروع"
+                            />
+                          </div>
                           <Button variant="primary" size="sm" disabled={!enrollStudent || enrolling} onClick={enroll}>
                             {enrolling ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} افزودن به کلاس
                           </Button>

@@ -12,6 +12,7 @@ import {
   GuardianChildRow, AttendanceSessionRow, AttendanceRosterRow,
 } from '../api/data';
 import { ApiError } from '../api/client';
+import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
 import { AttendanceStatus } from '../types';
 
 const firstError = (e: unknown, fallback: string): string =>
@@ -561,14 +562,9 @@ export const AttendancePage: React.FC = () => {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="w-[170px]">
               <label className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB] block pb-1">تاریخ</label>
-              <input
-                type="date"
-                value={sessionDate}
-                onChange={(e) => setSessionDate(e.target.value)}
-                className="text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl text-[#202B3C] dark:text-[#F1F5FB]"
-              />
+              <JalaliDatePicker value={sessionDate} onChange={setSessionDate} placeholder="تاریخ جلسه" />
             </div>
             <div>
               <label className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB] block pb-1">زنگ</label>

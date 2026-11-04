@@ -8,6 +8,7 @@ import { Card, Button, Badge, Modal, FormField, PageHeader, EmptyState } from '.
 import { toPersianDigits, cn } from '../utils/persian';
 import { ApiAnnouncementService } from '../api/data';
 import { ApiError } from '../api/client';
+import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
 import { Announcement } from '../types';
 
 const CATEGORY_BADGE: Record<Announcement['category'], { label: string; variant: 'danger' | 'primary' | 'neutral' }> = {
@@ -233,12 +234,7 @@ export const AnnouncementsPage: React.FC = () => {
           </FormField>
 
           <FormField label="تاریخ اعتبار (اختیاری — پس از این تاریخ اطلاعیه منقضی تلقی می‌شود)">
-            <input
-              type="date"
-              value={newExpiresAt}
-              onChange={(e) => setNewExpiresAt(e.target.value)}
-              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
-            />
+            <JalaliDatePicker value={newExpiresAt} onChange={setNewExpiresAt} placeholder="تاریخ انقضا" />
           </FormField>
 
           <div className="flex justify-end gap-2 pt-2">
