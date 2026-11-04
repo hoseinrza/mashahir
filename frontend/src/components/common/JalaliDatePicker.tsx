@@ -59,3 +59,51 @@ export const JalaliDatePicker: React.FC<{
     />
   );
 };
+
+/**
+ * Date + time in one row: Jalali calendar for the date, native time input
+ * beside it. The value contract is «YYYY-MM-DDTHH:mm» (datetime-local shape)
+ * so existing payloads stay untouched.
+ */
+export const JalaliDateTimePicker: React.FC<{
+  value: string | null | undefined; // «YYYY-MM-DDTHH:mm» or empty
+  onChange: (v: string) => void; // emits datetime-local shape; '' on clear
+  disabled?: boolean;
+  dateClassName?: string;
+  timeClassName?: string;
+  className?: string;
+}> = ({ value, onChange, disabled, dateClassName, timeClassName, className }) => {
+  const [datePart, timePartRaw] = (value ?? '').split('T');
+  const time = (timePartRaw ?? '').slice(0, 5);
+
+  const onDate = (iso: string) => {
+    if (!iso) {
+      onChange('');
+      return;
+    }
+    onChange(`${iso}T${time || '00:00'}`);
+  };
+
+  const onTime = (t: string) => {
+    const base = datePart || new Date().toISOString().slice(0, 10);
+    onChange(`${base}T${t || '00:00'}`);
+  };
+
+  return (
+    <div className={cn('flex items-center gap-2', className)}>
+      <div className="flex-1 min-w-[150px]">
+        <JalaliDatePicker value={datePart || undefined} onChange={onDate} disabled={disabled} className={dateClassName} />
+      </div>
+      <input
+        type="time"
+        value={time}
+        disabled={disabled}
+        onChange={(e) => onTime(e.target.value)}
+        className={cn(
+          'text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl text-[#202B3C] dark:text-[#F1F5FB] focus:outline-none focus:border-[#2457C5] transition-colors',
+          timeClassName,
+        )}
+      />
+    </div>
+  );
+};

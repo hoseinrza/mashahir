@@ -4,6 +4,7 @@ import {
   Loader2, AlertTriangle, CheckCircle2, X, Image as ImageIcon
 } from 'lucide-react';
 import { Card, Button, Badge, Modal, FormField, PageHeader, SearchInput } from '../components/common';
+import { JalaliDateTimePicker } from '../components/common/JalaliDatePicker';
 import { toPersianDigits, cn } from '../utils/persian';
 import { formatJalaliDateTime, jalaliPreview } from '../utils/jalali';
 import { useAuth } from '../context/AuthContext';
@@ -311,14 +312,10 @@ export const ExamsManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="شروع" required hint={jalaliPreview(form.opens_at) ? `شمسی: ${jalaliPreview(form.opens_at)}` : undefined}>
-              <input type="datetime-local" value={form.opens_at}
-                onChange={(e) => setForm({ ...form, opens_at: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none" />
+              <JalaliDateTimePicker value={form.opens_at} onChange={(v) => setForm({ ...form, opens_at: v })} />
             </FormField>
             <FormField label="پایان" required hint={jalaliPreview(form.closes_at) ? `شمسی: ${jalaliPreview(form.closes_at)}` : undefined}>
-              <input type="datetime-local" value={form.closes_at}
-                onChange={(e) => setForm({ ...form, closes_at: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none" />
+              <JalaliDateTimePicker value={form.closes_at} onChange={(v) => setForm({ ...form, closes_at: v })} />
             </FormField>
             <FormField label="مدت (دقیقه)" required hint="پایان زمان فقط با ساعت سرور">
               <input type="number" min={5} max={300} value={form.duration_minutes}

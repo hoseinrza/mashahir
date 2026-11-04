@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, PageHeader, EmptyState, AccessDeniedGate } from '../components/common';
+import { JalaliDateTimePicker } from '../components/common/JalaliDatePicker';
 import { toPersianDigits, formatScore, cn } from '../utils/persian';
 import { formatJalaliDateTime } from '../utils/jalali';
 import { api, ApiError } from '../api/client';
@@ -378,11 +379,7 @@ export const AssignmentsPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <FormField label="مهلت تحویل" required>
-              <input
-                type="datetime-local" required value={createForm.due_at}
-                onChange={(e) => setCreateForm((s) => ({ ...s, due_at: e.target.value }))}
-                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
-              />
+              <JalaliDateTimePicker value={createForm.due_at} onChange={(v) => setCreateForm((s) => ({ ...s, due_at: v }))} />
             </FormField>
             <FormField label="سقف نمره">
               <input

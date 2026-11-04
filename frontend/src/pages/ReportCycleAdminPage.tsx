@@ -6,6 +6,7 @@ import {
 import {
   AccessDeniedGate, Badge, Button, Card, EmptyState, Modal, PageHeader,
 } from '../components/common';
+import { JalaliDateTimePicker } from '../components/common/JalaliDatePicker';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../api/client';
 import { toPersianDigits } from '../utils/persian';
@@ -217,8 +218,7 @@ export const ReportCycleAdminPage: React.FC = () => {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-400">مهلت ثبت (اختیاری)</label>
-              <input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none" />
+              <JalaliDateTimePicker value={form.dueAt} onChange={(v) => setForm({ ...form, dueAt: v })} />
             </div>
           </div>
           <div className="flex justify-end">

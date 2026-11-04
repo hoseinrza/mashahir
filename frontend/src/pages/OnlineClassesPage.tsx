@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Video, Plus, LogIn, X, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, PageHeader } from '../components/common';
+import { JalaliDateTimePicker } from '../components/common/JalaliDatePicker';
 import { toPersianDigits } from '../utils/persian';
 import { formatJalaliDateTime, jalaliPreview } from '../utils/jalali';
 import { api, ApiError } from '../api/client';
@@ -239,8 +240,7 @@ export const OnlineClassesPage: React.FC = () => {
           </FormField>
           <FormField label="زمان شروع" required>
             <div className="space-y-1">
-              <input type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none focus:ring-2 focus:ring-[#2457C5]/40" />
+              <JalaliDateTimePicker value={startLocal} onChange={setStartLocal} />
               {jalaliPreview(startLocal) && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">شروع: {jalaliPreview(startLocal)}</p>
               )}
