@@ -105,6 +105,22 @@ export interface GuardianChildRow {
   };
 }
 
+export interface GuardianLinkRow {
+  id: number;
+  studentUlid: string;
+  studentName: string;
+  linkType: string;
+  status: string;
+  guardianName: string | null;
+  flags: {
+    can_view_grades: boolean;
+    can_view_attendance: boolean;
+    can_approve_consent: boolean;
+    can_pickup: boolean;
+    can_receive_sms: boolean;
+  };
+}
+
 export const ApiFamilyService = {
   async listMyChildren(): Promise<Student[]> {
     const children = await fetchMyChildren();
@@ -135,6 +151,26 @@ export const ApiFamilyService = {
         can_approve_consent: Boolean(c.effective_flags?.can_approve_consent),
         can_pickup: Boolean(c.effective_flags?.can_pickup),
         can_receive_sms: Boolean(c.effective_flags?.can_receive_sms),
+      },
+    }));
+  },
+
+  /** Admin/family-management view: every guardian link of the school. */
+  async listAllLinks(): Promise<GuardianLinkRow[]> {
+    const result = await api<{ data: any[] }>('/v1/guardian-links');
+    return (result.data ?? []).map((l) => ({
+      id: l.id,
+      studentUlid: l.student_ulid ?? '',
+      studentName: l.student_name ?? '',
+      linkType: l.link_type ?? '',
+      status: l.status ?? '',
+      guardianName: l.guardian?.name ?? null,
+      flags: {
+        can_view_grades: Boolean(l.effective_flags?.can_view_grades),
+        can_view_attendance: Boolean(l.effective_flags?.can_view_attendance),
+        can_approve_consent: Boolean(l.effective_flags?.can_approve_consent),
+        can_pickup: Boolean(l.effective_flags?.can_pickup),
+        can_receive_sms: Boolean(l.effective_flags?.can_receive_sms),
       },
     }));
   },
