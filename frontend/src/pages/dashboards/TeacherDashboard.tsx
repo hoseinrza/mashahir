@@ -332,7 +332,7 @@ export const TeacherDashboard: React.FC = () => {
             <span className="text-2xl font-black text-[#202B3C] dark:text-[#F1F5FB] tabular-nums">
               {board?.studentCount === null ? '—' : toPersianDigits(board?.studentCount ?? 0)}
             </span>
-            <Badge variant="neutral">قید ش۲</Badge>
+            <Badge variant="neutral">کلاس‌های تدریس خود</Badge>
           </div>
         </Card>
 
