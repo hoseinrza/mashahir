@@ -11,6 +11,7 @@ import { DashboardRouter } from './pages/DashboardRouter';
 import { AssignmentsPage } from './pages/AssignmentsPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { OnlineClassesPage } from './pages/OnlineClassesPage';
+import { TransportPage } from './pages/TransportPage';
 import { ExamsManagementPage } from './pages/ExamsManagementPage';
 import { StudentExamsPage } from './pages/StudentExamsPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
@@ -70,6 +71,14 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <OnlineClassesPage />
+                </DashboardLayout>
+              }
+            />
+            <Route
+              path="/transport"
+              element={
+                <DashboardLayout>
+                  <TransportPage />
                 </DashboardLayout>
               }
             />

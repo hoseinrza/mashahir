@@ -202,6 +202,29 @@ class TransportApiController extends Controller
     }
 
     /**
+     * فهرست دانش‌آموزان تخصیص‌یافته به یک خط (برای مدیریت مدرسه).
+     */
+    public function students(BusRoute $route): JsonResponse
+    {
+        $this->authorize('transport.view');
+
+        $rows = BusAssignment::query()
+            ->where('bus_route_id', $route->id)
+            ->with(['student', 'stop'])
+            ->get()
+            ->map(fn (BusAssignment $assignment) => [
+                'student_ulid' => $assignment->student?->ulid,
+                'student_name' => $assignment->student?->fullName(),
+                'student_code' => $assignment->student?->student_code,
+                'stop_ulid' => $assignment->stop?->ulid,
+                'stop_title' => $assignment->stop?->title,
+                'pickup_time' => $assignment->stop?->pickup_time,
+            ]);
+
+        return response()->json(['data' => $rows]);
+    }
+
+    /**
      * نمای راننده: خط خودش، دانش‌آموزان و وضعیت سوار/پیادهٔ امروز.
      */
     public function myRoute(): JsonResponse
@@ -223,9 +246,10 @@ class TransportApiController extends Controller
         $boardings = BusBoarding::query()
             ->where('bus_route_id', $route->id)
             ->where('boarding_date', $today)
+            ->with('student')
             ->get()
             ->map(fn (BusBoarding $row) => [
-                'student_id' => $row->student_id,
+                'student_ulid' => $row->student?->ulid,
                 'direction' => $row->direction,
                 'status' => $row->status,
                 'recorded_at' => $row->recorded_at?->toIso8601String(),

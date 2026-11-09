@@ -72,6 +72,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     '/settings': 'schools:settings',
     '/create-school': 'schools:manage',
     '/special-roles': 'roles:manage',
+    '/transport': ['transport:manage', 'transport:view', 'transport:board'],
     '/online-classes': 'online_classes:view',
     // Monthly report-card cycle: the principal opens periods, the teacher
     // fills and submits his own. Each page also gates itself.
@@ -248,10 +249,16 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       items: [
         {
           label: isBusDriver ? 'سرویس‌های من و تردد خط' : activeRole.id === 'security_guard' ? 'استعلام و کنترل گیت خروج' : activeRole.id === 'essay_grader' || activeRole.id === 'exam_proctor' ? 'پنل مراقبت آزمون' : 'پنل نقش‌های اجرایی و گیت',
-          href: '/special-roles',
+          href: isBusDriver ? '/transport' : '/special-roles',
           icon: <Bus size={17} />,
           show: isBusDriver || activeRole.id === 'security_guard' || activeRole.id === 'essay_grader' || activeRole.id === 'exam_proctor' || isAdmin,
           badge: isBusDriver ? 'راننده' : activeRole.id === 'security_guard' ? 'حراست' : undefined,
+        },
+        {
+          label: 'سرویس مدرسه — خطوط و ایستگاه‌ها',
+          href: '/transport',
+          icon: <Bus size={17} />,
+          show: !isBusDriver && (hasAccess('transport:manage') || hasAccess('transport:view')),
         },
         {
           label: 'ارتباطات خانوادگی و حضانت',

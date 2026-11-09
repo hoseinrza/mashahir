@@ -236,5 +236,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/transport/routes/{route}/stops', [TransportApiController::class, 'addStop']);
     Route::delete('/transport/routes/{route}/stops/{stop}', [TransportApiController::class, 'removeStop']);
     Route::post('/transport/routes/{route}/students', [TransportApiController::class, 'assignStudent']);
+    Route::get('/transport/routes/{route}/students', [TransportApiController::class, 'students']);
     Route::delete('/transport/routes/{route}/students/{studentUlid}', [TransportApiController::class, 'unassignStudent']);
 });

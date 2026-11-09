@@ -17,7 +17,7 @@ import { InspectorDashboard } from './dashboards/InspectorDashboard';
 import { PlatformAdminDashboard } from './dashboards/PlatformAdminDashboard';
 
 export const DashboardRouter: React.FC = () => {
-  const { activeRole } = useAuth();
+  const { activeRole, hasAccess } = useAuth();
 
   switch (activeRole.id) {
     // 1. School Admin
@@ -80,6 +80,8 @@ export const DashboardRouter: React.FC = () => {
       return <PlatformAdminDashboard />;
 
     default:
+      // Custom school roles: a bus driver is whoever holds transport.board.
+      if (hasAccess('transport:board')) return <BusDriverDashboard />;
       // Fallback by group
       if (activeRole.group === 'family') return <ParentDashboard />;
       if (activeRole.group === 'student') return <StudentDashboard />;

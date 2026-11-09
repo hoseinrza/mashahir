@@ -1499,3 +1499,185 @@ export const ApiSchoolsService = {
     return (result.data ?? []).map((user) => ({ ulid: user.ulid, name: user.name }));
   },
 };
+
+/** سرویس مدرسه: خطوط، ایستگاه‌ها، تخصیص دانش‌آموز و ثبت سوارشدن. */
+export interface BusStopRow {
+  ulid: string;
+  title: string;
+  position: number;
+  pickupTime: string | null;
+}
+
+export interface BusRouteRow {
+  ulid: string;
+  code: string;
+  title: string;
+  driver: { ulid: string; name: string } | null;
+  vehicleModel: string | null;
+  plateNumber: string | null;
+  capacity: number;
+  isActive: boolean;
+  stops: BusStopRow[];
+  studentsCount: number;
+}
+
+export interface BusAssignmentRow {
+  studentUlid: string | null;
+  studentName: string | null;
+  studentCode: string | null;
+  stopUlid: string | null;
+  stopTitle: string | null;
+  pickupTime: string | null;
+}
+
+export interface DriverRosterRow {
+  studentUlid: string | null;
+  studentName: string | null;
+  studentCode: string | null;
+  stopUlid: string | null;
+  stopTitle: string | null;
+  pickupTime: string | null;
+}
+
+export interface DriverBoardingRow {
+  student_ulid: string | null;
+  direction: 'in' | 'out' | string;
+  status: 'boarded' | 'absent' | string;
+  recorded_at: string | null;
+}
+
+const mapBusRoute = (raw: any): BusRouteRow => ({
+  ulid: raw.ulid,
+  code: raw.code ?? '',
+  title: raw.title ?? '',
+  driver: raw.driver ? { ulid: raw.driver.ulid, name: raw.driver.name } : null,
+  vehicleModel: raw.vehicle_model ?? null,
+  plateNumber: raw.plate_number ?? null,
+  capacity: raw.capacity ?? 0,
+  isActive: Boolean(raw.is_active),
+  stops: (raw.stops ?? []).map((s: any) => ({
+    ulid: s.ulid,
+    title: s.title,
+    position: s.position,
+    pickupTime: s.pickup_time ?? null,
+  })),
+  studentsCount: raw.students_count ?? 0,
+});
+
+export const ApiTransportService = {
+  async routes(): Promise<BusRouteRow[]> {
+    const result = await api<{ data: any[] }>('/v1/transport/routes');
+    return (result.data ?? []).map(mapBusRoute);
+  },
+
+  async createRoute(payload: {
+    code: string;
+    title: string;
+    driverUlid?: string | null;
+    vehicleModel?: string;
+    plateNumber?: string;
+    capacity?: number;
+  }): Promise<void> {
+    await api('/v1/transport/routes', {
+      method: 'POST',
+      body: {
+        code: payload.code,
+        title: payload.title,
+        ...(payload.driverUlid ? { driver_ulid: payload.driverUlid } : {}),
+        ...(payload.vehicleModel ? { vehicle_model: payload.vehicleModel } : {}),
+        ...(payload.plateNumber ? { plate_number: payload.plateNumber } : {}),
+        ...(payload.capacity !== undefined ? { capacity: payload.capacity } : {}),
+      },
+    });
+  },
+
+  async updateRoute(
+    ulid: string,
+    payload: { title?: string; driverUlid?: string | null; capacity?: number; isActive?: boolean },
+  ): Promise<void> {
+    await api(`/v1/transport/routes/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.driverUlid !== undefined ? { driver_ulid: payload.driverUlid } : {}),
+        ...(payload.capacity !== undefined ? { capacity: payload.capacity } : {}),
+        ...(payload.isActive !== undefined ? { is_active: payload.isActive } : {}),
+      },
+    });
+  },
+
+  async addStop(routeUlid: string, payload: { title: string; pickupTime?: string }): Promise<void> {
+    await api(`/v1/transport/routes/${routeUlid}/stops`, {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        ...(payload.pickupTime ? { pickup_time: payload.pickupTime } : {}),
+      },
+    });
+  },
+
+  async removeStop(routeUlid: string, stopUlid: string): Promise<void> {
+    await api(`/v1/transport/routes/${routeUlid}/stops/${stopUlid}`, { method: 'DELETE' });
+  },
+
+  async students(routeUlid: string): Promise<BusAssignmentRow[]> {
+    const result = await api<{ data: any[] }>(`/v1/transport/routes/${routeUlid}/students`);
+    return (result.data ?? []).map((row) => ({
+      studentUlid: row.student_ulid ?? null,
+      studentName: row.student_name ?? null,
+      studentCode: row.student_code ?? null,
+      stopUlid: row.stop_ulid ?? null,
+      stopTitle: row.stop_title ?? null,
+      pickupTime: row.pickup_time ?? null,
+    }));
+  },
+
+  async assign(routeUlid: string, studentUlid: string, stopUlid?: string | null): Promise<void> {
+    await api(`/v1/transport/routes/${routeUlid}/students`, {
+      method: 'POST',
+      body: { student_ulid: studentUlid, ...(stopUlid ? { bus_stop_ulid: stopUlid } : {}) },
+    });
+  },
+
+  async unassign(routeUlid: string, studentUlid: string): Promise<void> {
+    await api(`/v1/transport/routes/${routeUlid}/students/${studentUlid}`, { method: 'DELETE' });
+  },
+
+  /** Driver view: his own route with today's roster and boardings. */
+  async myRoute(): Promise<{
+    route: BusRouteRow | null;
+    roster: DriverRosterRow[];
+    boardings: DriverBoardingRow[];
+  }> {
+    const raw = await api<any>('/v1/transport/my-route');
+    return {
+      route: raw.route ? mapBusRoute(raw.route) : null,
+      roster: (raw.roster ?? []).map((r: any) => ({
+        studentUlid: r.student_ulid ?? null,
+        studentName: r.student_name ?? null,
+        studentCode: r.student_code ?? null,
+        stopUlid: r.stop_ulid ?? null,
+        stopTitle: r.stop_title ?? null,
+        pickupTime: r.pickup_time ?? null,
+      })),
+      boardings: raw.boardings ?? [],
+    };
+  },
+
+  async markBoarding(payload: {
+    routeUlid: string;
+    studentUlid: string;
+    direction: 'in' | 'out';
+    status: 'boarded' | 'absent';
+  }): Promise<void> {
+    await api('/v1/transport/boardings', {
+      method: 'POST',
+      body: {
+        route_ulid: payload.routeUlid,
+        student_ulid: payload.studentUlid,
+        direction: payload.direction,
+        status: payload.status,
+      },
+    });
+  },
+};
