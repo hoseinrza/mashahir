@@ -130,7 +130,7 @@ class TransportApiController extends Controller
         ], 201);
     }
 
-    public function removeStop(BusRoute $route, BusStop $stop): JsonResponse
+    public function removeStop(BusRoute $route, BusStop $stop): \Illuminate\Http\Response
     {
         $this->authorize('transport.manage');
 
@@ -181,7 +181,7 @@ class TransportApiController extends Controller
         return response()->json(['assignment_id' => $assignment->id], 201);
     }
 
-    public function unassignStudent(BusRoute $route, string $studentUlid): JsonResponse
+    public function unassignStudent(BusRoute $route, string $studentUlid): \Illuminate\Http\Response
     {
         $this->authorize('transport.manage');
 

@@ -110,7 +110,7 @@ class TimetableApiController extends Controller
         return response()->json(['id' => $slot->id] + $slot->only(['weekday', 'period', 'starts_at', 'ends_at']));
     }
 
-    public function destroy(TimetableSlot $slot): JsonResponse
+    public function destroy(TimetableSlot $slot): \Illuminate\Http\Response
     {
         $this->authorize('timetable.manage');
 

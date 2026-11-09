@@ -30,6 +30,11 @@ final class NotificationService
         array $channels = [NotificationDelivery::CHANNEL_IN_APP],
         array $data = [],
     ): Notification {
+        // varchar(255) columns: composite titles (e.g. consent requests with the
+        // learner's full name) must not blow up the insert (SQLSTATE 22001).
+        $title = mb_substr($title, 0, 255);
+        $link = $link === null ? null : mb_substr($link, 0, 255);
+
         $notification = Notification::query()->create([
             'school_id' => $user->userRoles()->value('school_id') ?? app(\App\Support\SchoolContext::class)->schoolId(),
             'user_id' => $user->id,

@@ -131,7 +131,7 @@ class RolesApiController extends Controller
         return response()->json($this->payload($role->fresh('permissions')));
     }
 
-    public function destroy(Role $role): JsonResponse
+    public function destroy(Role $role): \Illuminate\Http\Response
     {
         if (! $this->assertCanManage($role)) {
             abort(403);
