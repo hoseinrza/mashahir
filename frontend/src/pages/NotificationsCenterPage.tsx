@@ -1,67 +1,89 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Bell, CheckCircle2, Bookmark, Archive, Check,
-  Clock, ShieldAlert, BookOpen, HeartHandshake, Settings
+  Bell, Check, Archive, Loader2, AlertCircle, RefreshCw, Inbox
 } from 'lucide-react';
-import { Card, Button, Badge, Tabs, PageHeader } from '../components/common';
-import { toPersianDigits, cn } from '../utils/persian';
-import { NotificationService } from '../services';
+import { Card, Button, Tabs, PageHeader, EmptyState } from '../components/common';
+import { cn } from '../utils/persian';
 import { ApiNotificationCenter } from '../api/data';
+import { ApiError } from '../api/client';
 import { Notification } from '../types';
 
+type TabId = 'all' | 'unread' | 'important' | 'archived';
+
+const CATEGORY_LABEL: Record<Notification['category'], string> = {
+  academic: 'آموزشی',
+  attendance: 'حضور و غیاب',
+  exam: 'آزمون',
+  system: 'اطلاع‌رسانی سامانه',
+  counseling: 'مشاوره',
+};
+
+const firstError = (e: unknown, fallback: string): string =>
+  e instanceof ApiError ? e.firstError() : fallback;
+
 export const NotificationsCenterPage: React.FC = () => {
-  const [mockNotifications] = useState<Notification[]>(() =>
-    NotificationService.getAll()
-  );
-  const [liveNotifications, setLiveNotifications] = useState<Notification[] | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'important' | 'archived'>('all');
+  // The bell only rings for real server-side events — an empty inbox stays
+  // empty instead of showing demo notices.
+  const [items, setItems] = useState<Notification[] | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('all');
 
-  const notifications = liveNotifications ?? mockNotifications;
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const load = useCallback((tab: TabId) => {
+    setItems(null);
+    setError(null);
 
-  // Live notification center; demo data stays as the offline fallback.
-  const refresh = (tab: typeof activeTab) => {
     ApiNotificationCenter.list(tab)
-      .then((r) => setLiveNotifications(r.items))
-      .catch(() => { /* keep demo data */ });
-  };
+      .then((r) => {
+        setItems(r.items);
+        setUnreadCount(r.unreadCount);
+      })
+      .catch((e) => setError(firstError(e, 'خطا در دریافت اعلان‌ها')));
+  }, []);
 
-  useEffect(() => {
-    refresh(activeTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  useEffect(() => { load(activeTab); }, [activeTab, load]);
 
   const handleMarkAsRead = (id: string) => {
-    if (liveNotifications === null) {
-      setLiveNotifications(NotificationService.markAsRead(id));
-      return;
-    }
-
     const numeric = Number(id);
-    if (Number.isFinite(numeric)) {
-      ApiNotificationCenter.markRead(numeric).then(() => refresh(activeTab)).catch(() => {});
-    }
+    if (!Number.isFinite(numeric)) return;
+
+    setItems((prev) => prev?.map((n) => (n.id === id ? { ...n, isRead: true } : n)) ?? prev);
+    setUnreadCount((c) => Math.max(0, c - 1));
+
+    ApiNotificationCenter.markRead(numeric)
+      .catch((e) => setError(firstError(e, 'خطا در علامت‌گذاری اعلان')));
   };
 
   const handleMarkAllRead = () => {
-    if (liveNotifications === null) {
-      setLiveNotifications(NotificationService.markAllAsRead());
-    }
+    const unread = (items ?? []).filter((n) => !n.isRead);
+    if (unread.length === 0) return;
+
+    Promise.all(
+      unread
+        .map((n) => Number(n.id))
+        .filter((id) => Number.isFinite(id))
+        .map((id) => ApiNotificationCenter.markRead(id)),
+    )
+      .then(() => load(activeTab))
+      .catch((e) => setError(firstError(e, 'خطا در علامت‌گذاری اعلان‌ها')));
+  };
+
+  const handleArchive = (event: React.MouseEvent, id: string) => {
+    event.stopPropagation();
+    const numeric = Number(id);
+    if (!Number.isFinite(numeric)) return;
+
+    ApiNotificationCenter.archive(numeric)
+      .then(() => load(activeTab))
+      .catch((e) => setError(firstError(e, 'خطا در بایگانی اعلان')));
   };
 
   const tabs = [
-    { id: 'all', label: 'همه اعلان‌ها', badge: notifications.length },
+    { id: 'all', label: 'همه اعلان‌ها', badge: items?.length ?? 0 },
     { id: 'unread', label: 'خوانده‌نشده', badge: unreadCount },
     { id: 'important', label: 'مهم و ستاره‌دار' },
     { id: 'archived', label: 'بایگانی‌شده' },
   ];
-
-  const filtered = notifications.filter((n) => {
-    if (activeTab === 'unread') return !n.isRead;
-    if (activeTab === 'important') return n.isImportant;
-    if (activeTab === 'archived') return n.isArchived;
-    return true;
-  });
 
   return (
     <div className="space-y-6">
@@ -77,22 +99,50 @@ export const NotificationsCenterPage: React.FC = () => {
         }
       />
 
-      <Tabs tabs={tabs} activeId={activeTab} onChange={(id) => setActiveTab(id as any)} />
+      {error && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-rose-900 dark:text-rose-200">
+            <span className="flex items-center gap-2 font-bold">
+              <AlertCircle size={15} />
+              {error}
+            </span>
+            <Button size="sm" variant="outline" icon={<RefreshCw size={13} />} onClick={() => load(activeTab)}>
+              تلاش دوباره
+            </Button>
+          </div>
+        </Card>
+      )}
 
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <Card className="text-center py-12 text-slate-400 text-xs">
-            هیچ اعلانی در این بخش وجود ندارد.
-          </Card>
-        ) : (
-          filtered.map((notif) => (
+      <Tabs tabs={tabs} activeId={activeTab} onChange={(id) => setActiveTab(id as TabId)} />
+
+      {items === null && !error ? (
+        <Card>
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#526176] dark:text-[#B3C0D2]">
+            <Loader2 size={18} className="animate-spin" /> در حال دریافت اعلان‌ها…
+          </div>
+        </Card>
+      ) : (items ?? []).length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Inbox size={22} className="text-[#2457C5] dark:text-[#8BAEFF]" />}
+            title="اعلانی در این بخش نیست"
+            description={
+              unreadCount === 0
+                ? 'هر اعلان تازه — غیبت ثبت‌شده، تکلیف نزدیک‌الموعد، نتیجهٔ آزمون یا رضایت‌نامه — به‌صورت خودکار در همین مرکز ظاهر می‌شود.'
+                : 'در این تب اعلانی نیست؛ تب‌های دیگر را ببینید.'
+            }
+          />
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {(items ?? []).map((notif) => (
             <Card
               key={notif.id}
-              onClick={() => handleMarkAsRead(notif.id)}
+              onClick={() => { if (!notif.isRead) handleMarkAsRead(notif.id); }}
               className={cn(
-                'text-right transition-all cursor-pointer',
+                'text-right transition-all',
                 !notif.isRead
-                  ? 'border-blue-300 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/20'
+                  ? 'cursor-pointer border-blue-300 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/20'
                   : 'bg-white dark:bg-[#182231]'
               )}
             >
@@ -124,14 +174,31 @@ export const NotificationsCenterPage: React.FC = () => {
                   </div>
                 </div>
 
-                <span className="text-[11px] text-slate-400 font-mono shrink-0">
-                  {notif.createdAt}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {notif.createdAt}
+                  </span>
+                  {!notif.isArchived && (
+                    <button
+                      type="button"
+                      title="بایگانی اعلان"
+                      onClick={(e) => handleArchive(e, notif.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#2457C5] hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      <Archive size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>{CATEGORY_LABEL[notif.category] ?? 'اطلاع‌رسانی'}</span>
+                <span>{notif.isImportant ? 'اعلان مهم' : 'اعلان عادی'}</span>
               </div>
             </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -38,29 +38,97 @@ export const ApiUserService = {
   },
 };
 
-/** Backend audit actions → the page's entityType union (nearest match). */
+/** Backend audit actions → the page's entityType union. */
 function auditEntityType(action: string): AuditEvent['entityType'] {
-  if (action.startsWith('guardian_link')) return 'family_link';
-  if (action.startsWith('court_order')) return 'legal_restriction';
-  if (action.startsWith('user.role') || action.startsWith('user.phone')) return 'permission';
-  if (action.startsWith('pickup')) return 'family_link';
   if (action.startsWith('attendance')) return 'attendance';
+  if (
+    action.startsWith('grade') ||
+    action.startsWith('report_card') ||
+    action.startsWith('report_period') ||
+    action.startsWith('report_submission') ||
+    action.startsWith('report_entries')
+  ) {
+    return 'grade';
+  }
+  if (action.startsWith('court_order')) return 'legal_restriction';
+  if (action.startsWith('guardian_link') || action.startsWith('pickup')) return 'family_link';
+  if (action.startsWith('exam')) return 'exam';
+  if (action.startsWith('online_class')) return 'online_class';
   return 'permission';
 }
 
+/** Specific Persian sentence for the actions the backend actually logs. */
 const ACTION_TITLES: Record<string, string> = {
-  'guardian_link.requested': 'درخواست اتصال ولی',
-  'guardian_link.approved': 'تأیید پیوند ولی',
-  'guardian_link.updated': 'تغییر پرچم‌های پیوند ولی',
-  'guardian_link.ended': 'پایان پیوند ولی',
-  'court_order.registered': 'ثبت حکم دادگاه',
-  'user.role_assigned': 'تخصیص نقش به کاربر',
-  'user.role_ended': 'پایان نقش کاربر',
-  'user.phone_changed': 'تغییر شماره موبایل ورود',
-  'student.national_code_viewed': 'مشاهده کد ملی دانش‌آموز',
-  'pickup.authorization_created': 'ثبت فرد مجاز تحویل‌گیری',
-  'pickup.authorization_updated': 'تغییر لیست تحویل‌گیری',
+  'guardian_link.requested': 'درخواست اتصال ولی ثبت شد',
+  'guardian_link.approved': 'پیوند ولی تأیید و فعال شد',
+  'guardian_link.updated': 'مجوزهای پیوند ولی تغییر کرد',
+  'guardian_link.ended': 'پیوند ولی پایان یافت',
+  'court_order.registered': 'حکم دادگاه خانواده ثبت شد',
+  'court_order.updated': 'حکم دادگاه خانواده اصلاح شد',
+  'pickup.authorization_created': 'فرد مجاز تحویل‌گیری ثبت شد',
+  'pickup.authorization_updated': 'فهرست تحویل‌گیری تغییر کرد',
+  'user.role_assigned': 'نقش به کاربر تخصیص یافت',
+  'user.role_ended': 'تخصیص نقش کاربر پایان یافت',
+  'user.phone_changed': 'شمارهٔ موبایل ورود تغییر کرد',
+  'user.updated': 'اطلاعات کاربر ویرایش شد',
+  'student.created': 'دانش‌آموز جدید ثبت شد',
+  'student.updated': 'اطلاعات دانش‌آموز ویرایش شد',
+  'student.national_code_viewed': 'کد ملی دانش‌آموز مشاهده شد',
+  'attendance.finalized': 'حضور و غیاب جلسه نهایی شد',
+  'attendance.corrected': 'سابقهٔ حضور و غیاب اصلاح شد',
+  'attendance.sms_sent': 'پیامک غیبت برای ولی ارسال شد',
+  'grade.stored': 'نمره ثبت شد',
+  'grade.approved': 'نمره تأیید شد',
+  'grade.changed_published': 'نمرهٔ منتشرشده با دلیل تغییر کرد',
+  'report_card.published': 'کارنامه منتشر شد',
+  'report_period.created': 'دورهٔ کارنامه ماهانه ایجاد شد',
+  'report_period.opened': 'دورهٔ کارنامه برای دبیران باز شد',
+  'report_entries.saved': 'نمرات دوره ذخیره شد',
+  'report_submission.submitted': 'کارنامه برای بازبینی ارسال شد',
+  'report_submission.returned': 'کارنامه برای اصلاح برگشت خورد',
+  'report_submission.approved': 'کارنامه تأیید شد',
+  'report_submission.finalized': 'کارنامه نهایی شد',
+  'report_submission.archived': 'کارنامه بایگانی شد',
+  'report_submission.reopened': 'کارنامه برای بازبینی بازگشایی شد',
+  'announcement.published': 'اطلاعیهٔ رسمی منتشر شد',
+  'announcement.updated': 'اطلاعیهٔ رسمی ویرایش شد',
+  'role.created': 'نقش سفارشی ایجاد شد',
+  'role.updated': 'نقش سفارشی ویرایش شد',
+  'role.deleted': 'نقش سفارشی حذف شد',
+  'online_class.created': 'کلاس آنلاین ایجاد شد',
+  'online_class.closed': 'کلاس آنلاین بسته شد',
+  'online_class.deleted': 'کلاس آنلاین حذف شد',
+  'import.students_done': 'ورود گروهی دانش‌آموزان انجام شد',
+  'school.settings_updated': 'تنظیمات مدرسه تغییر کرد',
 };
+
+/** Persian family for an action, used when the exact action has no sentence yet. */
+export function auditActionLabel(action: string): string {
+  const exact = ACTION_TITLES[action];
+  if (exact) return exact;
+
+  const prefix = action.split('.')[0];
+  const families: Record<string, string> = {
+    guardian_link: 'تغییر در پیوند ولی و دانش‌آموز',
+    court_order: 'تغییر در احکام قضایی',
+    pickup: 'تغییر در فهرست تحویل‌گیری',
+    attendance: 'عملیات حضور و غیاب',
+    grade: 'عملیات نمره',
+    report_card: 'عملیات کارنامه',
+    report_period: 'عملیات دورهٔ کارنامه',
+    report_submission: 'عملیات کارنامهٔ ماهانه',
+    exam: 'عملیات آزمون',
+    user: 'عملیات کاربران',
+    student: 'عملیات دانش‌آموزان',
+    role: 'مدیریت نقش‌ها',
+    announcement: 'کانال اطلاع‌رسانی',
+    online_class: 'کلاس آنلاین',
+    import: 'ورود گروهی داده',
+    school: 'تنظیمات مدرسه',
+  };
+
+  return families[prefix] ?? 'رویداد ثبت‌شده در سامانه';
+}
 
 function formatTimestamp(iso: string | null): string {
   if (!iso) return '—';
@@ -82,7 +150,7 @@ export const ApiAuditService = {
       action: row.action,
       entityType: auditEntityType(row.action),
       entityId: row.subject_id != null ? String(row.subject_id) : '—',
-      description: ACTION_TITLES[row.action] ?? row.action,
+      description: ACTION_TITLES[row.action] ?? auditActionLabel(row.action),
       timestamp: formatTimestamp(row.created_at),
       reason: row.reason ?? undefined,
       ipAddress: row.ip ?? undefined,
@@ -852,16 +920,35 @@ export const ApiReportCardPrintService = {
 };
 
 /** Custom school-role management (roles.manage / school_admin). */
+export interface SchoolRoleRow {
+  id: number;
+  key: string;
+  title: string;
+  isSystem: boolean;
+  permissions: { key: string; title: string }[];
+}
+
 export const ApiRolesService = {
-  async list(): Promise<Record<string, unknown>[]> {
-    const result = await api<{ data: Record<string, unknown>[] }>('/v1/roles');
-    return result.data ?? [];
+  async list(): Promise<SchoolRoleRow[]> {
+    const result = await api<{ data: any[] }>('/v1/roles');
+    return (result.data ?? []).map((r) => ({
+      id: r.id,
+      key: r.key,
+      title: r.title,
+      isSystem: Boolean(r.is_system),
+      permissions: (r.permissions ?? []).map((p: any) => ({ key: p.key, title: p.title })),
+    }));
   },
 
   async create(key: string, title: string, permissions: string[]): Promise<void> {
-    await api('/v1/roles', {
-      method: 'POST',
-      body: { key, title, permissions: permissions.map((c) => c.replace(':', '.')) },
-    });
+    await api('/v1/roles', { method: 'POST', body: { key, title, permissions } });
+  },
+
+  async update(id: number, body: { title?: string; permissions?: string[] }): Promise<void> {
+    await api(`/v1/roles/${id}`, { method: 'PATCH', body });
+  },
+
+  async destroy(id: number): Promise<void> {
+    await api(`/v1/roles/${id}`, { method: 'DELETE' });
   },
 };
