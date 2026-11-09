@@ -1,6 +1,6 @@
 import { api, apiDocument } from './client';
 import { fetchMyChildren } from './auth';
-import type { AuditEvent, Student, User } from '../types';
+import type { AuditEvent, Student } from '../types';
 
 /**
  * Real-data adapters for the pages that have a live backend module.
@@ -8,33 +8,109 @@ import type { AuditEvent, Student, User } from '../types';
  * pages keep working; unwired pages stay on the mock services.
  */
 
+export interface UserRow {
+  ulid: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  phone: string | null;
+  status: string;
+}
+
+export interface StudentRow {
+  ulid: string;
+  code: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  status: string;
+  birthDate: string | null;
+}
+
+/** Backend role keys → the titles the personnel office reads. */
+export const BACKEND_ROLE_LABELS: Record<string, string> = {
+  school_admin: 'مدیر مدرسه',
+  academic_deputy: 'معاون آموزشی',
+  discipline_deputy: 'ناظم',
+  teacher: 'دبیر',
+  corrector: 'مصحح آزمون',
+  proctor: 'مراقب آزمون',
+  guardian: 'ولی',
+  student: 'دانش‌آموز',
+  office_manager: 'مسئول دفتر',
+  support: 'پشتیبان',
+  platform_admin: 'مدیر پلتفرم',
+};
+
 export const ApiUserService = {
-  async listUsers(): Promise<User[]> {
+  async listUsers(): Promise<UserRow[]> {
     const result = await api<{ data: any[] }>('/v1/users?per_page=100');
     return (result.data ?? []).map((u) => ({
-      id: u.ulid,
-      nationalId: '—',
-      fullName: `${u.first_name} ${u.last_name}`.trim(),
-      email: '—',
-      phoneNumber: u.phone ?? '—',
-      isActive: u.status === 'active',
-      createdAt: '—',
+      ulid: u.ulid,
+      firstName: u.first_name ?? '',
+      lastName: u.last_name ?? '',
+      fullName: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(),
+      phone: u.phone ?? null,
+      status: u.status ?? 'active',
     }));
   },
 
-  async listStudents(): Promise<Student[]> {
+  async createUser(payload: { firstName: string; lastName: string; phone: string }): Promise<void> {
+    await api('/v1/users', {
+      method: 'POST',
+      body: { first_name: payload.firstName, last_name: payload.lastName, phone: payload.phone },
+    });
+  },
+
+  /** sh7: the login number only changes with a written reason. */
+  async changePhone(ulid: string, phone: string, reason: string): Promise<void> {
+    await api(`/v1/users/${ulid}/phone`, { method: 'POST', body: { phone, reason } });
+  },
+
+  async assignRole(
+    ulid: string,
+    payload: { roleKey: string; scopeType: 'school' | 'classroom' | 'student'; scopeId?: number | null },
+  ): Promise<void> {
+    await api(`/v1/users/${ulid}/roles`, {
+      method: 'POST',
+      body: {
+        role_key: payload.roleKey,
+        scope_type: payload.scopeType,
+        ...(payload.scopeId ? { scope_id: payload.scopeId } : {}),
+      },
+    });
+  },
+
+  async listStudents(): Promise<StudentRow[]> {
     const result = await api<{ data: any[] }>('/v1/students?per_page=100');
     return (result.data ?? []).map((s) => ({
-      id: s.ulid,
-      userId: '',
-      studentNumber: s.student_code,
-      classroomId: '',
-      nationalId: '—',
-      fullName: `${s.first_name} ${s.last_name}`.trim(),
-      gender: 'male' as const,
-      birthDate: s.birth_date ?? '',
-      enrollmentStatus: s.status === 'active' ? 'active' : s.status === 'left' ? 'transferred' : 'graduated',
+      ulid: s.ulid,
+      code: s.student_code ?? '—',
+      firstName: s.first_name ?? '',
+      lastName: s.last_name ?? '',
+      fullName: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
+      status: s.status ?? 'active',
+      birthDate: s.birth_date ?? null,
     }));
+  },
+
+  async createStudent(payload: {
+    firstName: string;
+    lastName: string;
+    studentCode: string;
+    birthDate?: string | null;
+    nationalCode?: string | null;
+  }): Promise<void> {
+    await api('/v1/students', {
+      method: 'POST',
+      body: {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        student_code: payload.studentCode,
+        ...(payload.birthDate ? { birth_date: payload.birthDate } : {}),
+        ...(payload.nationalCode ? { national_code: payload.nationalCode } : {}),
+      },
+    });
   },
 };
 
