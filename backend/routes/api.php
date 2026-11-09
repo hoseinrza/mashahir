@@ -26,6 +26,7 @@ use App\Modules\People\Http\Controllers\Api\PickupApiController;
 use App\Modules\People\Http\Controllers\Api\StudentsApiController;
 use App\Modules\School\Http\Controllers\Api\SchoolSettingsApiController;
 use App\Modules\School\Http\Controllers\Api\SchoolsApiController;
+use App\Modules\Transport\Http\Controllers\Api\TransportApiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/auth')->group(function (): void {
@@ -225,4 +226,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/schools/{school}', [SchoolsApiController::class, 'show']);
     Route::patch('/schools/{school}', [SchoolsApiController::class, 'update']);
     Route::post('/schools/{school}/principals', [SchoolsApiController::class, 'assignPrincipal']);
+
+    // Transport — خطوط سرویس، ایستگاه‌ها، تخصیص دانش‌آموز و ثبت سوارشدن
+    Route::get('/transport/routes', [TransportApiController::class, 'index']);
+    Route::post('/transport/routes', [TransportApiController::class, 'store']);
+    Route::get('/transport/my-route', [TransportApiController::class, 'myRoute']);
+    Route::post('/transport/boardings', [TransportApiController::class, 'markBoarding']);
+    Route::patch('/transport/routes/{route}', [TransportApiController::class, 'update']);
+    Route::post('/transport/routes/{route}/stops', [TransportApiController::class, 'addStop']);
+    Route::delete('/transport/routes/{route}/stops/{stop}', [TransportApiController::class, 'removeStop']);
+    Route::post('/transport/routes/{route}/students', [TransportApiController::class, 'assignStudent']);
+    Route::delete('/transport/routes/{route}/students/{studentUlid}', [TransportApiController::class, 'unassignStudent']);
 });

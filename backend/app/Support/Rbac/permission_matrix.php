@@ -153,6 +153,12 @@ return [
             ['key' => 'online_classes.manage', 'title' => 'مدیریت و بستن کلاس آنلاین'],
         ],
 
+        'transport' => [
+            ['key' => 'transport.view', 'title' => 'مشاهده خطوط و ایستگاه‌های سرویس مدرسه'],
+            ['key' => 'transport.manage', 'title' => 'مدیریت خط سرویس، راننده و تخصیص دانش‌آموز'],
+            ['key' => 'transport.board', 'title' => 'ثبت سوار و پیاده‌شدن دانش‌آموز در سرویس'],
+        ],
+
         'admissions' => [
             ['key' => 'preregistrations.view', 'title' => 'مشاهده درخواست‌های پیش‌ثبت‌نام لندینگ'],
             ['key' => 'preregistrations.manage', 'title' => 'بررسی و تغییر وضعیت پیش‌ثبت‌نام'],
@@ -566,6 +572,22 @@ return [
 
         'schools.manage' => [
             'platform_admin' => true,
+        ],
+
+        'transport.view' => [
+            'school_admin' => true,
+            'office_manager' => true,
+            'discipline_deputy' => true,
+        ],
+
+        'transport.manage' => [
+            'school_admin' => true,
+            'office_manager' => true,
+        ],
+
+        'transport.board' => [
+            'school_admin' => true,
+            'office_manager' => true,
         ],
 
         'system.monitor' => [
