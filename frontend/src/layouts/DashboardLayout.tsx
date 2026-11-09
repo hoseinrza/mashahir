@@ -85,7 +85,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     // of these codes (learners get reportcards.view, staff get grades.*).
     '/performance-analytics': ['grades:view', 'grades:record', 'reportcards:view'],
     '/counseling': ['counseling:view', 'counseling:request', 'counseling:manage'],
-    '/pta': null,
+    '/pta': ['pta:view', 'pta:manage', 'pta:vote'],
   };
 
   const itemAllowed = (href: string, show: boolean): boolean => {
@@ -233,7 +233,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           label: 'انجمن اولیا و مربیان',
           href: '/pta',
           icon: <Users size={17} />,
-          show: !isBusDriver && !isStudent && (hasAccess('pta:vote') || hasAccess('pta:manage') || isFamily || activeRole.group === 'pta' || isAdmin),
+          show: !isBusDriver && !isStudent && (hasAccess('pta:view') || hasAccess('pta:manage') || hasAccess('pta:vote') || isFamily || activeRole.group === 'pta' || isAdmin),
         },
         {
           label: isFamily ? 'رضایت‌نامه‌ها و اردوها' : 'رضایت‌نامه‌ها و گزارش اردوها',

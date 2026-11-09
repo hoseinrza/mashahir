@@ -153,6 +153,12 @@ return [
             ['key' => 'online_classes.manage', 'title' => 'مدیریت و بستن کلاس آنلاین'],
         ],
 
+        'pta' => [
+            ['key' => 'pta.view', 'title' => 'مشاهدهٔ جلسات و نظرسنجی‌های انجمن اولیا'],
+            ['key' => 'pta.manage', 'title' => 'مدیریت جلسات، صورت‌جلسه و نظرسنجی انجمن'],
+            ['key' => 'pta.vote', 'title' => 'شرکت در نظرسنجی انجمن اولیا'],
+        ],
+
         'counseling' => [
             ['key' => 'counseling.request', 'title' => 'درخواست نوبت مشاوره'],
             ['key' => 'counseling.view', 'title' => 'مشاهدهٔ نوبت‌ها و جلسات مشاوره'],
@@ -578,6 +584,22 @@ return [
 
         'schools.manage' => [
             'platform_admin' => true,
+        ],
+
+        'pta.view' => [
+            'school_admin' => true,
+            'academic_deputy' => true,
+            'office_manager' => true,
+            'teacher' => true,
+            'guardian' => true,
+        ],
+
+        'pta.manage' => [
+            'school_admin' => true,
+        ],
+
+        'pta.vote' => [
+            'guardian' => true,
         ],
 
         'counseling.request' => [

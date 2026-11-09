@@ -87,6 +87,8 @@ export const DashboardRouter: React.FC = () => {
       // Fallback by group
       if (activeRole.group === 'family') return <ParentDashboard />;
       if (activeRole.group === 'student') return <StudentDashboard />;
+      // A PTA officer is whoever can vote or manage the association.
+      if (hasAccess('pta:manage') || hasAccess('pta:vote')) return <PtaPresidentDashboard />;
       if (activeRole.group === 'faculty') return <TeacherDashboard />;
       return <PrincipalDashboard />;
   }

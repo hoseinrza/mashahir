@@ -25,6 +25,7 @@ use App\Modules\People\Http\Controllers\Api\CourtOrdersApiController;
 use App\Modules\People\Http\Controllers\Api\GuardianLinksApiController;
 use App\Modules\People\Http\Controllers\Api\PickupApiController;
 use App\Modules\People\Http\Controllers\Api\StudentsApiController;
+use App\Modules\Pta\Http\Controllers\Api\PtaApiController;
 use App\Modules\School\Http\Controllers\Api\SchoolSettingsApiController;
 use App\Modules\School\Http\Controllers\Api\SchoolsApiController;
 use App\Modules\Transport\Http\Controllers\Api\TransportApiController;
@@ -227,6 +228,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/schools/{school}', [SchoolsApiController::class, 'show']);
     Route::patch('/schools/{school}', [SchoolsApiController::class, 'update']);
     Route::post('/schools/{school}/principals', [SchoolsApiController::class, 'assignPrincipal']);
+
+    // PTA — جلسات انجمن، صورت‌جلسه و نظرسنجی با رأی ضدتکرار
+    Route::get('/pta/meetings', [PtaApiController::class, 'meetings']);
+    Route::post('/pta/meetings', [PtaApiController::class, 'storeMeeting']);
+    Route::patch('/pta/meetings/{meeting}', [PtaApiController::class, 'updateMeeting']);
+    Route::get('/pta/surveys', [PtaApiController::class, 'surveys']);
+    Route::post('/pta/surveys', [PtaApiController::class, 'storeSurvey']);
+    Route::patch('/pta/surveys/{survey}', [PtaApiController::class, 'updateSurvey']);
+    Route::post('/pta/surveys/{survey}/vote', [PtaApiController::class, 'vote']);
 
     // Counseling — درخواست نوبت، زمان‌بندی مشاور و یادداشت محرمانه
     Route::get('/counseling/appointments', [CounselingApiController::class, 'index']);

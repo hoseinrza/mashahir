@@ -1773,3 +1773,149 @@ export const ApiCounselingService = {
     });
   },
 };
+
+/** ????? ?????: ?????? ????????? ? ??????? ?? ????? ??????? ???. */
+export interface PtaMeetingRow {
+  ulid: string;
+  title: string;
+  heldAt: string | null;
+  location: string | null;
+  agenda: string[];
+  minutes: string | null;
+  resolutions: string[];
+  status: string;
+}
+
+export interface PtaSurveyOptionRow {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface PtaSurveyRow {
+  ulid: string;
+  title: string;
+  description: string | null;
+  policy: string;
+  closesAt: string | null;
+  isActive: boolean;
+  isOpen: boolean;
+  options: PtaSurveyOptionRow[];
+  totalVotes: number;
+  myVote: string | null;
+  canManage: boolean;
+}
+
+export const PTA_STATUS_LABEL: Record<string, string> = {
+  upcoming: '??????',
+  held: '?????????',
+  cancelled: '??????',
+};
+
+const mapPtaMeeting = (raw: any): PtaMeetingRow => ({
+  ulid: raw.ulid,
+  title: raw.title ?? '',
+  heldAt: raw.held_at ?? null,
+  location: raw.location ?? null,
+  agenda: raw.agenda ?? [],
+  minutes: raw.minutes ?? null,
+  resolutions: raw.resolutions ?? [],
+  status: raw.status ?? 'upcoming',
+});
+
+const mapPtaSurvey = (raw: any): PtaSurveyRow => ({
+  ulid: raw.ulid,
+  title: raw.title ?? '',
+  description: raw.description ?? null,
+  policy: raw.policy ?? 'per_guardian',
+  closesAt: raw.closes_at ?? null,
+  isActive: Boolean(raw.is_active),
+  isOpen: Boolean(raw.is_open),
+  options: (raw.options ?? []).map((o: any) => ({ id: o.id, text: o.text, votes: o.votes ?? 0 })),
+  totalVotes: raw.total_votes ?? 0,
+  myVote: raw.my_vote ?? null,
+  canManage: Boolean(raw.can_manage),
+});
+
+export const ApiPtaService = {
+  async meetings(): Promise<PtaMeetingRow[]> {
+    const result = await api<{ data: any[] }>('/v1/pta/meetings');
+    return (result.data ?? []).map(mapPtaMeeting);
+  },
+
+  async createMeeting(payload: {
+    title: string;
+    heldAt: string;
+    location?: string;
+    agenda?: string[];
+  }): Promise<void> {
+    await api('/v1/pta/meetings', {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        held_at: payload.heldAt,
+        ...(payload.location ? { location: payload.location } : {}),
+        ...(payload.agenda && payload.agenda.length > 0 ? { agenda: payload.agenda } : {}),
+      },
+    });
+  },
+
+  async updateMeeting(
+    ulid: string,
+    payload: { title?: string; status?: string; minutes?: string | null; agenda?: string[]; resolutions?: string[]; location?: string | null },
+  ): Promise<void> {
+    await api(`/v1/pta/meetings/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.status !== undefined ? { status: payload.status } : {}),
+        ...(payload.minutes !== undefined ? { minutes: payload.minutes } : {}),
+        ...(payload.agenda !== undefined ? { agenda: payload.agenda } : {}),
+        ...(payload.resolutions !== undefined ? { resolutions: payload.resolutions } : {}),
+        ...(payload.location !== undefined ? { location: payload.location } : {}),
+      },
+    });
+  },
+
+  async surveys(): Promise<PtaSurveyRow[]> {
+    const result = await api<{ data: any[] }>('/v1/pta/surveys');
+    return (result.data ?? []).map(mapPtaSurvey);
+  },
+
+  async createSurvey(payload: {
+    title: string;
+    description?: string;
+    options: { id?: string; text: string }[];
+    policy?: 'per_guardian' | 'per_family';
+    closesAt?: string | null;
+  }): Promise<void> {
+    await api('/v1/pta/surveys', {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        ...(payload.description ? { description: payload.description } : {}),
+        options: payload.options,
+        ...(payload.policy ? { policy: payload.policy } : {}),
+        ...(payload.closesAt ? { closes_at: payload.closesAt } : {}),
+      },
+    });
+  },
+
+  async updateSurvey(ulid: string, payload: { isActive?: boolean; title?: string; description?: string | null }): Promise<void> {
+    await api(`/v1/pta/surveys/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.isActive !== undefined ? { is_active: payload.isActive } : {}),
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
+      },
+    });
+  },
+
+  async vote(surveyUlid: string, optionId: string): Promise<void> {
+    await api(`/v1/pta/surveys/${surveyUlid}/vote`, {
+      method: 'POST',
+      body: { option_id: optionId },
+    });
+  },
+};
