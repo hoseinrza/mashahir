@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw,
+  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw, School,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
-import { Card, Button, Badge, PageHeader } from '../components/common';
-import { ApiNotificationCenter } from '../api/data';
+import { Card, Button, Badge, FormField, PageHeader } from '../components/common';
+import { ApiNotificationCenter, ApiSchoolSettingsService } from '../api/data';
 import { ApiError } from '../api/client';
 
 /** The notification types the backend actually emits, with their Persian labels. */
@@ -22,8 +22,10 @@ const firstError = (e: unknown, fallback: string): string =>
   e instanceof ApiError ? e.firstError() : fallback;
 
 export const SettingsPage: React.FC = () => {
-  const { currentUser, activeRole } = useAuth();
+  const { currentUser, activeRole, hasAccess } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const canManageSchool = hasAccess('schools:settings');
 
   const [prefs, setPrefs] = useState<Record<string, boolean> | null>(null);
   const [mandatory, setMandatory] = useState<string[]>([]);
@@ -32,6 +34,57 @@ export const SettingsPage: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [busyType, setBusyType] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // ── School-level policy (FR-35) — only for schools.settings holders ──
+  const [schoolName, setSchoolName] = useState<string | null>(null);
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, string> | null>(null);
+  const [schoolError, setSchoolError] = useState<string | null>(null);
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  useEffect(() => {
+    if (!canManageSchool) return;
+    let cancelled = false;
+
+    ApiSchoolSettingsService.get()
+      .then((payload) => {
+        if (cancelled) return;
+
+        const asText: Record<string, string> = {};
+        Object.entries(payload.settings).forEach(([key, value]) => {
+          asText[key] = value === null || value === undefined
+            ? ''
+            : typeof value === 'string' ? value : JSON.stringify(value);
+        });
+
+        setSchoolName(payload.school?.name ?? null);
+        setSchoolSettings(asText);
+      })
+      .catch((e) => { if (!cancelled) setSchoolError(firstError(e, 'خطا در دریافت تنظیمات مدرسه')); });
+
+    return () => { cancelled = true; };
+  }, [canManageSchool]);
+
+  const handleSaveSchool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schoolSettings) return;
+
+    setIsSavingSchool(true);
+    setSchoolError(null);
+
+    try {
+      const entries = Object.entries(schoolSettings).map(([key, value]) => ({
+        key,
+        value: value === '' ? null : value,
+      }));
+      await ApiSchoolSettingsService.save(entries);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setSchoolError(firstError(err, 'خطا در ذخیرهٔ تنظیمات مدرسه'));
+    } finally {
+      setIsSavingSchool(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +262,86 @@ export const SettingsPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {canManageSchool && (
+        <Card className="text-right">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#DCE3EE] dark:border-[#344257] mb-4">
+            <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
+              <School size={16} className="text-[#2457C5]" />
+              تنظیمات مدرسه {schoolName ? `— ${schoolName}` : ''}
+            </h3>
+            <Badge variant="primary">سیاست‌های مشترک مدرسه</Badge>
+          </div>
+
+          {schoolError && (
+            <div className="mb-3 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300">
+              <AlertCircle size={14} /> {schoolError}
+            </div>
+          )}
+
+          {schoolSettings === null ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-[#526176] dark:text-[#B3C0D2]">
+              <Loader2 size={18} className="animate-spin" /> در حال دریافت تنظیمات مدرسه…
+            </div>
+          ) : (
+            <form onSubmit={handleSaveSchool} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField label="سیاست رضایت‌نامه">
+                  <select
+                    value={schoolSettings.consent_policy ?? ''}
+                    onChange={(e) => setSchoolSettings({ ...schoolSettings, consent_policy: e.target.value })}
+                    className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                  >
+                    <option value="">پیش‌فرض (رضایت یکی از اولیا)</option>
+                    <option value="one_parent">رضایت یکی از اولیا</option>
+                    <option value="both_parents">رضایت هر دو ولی</option>
+                  </select>
+                </FormField>
+
+                <FormField label="ساعت سکوت پیامک (مثلاً ۲۱:۰۰ تا ۰۷:۰۰)">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={schoolSettings.sms_quiet_hours ?? ''}
+                    onChange={(e) => setSchoolSettings({ ...schoolSettings, sms_quiet_hours: e.target.value })}
+                    placeholder="21:00-07:00"
+                    className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+                  />
+                </FormField>
+
+                <FormField label="قالب کارنامه">
+                  <input
+                    type="text"
+                    value={schoolSettings.report_card_template ?? ''}
+                    onChange={(e) => setSchoolSettings({ ...schoolSettings, report_card_template: e.target.value })}
+                    placeholder="standard / official"
+                    className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                  />
+                </FormField>
+
+                <FormField label="بازهٔ مجاز اصلاح حضور و غیاب">
+                  <input
+                    type="text"
+                    value={schoolSettings.attendance_edit_window ?? ''}
+                    onChange={(e) => setSchoolSettings({ ...schoolSettings, attendance_edit_window: e.target.value })}
+                    placeholder="same_day"
+                    className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                  />
+                </FormField>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-[11px] text-slate-400">
+                  این مقادیر روی سیاست رضایت‌نامه، پیامک و قالب کارنامهٔ کل مدرسه اثر می‌گذارند.
+                </span>
+                <Button type="submit" variant="primary" size="sm" icon={<Save size={14} />} disabled={isSavingSchool}>
+                  {isSavingSchool ? 'در حال ذخیره…' : 'ذخیرهٔ تنظیمات مدرسه'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </Card>
+      )}
     </div>
   );
 };

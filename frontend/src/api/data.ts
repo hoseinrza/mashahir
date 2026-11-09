@@ -1,4 +1,4 @@
-import { api, apiDocument } from './client';
+import { api, apiDocument, apiUpload } from './client';
 import { fetchMyChildren } from './auth';
 import type { AuditEvent, Student } from '../types';
 
@@ -111,6 +111,25 @@ export const ApiUserService = {
         ...(payload.nationalCode ? { national_code: payload.nationalCode } : {}),
       },
     });
+  },
+
+  async updateName(ulid: string, firstName: string, lastName: string): Promise<void> {
+    await api(`/v1/users/${ulid}`, {
+      method: 'PATCH',
+      body: { first_name: firstName, last_name: lastName },
+    });
+  },
+
+  /**
+   * sh7: the national code is encrypted at rest and only revealed with a
+   * written reason; the read itself lands in the audit trail.
+   */
+  async revealNationalCode(studentUlid: string, reason: string): Promise<string> {
+    const result = await api<{ national_code: string | null }>(
+      `/v1/students/${studentUlid}/national-code`,
+      { method: 'POST', body: { reason } },
+    );
+    return result.national_code ?? '—';
   },
 };
 
@@ -521,6 +540,22 @@ export const ApiAnnouncementService = {
       body: { title, body, importance, ...(expiresAt ? { expires_at: expiresAt } : {}) },
     });
   },
+
+  /** Editing keeps already-delivered notices as their read snapshot. */
+  async update(
+    ulid: string,
+    payload: { title?: string; body?: string; importance?: 'info' | 'important' | 'urgent'; expiresAt?: string | null },
+  ): Promise<void> {
+    await api(`/v1/announcements/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.body !== undefined ? { body: payload.body } : {}),
+        ...(payload.importance !== undefined ? { importance: payload.importance } : {}),
+        ...(payload.expiresAt !== undefined ? { expires_at: payload.expiresAt } : {}),
+      },
+    });
+  },
 };
 
 /** Notification center mapped to the page's Notification type. */
@@ -688,6 +723,11 @@ export const ApiAttendanceService = {
       sentAt: d.sent_at ?? null,
     }));
   },
+
+  /** Re-queue one failed delivery (the worker retries it on its next pass). */
+  async retryDelivery(id: number): Promise<void> {
+    await api(`/v1/notification-deliveries/${id}/retry`, { method: 'POST' });
+  },
 };
 
 /** Consent inbox of the signed-in guardian (trips and activities of their children). */
@@ -755,6 +795,22 @@ export const ApiConsentService = {
         ...(payload.body ? { body: payload.body } : {}),
         ...(payload.dueAt ? { due_at: payload.dueAt } : {}),
         ...(payload.policy ? { policy: payload.policy } : {}),
+      },
+    });
+  },
+
+  /** Fix the wording or push the deadline of an already-opened consent. */
+  async update(
+    ulid: string,
+    payload: { title?: string; body?: string | null; dueAt?: string | null; policy?: 'one_parent' | 'both_parents' },
+  ): Promise<void> {
+    await api(`/v1/consents/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.body !== undefined ? { body: payload.body } : {}),
+        ...(payload.dueAt !== undefined ? { due_at: payload.dueAt } : {}),
+        ...(payload.policy !== undefined ? { policy: payload.policy } : {}),
       },
     });
   },
@@ -1268,5 +1324,73 @@ export const ApiRolesService = {
 
   async destroy(id: number): Promise<void> {
     await api(`/v1/roles/${id}`, { method: 'DELETE' });
+  },
+};
+
+/** FR-35: school-level policy that consent, SMS and report cards share. */
+export interface SchoolSettingsPayload {
+  school: { ulid: string; name: string } | null;
+  settings: Record<string, unknown>;
+}
+
+export const ApiSchoolSettingsService = {
+  async get(): Promise<SchoolSettingsPayload> {
+    const result = await api<{ school: any; settings: Record<string, any> }>('/v1/school/settings');
+    return {
+      school: result.school ? { ulid: result.school.ulid, name: result.school.name } : null,
+      settings: result.settings ?? {},
+    };
+  },
+
+  async save(entries: { key: string; value: unknown }[]): Promise<void> {
+    await api('/v1/school/settings', { method: 'PUT', body: { settings: entries } });
+  },
+};
+
+/** FR-34: bulk learner import with per-row error reporting. */
+export interface ImportBatchResult {
+  ulid: string;
+  status: string;
+  rowsTotal: number;
+  rowsOk: number;
+  errors: { rowNumber: number; message: string }[];
+}
+
+export const ApiImportService = {
+  async importStudents(file: File): Promise<ImportBatchResult> {
+    const form = new FormData();
+    form.append('file', file);
+
+    const created = await apiUpload<{ ulid: string; status: string; rows_total: number; rows_ok: number }>(
+      '/v1/imports/students',
+      form,
+    );
+
+    // The create response carries no row errors; the batch endpoint does.
+    try {
+      const full = await api<{
+        ulid: string;
+        status: string;
+        rows_total: number;
+        rows_ok: number;
+        errors?: { row_number: number; message: string }[];
+      }>(`/v1/imports/${created.ulid}`);
+
+      return {
+        ulid: full.ulid ?? created.ulid,
+        status: full.status ?? created.status,
+        rowsTotal: full.rows_total ?? created.rows_total,
+        rowsOk: full.rows_ok ?? created.rows_ok,
+        errors: (full.errors ?? []).map((e) => ({ rowNumber: e.row_number, message: e.message })),
+      };
+    } catch {
+      return {
+        ulid: created.ulid,
+        status: created.status,
+        rowsTotal: created.rows_total,
+        rowsOk: created.rows_ok,
+        errors: [],
+      };
+    }
   },
 };

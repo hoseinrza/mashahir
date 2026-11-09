@@ -30,7 +30,15 @@ class School extends Model
             ->where('key', $key)
             ->value('value');
 
-        return $value ?? $default;
+        if ($value === null) {
+            return $default;
+        }
+
+        // The column is jsonb; the query builder hands back the JSON text, so
+        // "one_parent" arrives quoted. Decode once, at the single read point.
+        $decoded = json_decode((string) $value, true);
+
+        return $decoded ?? $default;
     }
 
     /**

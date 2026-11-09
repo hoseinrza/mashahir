@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ShieldCheck, Calendar, Clock, CheckCircle2, XCircle, Check, AlertCircle,
-  Users, Plus, Loader2, Inbox, RefreshCw, FileText, ChevronDown, Info,
+  Users, Plus, Loader2, Inbox, RefreshCw, FileText, ChevronDown, Info, Pencil,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, PageHeader, FormField, EmptyState, SearchInput } from '../components/common';
@@ -184,6 +184,13 @@ const StaffConsentConsole: React.FC = () => {
   const [policy, setPolicy] = useState<'one_parent' | 'both_parents' | ''>('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Editing an already-opened consent (wording, deadline, policy).
+  const [editTarget, setEditTarget] = useState<ConsentRow | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [editDueAt, setEditDueAt] = useState('');
+  const [editPolicy, setEditPolicy] = useState<'one_parent' | 'both_parents' | ''>('');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -222,8 +229,7 @@ const StaffConsentConsole: React.FC = () => {
     return true;
   });
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async (e: React.FormEvent) => {    e.preventDefault();
     if (!targetStudent || title.trim().length < 3) return;
 
     setIsSaving(true);
@@ -247,6 +253,47 @@ const StaffConsentConsole: React.FC = () => {
       setNotice('رضایت‌نامه ثبت شد و برای اولیای این دانش‌آموز اعلان رفت.');
     } catch (err) {
       setError(firstError(err, 'خطا در ثبت رضایت‌نامه'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /** ISO instant → the datetime-local shape the Jalali picker speaks. */
+  const toLocalInput = (iso: string | null): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openEdit = (row: ConsentRow) => {
+    setEditTarget(row);
+    setEditTitle(row.title);
+    setEditBody(row.body);
+    setEditDueAt(toLocalInput(row.dueAt));
+    setEditPolicy(row.policy === 'both_parents' ? 'both_parents' : 'one_parent');
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || editTitle.trim().length < 3) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await ApiConsentService.update(editTarget.ulid, {
+        title: editTitle.trim(),
+        body: editBody.trim(),
+        dueAt: editDueAt || null,
+        policy: editPolicy || undefined,
+      });
+      setEditTarget(null);
+      setReloadKey((k) => k + 1);
+      setNotice('رضایت‌نامه ویرایش شد؛ پاسخ‌های ثبت‌شده دست‌نخورده ماندند.');
+    } catch (err) {
+      setError(firstError(err, 'خطا در ویرایش رضایت‌نامه'));
     } finally {
       setIsSaving(false);
     }
@@ -364,14 +411,25 @@ const StaffConsentConsole: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(open ? null : row.ulid)}
-                    className="flex items-center gap-1 text-[11px] text-[#2457C5] dark:text-[#8BAEFF] cursor-pointer shrink-0"
-                  >
-                    {toPersianDigits(row.responses.length)} پاسخ ثبت‌شده
-                    <ChevronDown size={13} className={cn('transition-transform', open && 'rotate-180')} />
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(row)}
+                        className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-[#2457C5] cursor-pointer"
+                      >
+                        <Pencil size={12} /> ویرایش
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(open ? null : row.ulid)}
+                      className="flex items-center gap-1 text-[11px] text-[#2457C5] dark:text-[#8BAEFF] cursor-pointer"
+                    >
+                      {toPersianDigits(row.responses.length)} پاسخ ثبت‌شده
+                      <ChevronDown size={13} className={cn('transition-transform', open && 'rotate-180')} />
+                    </button>
+                  </div>
                 </div>
 
                 {row.body && (
@@ -404,6 +462,60 @@ const StaffConsentConsole: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Edit consent modal */}
+      <Modal
+        isOpen={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        title="ویرایش رضایت‌نامه"
+        maxWidth="md"
+      >
+        <form onSubmit={handleUpdate} className="space-y-4 text-right">
+          <FormField label="عنوان" required>
+            <input
+              type="text"
+              required
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <FormField label="توضیحات">
+            <textarea
+              rows={4}
+              value={editBody}
+              onChange={(e) => setEditBody(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="مهلت پاسخ">
+              <JalaliDateTimePicker value={editDueAt} onChange={setEditDueAt} />
+            </FormField>
+
+            <FormField label="سیاست پاسخ">
+              <select
+                value={editPolicy}
+                onChange={(e) => setEditPolicy(e.target.value as 'one_parent' | 'both_parents' | '')}
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+              >
+                <option value="">پیش‌فرض مدرسه</option>
+                <option value="one_parent">رضایت یکی از اولیا</option>
+                <option value="both_parents">رضایت هر دو ولی</option>
+              </select>
+            </FormField>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" type="button" onClick={() => setEditTarget(null)}>انصراف</Button>
+            <Button variant="primary" type="submit" disabled={isSaving || editTitle.trim().length < 3}>
+              {isSaving ? 'در حال ذخیره…' : 'ذخیرهٔ ویرایش'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Create consent modal */}
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="ثبت رضایت‌نامه / مجوز فعالیت" maxWidth="md">

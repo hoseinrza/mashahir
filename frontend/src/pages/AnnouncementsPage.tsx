@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Megaphone, Calendar, Plus,
+  Megaphone, Calendar, Plus, Pencil,
   Send, Radio, AlertCircle, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, PageHeader, EmptyState } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
+import { formatJalaliDate } from '../utils/jalali';
 import { ApiAnnouncementService } from '../api/data';
 import { ApiError } from '../api/client';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
@@ -39,6 +40,7 @@ export const AnnouncementsPage: React.FC = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingUlid, setEditingUlid] = useState<string | null>(null);
 
   // New announcement form — importance and expiry are the backend's fields.
   const [newTitle, setNewTitle] = useState('');
@@ -47,26 +49,55 @@ export const AnnouncementsPage: React.FC = () => {
   const [newExpiresAt, setNewExpiresAt] = useState('');
   const [publishing, setPublishing] = useState(false);
 
+  const openCreate = () => {
+    setEditingUlid(null);
+    setNewTitle('');
+    setNewContent('');
+    setNewImportance('important');
+    setNewExpiresAt('');
+    setIsCreateModalOpen(true);
+  };
+
+  const openEdit = (ann: Announcement) => {
+    setEditingUlid(ann.id);
+    setNewTitle(ann.title);
+    setNewContent(ann.content);
+    setNewImportance(ann.category === 'urgent' ? 'urgent' : ann.category === 'official' ? 'important' : 'info');
+    setNewExpiresAt(ann.expiresAt ?? '');
+    setIsCreateModalOpen(true);
+  };
+
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
     setPublishing(true);
     setError(null);
     try {
-      await ApiAnnouncementService.create(
-        newTitle.trim(),
-        newContent.trim(),
-        newImportance,
-        newExpiresAt || undefined,
-      );
+      if (editingUlid) {
+        await ApiAnnouncementService.update(editingUlid, {
+          title: newTitle.trim(),
+          body: newContent.trim(),
+          importance: newImportance,
+          expiresAt: newExpiresAt || null,
+        });
+      } else {
+        await ApiAnnouncementService.create(
+          newTitle.trim(),
+          newContent.trim(),
+          newImportance,
+          newExpiresAt || undefined,
+        );
+      }
+
       const rows = await ApiAnnouncementService.list();
       setAnnouncements(rows);
       setIsCreateModalOpen(false);
+      setEditingUlid(null);
       setNewTitle('');
       setNewContent('');
       setNewExpiresAt('');
     } catch (err) {
-      setError(firstError(err, 'خطا در انتشار اطلاعیه'));
+      setError(firstError(err, editingUlid ? 'خطا در ویرایش اطلاعیه' : 'خطا در انتشار اطلاعیه'));
     } finally {
       setPublishing(false);
     }
@@ -95,7 +126,7 @@ export const AnnouncementsPage: React.FC = () => {
               variant="primary"
               size="sm"
               icon={<Plus size={15} />}
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={openCreate}
             >
               انتشار اطلاعیه جدید
             </Button>
@@ -179,12 +210,23 @@ export const AnnouncementsPage: React.FC = () => {
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
                 <span>صادرکننده: <strong>{ann.authorName}</strong> ({ann.authorRole})</span>
-                {ann.expiresAt && (
-                  <span className="flex items-center gap-1">
-                    <Megaphone size={11} />
-                    اعتبار تا {ann.expiresAt}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {ann.expiresAt && (
+                    <span className="flex items-center gap-1">
+                      <Megaphone size={11} />
+                      اعتبار تا {formatJalaliDate(ann.expiresAt)}
+                    </span>
+                  )}
+                  {canPublish && (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(ann)}
+                      className="flex items-center gap-1 text-[#2457C5] dark:text-[#8BAEFF] hover:underline cursor-pointer"
+                    >
+                      <Pencil size={11} /> ویرایش
+                    </button>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
@@ -195,7 +237,7 @@ export const AnnouncementsPage: React.FC = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="انتشار اطلاعیه یا بخشنامهٔ رسمی"
+        title={editingUlid ? 'ویرایش اطلاعیهٔ رسمی' : 'انتشار اطلاعیه یا بخشنامهٔ رسمی'}
         maxWidth="md"
       >
         <form onSubmit={handleCreateAnnouncement} className="space-y-4 text-right">
@@ -241,8 +283,8 @@ export const AnnouncementsPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setIsCreateModalOpen(false)}>
               انصراف
             </Button>
-            <Button variant="primary" type="submit" icon={<Send size={14} />} disabled={publishing}>
-              {publishing ? 'در حال انتشار…' : 'انتشار در کانال رسمی'}
+            <Button variant="primary" type="submit" icon={editingUlid ? <Pencil size={14} /> : <Send size={14} />} disabled={publishing}>
+              {publishing ? 'در حال ذخیره…' : editingUlid ? 'ذخیرهٔ ویرایش' : 'انتشار در کانال رسمی'}
             </Button>
           </div>
         </form>

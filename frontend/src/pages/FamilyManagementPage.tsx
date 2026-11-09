@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ShieldAlert, Users, Plus, Scale, Lock, Check, X, Loader2,
-  AlertCircle, RefreshCw, UserCheck, Link2Off, CalendarDays, Info,
+  AlertCircle, RefreshCw, UserCheck, Link2Off, CalendarDays, Info, Pencil,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
@@ -92,6 +92,13 @@ export const FamilyManagementPage: React.FC = () => {
   const [courtFrom, setCourtFrom] = useState('');
   const [courtTo, setCourtTo] = useState('');
   const [courtReason, setCourtReason] = useState('');
+
+  // Editing an existing court order (sh7: still reason-logged).
+  const [editOrder, setEditOrder] = useState<CourtOrderRow | null>(null);
+  const [editDenied, setEditDenied] = useState<Partial<Record<keyof GuardianFlags, boolean>>>({});
+  const [editFrom, setEditFrom] = useState('');
+  const [editTo, setEditTo] = useState('');
+  const [editReason, setEditReason] = useState('');
 
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [pkName, setPkName] = useState('');
@@ -250,8 +257,52 @@ export const FamilyManagementPage: React.FC = () => {
     }
   };
 
-  const handleCreatePickup = async (e: React.FormEvent) => {
+  const openCourtEdit = (order: CourtOrderRow) => {
+    const denied: Partial<Record<keyof GuardianFlags, boolean>> = {};
+    (Object.keys(order.restrictions) as (keyof GuardianFlags)[]).forEach((key) => {
+      if (order.restrictions[key] === false) denied[key] = true;
+    });
+
+    setEditDenied(denied);
+    setEditFrom(order.validFrom ?? '');
+    setEditTo(order.validTo ?? '');
+    setEditReason('');
+    setEditOrder(order);
+    setActionError(null);
+  };
+
+  const handleUpdateCourtOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editOrder || editReason.trim().length < 5) return;
+
+    const denied = (Object.keys(editDenied) as (keyof GuardianFlags)[])
+      .filter((key) => editDenied[key] === true);
+
+    if (denied.length === 0) {
+      setActionError('دست‌کم یک دسترسی را برای سلب انتخاب کنید.');
+      return;
+    }
+
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      await ApiFamilyService.updateCourtOrder(editOrder.id, {
+        restrictions: Object.fromEntries(denied.map((key) => [key, false])),
+        validFrom: editFrom || null,
+        validTo: editTo || null,
+        reason: editReason.trim(),
+      });
+      setEditOrder(null);
+      setOrdersReload((k) => k + 1);
+      setNotice('حکم قضایی ویرایش شد و تغییر در تاریخچهٔ حساس ثبت شد.');
+    } catch (err) {
+      setActionError(firstError(err, 'خطا در ویرایش حکم قضایی'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreatePickup = async (e: React.FormEvent) => {    e.preventDefault();
     if (!selectedStudent || pkName.trim().length < 3 || pkPhone.trim().length < 10 || pkReason.trim().length < 5) return;
 
     setIsSaving(true);
@@ -545,9 +596,14 @@ export const FamilyManagementPage: React.FC = () => {
                         اعتبار: {formatJalaliDate(order.validFrom)} تا {formatJalaliDate(order.validTo)}
                       </span>
                     </div>
-                    {order.fileUlid && (
-                      <span className="text-[11px] text-slate-500 font-mono" dir="ltr">سند: {order.fileUlid}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {order.fileUlid && (
+                        <span className="text-[11px] text-slate-500 font-mono" dir="ltr">سند: {order.fileUlid}</span>
+                      )}
+                      <Button size="sm" variant="ghost" icon={<Pencil size={13} />} onClick={() => openCourtEdit(order)}>
+                        ویرایش حکم
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="pt-3">
@@ -783,6 +839,60 @@ export const FamilyManagementPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setIsCourtModalOpen(false)}>انصراف</Button>
             <Button variant="danger" type="submit" disabled={isSaving || !selectedStudent || courtReason.trim().length < 5}>
               {isSaving ? 'در حال ثبت…' : 'تنفیذ و اعمال فوری محدودیت'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Modal: edit court order ─────────────────────────────── */}
+      <Modal
+        isOpen={editOrder !== null}
+        onClose={() => setEditOrder(null)}
+        title="ویرایش حکم قضایی"
+        maxWidth="md"
+      >
+        <form onSubmit={handleUpdateCourtOrder} className="space-y-4 text-right">
+          <div className="space-y-2 text-xs">
+            <span className="text-[11px] font-bold text-[#526176] dark:text-[#B3C0D2] block">
+              دسترسی‌هایی که این حکم سلب می‌کند:
+            </span>
+            {FLAG_FIELDS.map((field) => (
+              <label key={field.key} className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editDenied[field.key] === true}
+                  onChange={(e) => setEditDenied({ ...editDenied, [field.key]: e.target.checked })}
+                  className="rounded"
+                />
+                <span>{field.label}</span>
+              </label>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="اعتبار از تاریخ">
+              <JalaliDatePicker value={editFrom} onChange={setEditFrom} placeholder="بدون محدودیت شروع" />
+            </FormField>
+            <FormField label="اعتبار تا تاریخ">
+              <JalaliDatePicker value={editTo} onChange={setEditTo} placeholder="بدون انقضا" />
+            </FormField>
+          </div>
+
+          <FormField label="دلیل اصلاح حکم (درج در لاگ حساس)" required>
+            <textarea
+              rows={3}
+              required
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              placeholder="مثال: ابلاغ اصلاحیهٔ دادنامه / پایان مدت حکم"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" type="button" onClick={() => setEditOrder(null)}>انصراف</Button>
+            <Button variant="danger" type="submit" disabled={isSaving || editReason.trim().length < 5}>
+              {isSaving ? 'در حال ثبت…' : 'ذخیرهٔ اصلاح حکم'}
             </Button>
           </div>
         </form>

@@ -12,6 +12,7 @@ import { ApiError } from '../../api/client';
 
 interface SmsRow {
   id: number;
+  type: string;
   status: string;
   channel: string;
   lastError: string | null;
@@ -51,8 +52,20 @@ export const NazemDashboard: React.FC = () => {
 
   const finalized = (sessions ?? []).filter((s) => s.status === 'finalized').length;
   const draft = (sessions ?? []).filter((s) => s.status === 'draft').length;
-  const failedSms = (smsRows ?? []).filter((s) => s.status === 'failed').length;
+  const failedRows = (smsRows ?? []).filter((s) => s.status === 'failed');
   const sentSms = (smsRows ?? []).filter((s) => s.status === 'sent').length;
+
+  const [isRetrying, setIsRetrying] = useState<number | null>(null);
+
+  const handleRetry = (id: number) => {
+    setIsRetrying(id);
+    setError(null);
+
+    ApiAttendanceService.retryDelivery(id)
+      .then(() => setReloadKey((k) => k + 1))
+      .catch((e) => setError(e instanceof ApiError ? e.firstError() : 'خطا در تلاش دوبارهٔ ارسال پیامک'))
+      .finally(() => setIsRetrying(null));
+  };
 
   return (
     <div className="space-y-6">
@@ -114,9 +127,9 @@ export const NazemDashboard: React.FC = () => {
           <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">پیامک‌های ارسال‌شده / ناموفق</span>
           <div className="flex items-baseline justify-between mt-2 gap-2">
             <span className="text-xl font-black text-[#202B3C] dark:text-[#F1F5FB] tabular-nums">
-              {smsRows === null ? '…' : `${toPersianDigits(sentSms)} / ${toPersianDigits(failedSms)}`}
+              {smsRows === null ? '…' : `${toPersianDigits(sentSms)} / ${toPersianDigits(failedRows.length)}`}
             </span>
-            {failedSms > 0
+            {failedRows.length > 0
               ? <Badge variant="danger">نیازمند تلاش دوباره</Badge>
               : <Badge variant="success">سالم</Badge>}
           </div>
@@ -171,9 +184,9 @@ export const NazemDashboard: React.FC = () => {
                     </span>
                   </div>
 
-                  {failedSms > 0 && (
+                  {failedRows.length > 0 && (
                     <span className="text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
-                      <MessageSquareWarning size={12} /> {toPersianDigits(failedSms)} پیامک ناموفق در صف
+                      <MessageSquareWarning size={12} /> {toPersianDigits(failedRows.length)} پیامک ناموفق در صف
                     </span>
                   )}
                 </div>
@@ -182,6 +195,48 @@ export const NazemDashboard: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {failedRows.length > 0 && (
+        <Card className="text-right border-rose-200 dark:border-rose-900/50">
+          <div className="flex items-center justify-between pb-3 border-b border-[#DCE3EE] dark:border-[#344257] mb-3">
+            <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
+              <MessageSquareWarning size={16} className="text-rose-600" />
+              پیامک‌های ناموفق و تلاش دوباره
+            </h3>
+            <Badge variant="danger">{toPersianDigits(failedRows.length)} مورد</Badge>
+          </div>
+
+          <div className="space-y-2">
+            {failedRows.slice(0, 8).map((row) => (
+              <div
+                key={row.id}
+                className="p-3 rounded-xl border border-rose-100 dark:border-rose-900/30 bg-rose-50/40 dark:bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+              >
+                <div>
+                  <strong className="text-[#202B3C] dark:text-[#F1F5FB]">
+                    {row.type === 'attendance.absence' ? 'پیامک غیبت' : row.type === 'attendance.late' ? 'پیامک تأخیر' : row.type}
+                  </strong>
+                  {row.lastError && (
+                    <span className="block text-[11px] text-rose-700 dark:text-rose-300 mt-0.5" dir="auto">
+                      {row.lastError}
+                    </span>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={isRetrying === row.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  disabled={isRetrying === row.id}
+                  onClick={() => handleRetry(row.id)}
+                >
+                  {isRetrying === row.id ? 'در حال ارسال…' : 'تلاش دوباره'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

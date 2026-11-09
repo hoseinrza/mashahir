@@ -103,6 +103,35 @@ export async function api<T = any>(path: string, options: RequestOptions = {}): 
 }
 
 /**
+ * Multipart upload (CSV import, file manager). The browser sets the boundary,
+ * so the caller must not set Content-Type.
+ */
+export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // non-JSON response body
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      payload?.message ?? `خطای ${response.status} در ارتباط با سرور`,
+      payload?.errors ?? {},
+    );
+  }
+
+  return payload as T;
+}
+
+/**
  * Fetch a server-rendered document (the printable report card) and hand it to
  * the browser as an object URL. A new tab cannot attach the Bearer header, so
  * the HTML is fetched here and only then opened.
