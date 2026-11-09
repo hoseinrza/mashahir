@@ -13,7 +13,7 @@ import { fileObjectUrl, isImage, formatSize, FileAttachment } from '../api/files
 
 /**
  * Teacher/staff exam MANAGEMENT: design (draft), publish, results.
- * The exam-TAKING experience for students lives in OnlineExamPage.
+ * The exam-TAKING experience for students lives in StudentExamsPage.
  */
 
 interface ExamQuestionDraft {

@@ -11,7 +11,6 @@ import { DashboardRouter } from './pages/DashboardRouter';
 import { AssignmentsPage } from './pages/AssignmentsPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { OnlineClassesPage } from './pages/OnlineClassesPage';
-import { OnlineExamPage } from './pages/OnlineExamPage';
 import { ExamsManagementPage } from './pages/ExamsManagementPage';
 import { StudentExamsPage } from './pages/StudentExamsPage';
 import { EssayGradingPage } from './pages/EssayGradingPage';
