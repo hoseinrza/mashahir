@@ -31,7 +31,6 @@ import { FamilyManagementPage } from './pages/FamilyManagementPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { RolesPermissionsPage } from './pages/RolesPermissionsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
-import { SpecialRolesPage } from './pages/SpecialRolesPage';
 import { PreRegistrationsPage } from './pages/PreRegistrationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CreateSchoolPage } from './pages/CreateSchoolPage';
@@ -247,14 +246,6 @@ export default function App() {
               element={
                 <DashboardLayout>
                   <AuditLogPage />
-                </DashboardLayout>
-              }
-            />
-            <Route
-              path="/special-roles"
-              element={
-                <DashboardLayout>
-                  <SpecialRolesPage />
                 </DashboardLayout>
               }
             />

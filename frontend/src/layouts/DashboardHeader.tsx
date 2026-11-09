@@ -492,7 +492,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         >
                           {allStudents.map((std) => (
                             <option key={std.id} value={std.id} className="dark:bg-[#151f32] text-slate-800 dark:text-slate-100">
-                              {std.fullName} (کلاس ۱۰۱)
+                              {std.fullName}
                             </option>
                           ))}
                         </select>

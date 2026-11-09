@@ -71,7 +71,6 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     '/pre-registrations': 'preregistrations:view',
     '/settings': 'schools:settings',
     '/create-school': 'schools:manage',
-    '/special-roles': 'roles:manage',
     '/transport': ['transport:manage', 'transport:view', 'transport:board'],
     '/online-classes': 'online_classes:view',
     // Monthly report-card cycle: the principal opens periods, the teacher
@@ -249,9 +248,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       items: [
         {
           label: isBusDriver ? 'سرویس‌های من و تردد خط' : activeRole.id === 'security_guard' ? 'استعلام و کنترل گیت خروج' : activeRole.id === 'essay_grader' || activeRole.id === 'exam_proctor' ? 'پنل مراقبت آزمون' : 'پنل نقش‌های اجرایی و گیت',
-          href: isBusDriver ? '/transport' : '/special-roles',
+          href: '/transport',
           icon: <Bus size={17} />,
-          show: isBusDriver || activeRole.id === 'security_guard' || activeRole.id === 'essay_grader' || activeRole.id === 'exam_proctor' || isAdmin,
+          show: isBusDriver,
           badge: isBusDriver ? 'راننده' : activeRole.id === 'security_guard' ? 'حراست' : undefined,
         },
         {
