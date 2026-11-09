@@ -173,21 +173,80 @@ export interface GuardianChildRow {
   };
 }
 
+export interface GuardianFlags {
+  can_view_grades: boolean;
+  can_view_attendance: boolean;
+  can_approve_consent: boolean;
+  can_pickup: boolean;
+  can_receive_sms: boolean;
+}
+
+const EMPTY_FLAGS: GuardianFlags = {
+  can_view_grades: false,
+  can_view_attendance: false,
+  can_approve_consent: false,
+  can_pickup: false,
+  can_receive_sms: false,
+};
+
+const mapFlags = (raw: any): GuardianFlags => ({
+  can_view_grades: Boolean(raw?.can_view_grades),
+  can_view_attendance: Boolean(raw?.can_view_attendance),
+  can_approve_consent: Boolean(raw?.can_approve_consent),
+  can_pickup: Boolean(raw?.can_pickup),
+  can_receive_sms: Boolean(raw?.can_receive_sms),
+});
+
+/** The backend's link types → the labels the family office reads. */
+export const GUARDIAN_LINK_TYPES: Record<string, string> = {
+  primary: 'ولی اصلی',
+  second: 'ولی دوم',
+  separated_joint: 'ولی جداشده (حضانت مشترک)',
+  separated_limited: 'ولی جداشده (دسترسی محدود)',
+  legal_guardian: 'قیم قانونی',
+  temporary: 'ولی موقت',
+  pickup_only: 'فرد مجاز تحویل‌گیری',
+};
+
 export interface GuardianLinkRow {
   id: number;
   studentUlid: string;
   studentName: string;
-  linkType: string;
-  status: string;
+  guardianUlid: string | null;
   guardianName: string | null;
-  flags: {
-    can_view_grades: boolean;
-    can_view_attendance: boolean;
-    can_approve_consent: boolean;
-    can_pickup: boolean;
-    can_receive_sms: boolean;
-  };
+  linkType: string;
+  linkTypeLabel: string;
+  status: 'pending' | 'active' | 'ended' | 'rejected' | string;
+  endsOn: string | null;
+  flags: GuardianFlags;
 }
+
+export interface CourtOrderRow {
+  id: number;
+  studentUlid: string | null;
+  restrictions: Partial<GuardianFlags>;
+  validFrom: string | null;
+  validTo: string | null;
+  fileUlid: string | null;
+}
+
+export interface PickupRow {
+  id: number;
+  fullName: string;
+  relation: string | null;
+  status: 'active' | 'inactive' | string;
+  locked: boolean;
+  isLinkedGuardian: boolean;
+}
+
+const mapCourtOrder = (o: any): CourtOrderRow => ({
+  id: o.id,
+  studentUlid: o.student_ulid ?? null,
+  restrictions: o.restrictions ?? {},
+  validFrom: o.valid_from ?? null,
+  validTo: o.valid_to ?? null,
+  fileUlid: o.file ?? null,
+});
 
 export const ApiFamilyService = {
   async listMyChildren(): Promise<Student[]> {
@@ -223,24 +282,137 @@ export const ApiFamilyService = {
     }));
   },
 
-  /** Admin/family-management view: every guardian link of the school. */
+  /** Family-office view: every guardian link of the school. */
   async listAllLinks(): Promise<GuardianLinkRow[]> {
     const result = await api<{ data: any[] }>('/v1/guardian-links');
     return (result.data ?? []).map((l) => ({
       id: l.id,
       studentUlid: l.student_ulid ?? '',
-      studentName: l.student_name ?? '',
-      linkType: l.link_type ?? '',
-      status: l.status ?? '',
+      studentName: l.student_name ?? '—',
+      guardianUlid: l.guardian?.ulid ?? null,
       guardianName: l.guardian?.name ?? null,
-      flags: {
-        can_view_grades: Boolean(l.effective_flags?.can_view_grades),
-        can_view_attendance: Boolean(l.effective_flags?.can_view_attendance),
-        can_approve_consent: Boolean(l.effective_flags?.can_approve_consent),
-        can_pickup: Boolean(l.effective_flags?.can_pickup),
-        can_receive_sms: Boolean(l.effective_flags?.can_receive_sms),
-      },
+      linkType: l.link_type ?? '',
+      linkTypeLabel: GUARDIAN_LINK_TYPES[l.link_type] ?? l.link_type ?? '—',
+      status: l.status ?? 'pending',
+      endsOn: l.ends_on ?? null,
+      flags: mapFlags(l.effective_flags),
     }));
+  },
+
+  /** sh15: school approval activates a pending link; the flags come from here. */
+  async approveLink(
+    id: number,
+    payload: { flags: GuardianFlags; linkType: string; reason: string },
+  ): Promise<void> {
+    await api(`/v1/guardian-links/${id}/approve`, {
+      method: 'POST',
+      body: { ...payload.flags, link_type: payload.linkType, reason: payload.reason },
+    });
+  },
+
+  /** Flag changes are always reason-logged (sh7). */
+  async updateLink(
+    id: number,
+    payload: { flags: GuardianFlags; linkType: string; reason: string },
+  ): Promise<void> {
+    await api(`/v1/guardian-links/${id}`, {
+      method: 'PATCH',
+      body: { ...payload.flags, link_type: payload.linkType, reason: payload.reason },
+    });
+  },
+
+  /** Ending a link cuts access immediately and keeps the history. */
+  async endLink(id: number, reason: string): Promise<void> {
+    await api(`/v1/guardian-links/${id}/end`, { method: 'POST', body: { reason } });
+  },
+
+  async courtOrders(studentUlid?: string): Promise<{ summaryOnly: boolean; rows: CourtOrderRow[] }> {
+    const query = studentUlid ? `?student_ulid=${encodeURIComponent(studentUlid)}` : '';
+    const result = await api<{ data: any[]; summary_only: boolean }>(`/v1/court-orders${query}`);
+    return {
+      summaryOnly: Boolean(result.summary_only),
+      rows: (result.data ?? []).map(mapCourtOrder),
+    };
+  },
+
+  async createCourtOrder(payload: {
+    studentUlid: string;
+    restrictions: Partial<GuardianFlags>;
+    validFrom?: string | null;
+    validTo?: string | null;
+    reason: string;
+  }): Promise<void> {
+    await api('/v1/court-orders', {
+      method: 'POST',
+      body: {
+        student_ulid: payload.studentUlid,
+        restrictions: payload.restrictions,
+        ...(payload.validFrom ? { valid_from: payload.validFrom } : {}),
+        ...(payload.validTo ? { valid_to: payload.validTo } : {}),
+        reason: payload.reason,
+      },
+    });
+  },
+
+  async updateCourtOrder(
+    id: number,
+    payload: { restrictions?: Partial<GuardianFlags>; validFrom?: string | null; validTo?: string | null; reason: string },
+  ): Promise<void> {
+    await api(`/v1/court-orders/${id}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.restrictions ? { restrictions: payload.restrictions } : {}),
+        ...(payload.validFrom !== undefined ? { valid_from: payload.validFrom } : {}),
+        ...(payload.validTo !== undefined ? { valid_to: payload.validTo } : {}),
+        reason: payload.reason,
+      },
+    });
+  },
+
+  async pickups(studentUlid: string): Promise<PickupRow[]> {
+    const result = await api<{ data: any[] }>(`/v1/pickup/${encodeURIComponent(studentUlid)}`);
+    return (result.data ?? []).map((p) => ({
+      id: p.id,
+      fullName: p.full_name ?? '—',
+      relation: p.relation ?? null,
+      status: p.status ?? 'active',
+      locked: Boolean(p.locked),
+      isLinkedGuardian: Boolean(p.is_linked_guardian),
+    }));
+  },
+
+  async createPickup(
+    studentUlid: string,
+    payload: { fullName: string; phone: string; relation?: string; reason: string },
+  ): Promise<{ status: string; suggestionOnly: boolean }> {
+    const result = await api<{ status: string; suggestion_only: boolean }>(
+      `/v1/pickup/${encodeURIComponent(studentUlid)}`,
+      {
+        method: 'POST',
+        body: {
+          full_name: payload.fullName,
+          phone: payload.phone,
+          ...(payload.relation ? { relation: payload.relation } : {}),
+          reason: payload.reason,
+        },
+      },
+    );
+    return { status: result?.status ?? 'active', suggestionOnly: Boolean(result?.suggestion_only) };
+  },
+
+  async updatePickup(
+    id: number,
+    payload: { status?: 'active' | 'inactive'; locked?: boolean; relation?: string | null; reason: string },
+  ): Promise<void> {
+    await api(`/v1/pickup/authorizations/${id}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.status ? { status: payload.status } : {}),
+        ...(payload.locked !== undefined ? { locked: payload.locked } : {}),
+        ...(payload.relation !== undefined ? { relation: payload.relation } : {}),
+        reason: payload.reason,
+      },
+    });
   },
 };
 
