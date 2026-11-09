@@ -52,7 +52,7 @@ npm run dev                                # http://localhost:3000 (پروکسی
 - `docs/permission-matrix.md` — ماتریس مجوزها (تولیدشده از فایل واحد)
 - `docs/permission-matrix-review.md` — سلول‌های نیازمند تأیید
 - `docs/openapi/core.yaml` — قرارداد API
-- `backend/tests` — ۱۴۹ تست (ماتریس تولیدی، جداسازی ولی‌ها، append-only، جریان‌های کامل، فایل منیجر)
+- `backend/tests` — ۲۰۰ تست (ماتریس تولیدی، جداسازی ولی‌ها، append-only، جریان‌های کامل، فایل منیجر، مدارس/سرویس/مشاوره/انجمن)
 
 ## قوانین غیرقابل‌مذاکره
 
