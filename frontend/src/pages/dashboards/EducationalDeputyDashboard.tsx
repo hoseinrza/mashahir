@@ -1,27 +1,65 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, BookOpen, Users, Calendar, Award, CheckCircle2,
-  Clock, Plus, FileText, ArrowRight, TrendingUp, Sparkles
+  GraduationCap, BookOpen, Calendar, Award, Users, Loader2, AlertCircle, RefreshCw, FileText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { Card, Button, Badge, PageHeader } from '../../components/common';
-import { toPersianDigits, formatScore } from '../../utils/persian';
-import { INITIAL_CLASSROOMS, INITIAL_REPORT_CARDS } from '../../data/mockData';
-import { AssignmentService, ExamService } from '../../services';
+import { Card, Button, Badge, PageHeader, EmptyState } from '../../components/common';
+import { toPersianDigits } from '../../utils/persian';
+import { formatJalaliDateTime } from '../../utils/jalali';
+import {
+  ApiAcademicService, ApiReportCardService,
+  AssignmentSummary, ClassroomSummary, ExamSummary, ReportCardRow,
+} from '../../api/data';
+import { ApiError } from '../../api/client';
 
 export const EducationalDeputyDashboard: React.FC = () => {
   const { currentUser } = useAuth();
-  const classrooms = INITIAL_CLASSROOMS;
-  const assignments = AssignmentService.getAssignments();
-  const exams = ExamService.getExams();
-  const reportCards = INITIAL_REPORT_CARDS;
+
+  const [classrooms, setClassrooms] = useState<ClassroomSummary[] | null>(null);
+  const [studentsCount, setStudentsCount] = useState<number | null>(null);
+  const [assignments, setAssignments] = useState<AssignmentSummary[] | null>(null);
+  const [exams, setExams] = useState<ExamSummary[] | null>(null);
+  const [reportCards, setReportCards] = useState<ReportCardRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+
+    Promise.all([
+      ApiAcademicService.classrooms(),
+      ApiAcademicService.studentsInScope(),
+      ApiAcademicService.assignments(),
+      ApiAcademicService.exams(),
+      ApiReportCardService.list().catch(() => []),
+    ])
+      .then(([roomRows, studentRows, assignmentRows, examRows, cardRows]) => {
+        if (cancelled) return;
+        setClassrooms(roomRows);
+        setStudentsCount(studentRows.length);
+        setAssignments(assignmentRows);
+        setExams(examRows);
+        setReportCards(cardRows);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof ApiError ? e.firstError() : 'خطا در دریافت دادهٔ آموزشی');
+      });
+
+    return () => { cancelled = true; };
+  }, [reloadKey]);
+
+  const upcomingExams = (exams ?? [])
+    .filter((exam) => exam.opensAt !== null)
+    .sort((a, b) => new Date(a.opensAt ?? 0).getTime() - new Date(b.opensAt ?? 0).getTime())
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={`داشبورد معاونت آموزشی — ${currentUser.fullName}`}
-        subtitle="نظارت بر فرآیند تدریس، برنامه‌ریزی تقویم درسی، تایید کارنامه‌ها و پایش دبیران"
+        subtitle="نظارت بر کلاس‌ها، تکالیف، آزمون‌ها و کارنامه‌های صادرشده — همه از دادهٔ زندهٔ مدرسه"
         actions={
           <div className="flex items-center gap-2">
             <Link to="/exams">
@@ -31,145 +69,161 @@ export const EducationalDeputyDashboard: React.FC = () => {
             </Link>
             <Link to="/report-card">
               <Button variant="primary" size="sm" icon={<Award size={15} />}>
-                بررسی و تایید کارنامه‌ها
+                بررسی و تأیید کارنامه‌ها
               </Button>
             </Link>
           </div>
         }
       />
 
-      {/* KPI Overview */}
+      {error && (
+        <Card className="border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-rose-900 dark:text-rose-200">
+            <span className="flex items-center gap-2 font-bold"><AlertCircle size={15} />{error}</span>
+            <Button size="sm" variant="outline" icon={<RefreshCw size={13} />} onClick={() => setReloadKey((k) => k + 1)}>
+              تلاش دوباره
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="text-right">
-          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">کلاس‌های دوره دوم</span>
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">کلاس‌های مدرسه</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-[#2457C5] dark:text-[#8BAEFF] tabular-nums">
-              {toPersianDigits(classrooms.length)}
+              {classrooms === null ? '…' : toPersianDigits(classrooms.length)}
             </span>
-            <Badge variant="primary">۸۴ دانش‌آموز</Badge>
+            <Badge variant="primary"><BookOpen size={11} /> دورهٔ دوم</Badge>
           </div>
         </Card>
 
         <Card className="text-right">
-          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">میانگین پیشرفت آموزشی</span>
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">دانش‌آموزان در دسترس شما</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-              ۱۸.۷۵
+              {studentsCount === null ? '…' : toPersianDigits(studentsCount)}
             </span>
-            <Badge variant="success">شیب مثبت</Badge>
+            <Badge variant="success"><Users size={11} /> نفر</Badge>
           </div>
         </Card>
 
         <Card className="text-right">
-          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">تکالیف فعال کلاسی</span>
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">تکالیف تعریف‌شده</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-[#202B3C] dark:text-[#F1F5FB] tabular-nums">
-              {toPersianDigits(assignments.length)}
+              {assignments === null ? '…' : toPersianDigits(assignments.length)}
             </span>
-            <Badge variant="neutral">هفته جاری</Badge>
+            <Badge variant="neutral">همهٔ دروس</Badge>
           </div>
         </Card>
 
         <Card className="text-right">
-          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">آزمون‌های برنامه‌ریزی‌شده</span>
-          <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-amber-600 dark:text-amber-400 tabular-nums">
-              {toPersianDigits(exams.length)}
+          <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">آزمون‌ها و کارنامه‌ها</span>
+          <div className="flex items-baseline justify-between mt-2 gap-2">
+            <span className="text-xl font-black text-amber-600 dark:text-amber-400 tabular-nums">
+              {exams === null ? '…' : toPersianDigits(exams.length)}
+              <span className="text-slate-300 mx-1">/</span>
+              {reportCards === null ? '…' : toPersianDigits(reportCards.length)}
             </span>
-            <Badge variant="warning">مهر و آبان</Badge>
+            <Badge variant="warning">آزمون / کارنامه</Badge>
           </div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Class Performance & Teacher Supervision */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
                 <BookOpen size={16} className="text-[#2457C5]" />
-                پایش کلاس‌ها و وضعیت دروس پایه دهم و یازدهم
+                کلاس‌های فعال و پایهٔ تحصیلی
               </h3>
-              <Link to="/user-management" className="text-xs text-[#2457C5] dark:text-[#8BAEFF] hover:underline">
-                تخصیص دبیران
+              <Link to="/classrooms" className="text-xs text-[#2457C5] dark:text-[#8BAEFF] hover:underline">
+                مدیریت کلاس‌ها
               </Link>
             </div>
 
-            <div className="space-y-3">
-              {classrooms.map((cls) => (
-                <div
-                  key={cls.id}
-                  className="p-4 rounded-xl border border-[#DCE3EE] dark:border-[#344257] bg-[#F7F9FC] dark:bg-[#101722]/60 text-right flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-[#202B3C] dark:text-[#F1F5FB]">{cls.name}</span>
-                      <Badge variant="primary">{cls.grade}</Badge>
+            {classrooms === null ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-[#526176] dark:text-[#B3C0D2]">
+                <Loader2 size={18} className="animate-spin" /> در حال دریافت کلاس‌ها…
+              </div>
+            ) : classrooms.length === 0 ? (
+              <EmptyState
+                icon={<GraduationCap size={22} className="text-[#2457C5] dark:text-[#8BAEFF]" />}
+                title="کلاسی ثبت نشده است"
+                description="با ساخت کلاس در بخش مدیریت کلاس‌ها، این فهرست پر می‌شود."
+              />
+            ) : (
+              <div className="space-y-3">
+                {classrooms.map((cls) => (
+                  <div
+                    key={cls.ulid}
+                    className="p-4 rounded-xl border border-[#DCE3EE] dark:border-[#344257] bg-[#F7F9FC] dark:bg-[#101722]/60 text-right flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-[#202B3C] dark:text-[#F1F5FB]">{cls.title}</span>
+                        {cls.gradeLevel && <Badge variant="primary">{cls.gradeLevel}</Badge>}
+                      </div>
+                      <span className="text-xs text-[#526176] dark:text-[#B3C0D2] mt-1 block">
+                        {cls.academicYear ?? 'سال تحصیلی ثبت نشده'}
+                      </span>
                     </div>
-                    <span className="text-xs text-[#526176] dark:text-[#B3C0D2] mt-1 block">
-                      دبیر راهنما: مهندس کریمی · ظرفیت: {toPersianDigits(cls.studentCount)} نفر · اتاق {toPersianDigits(cls.roomNumber)}
-                    </span>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg">
-                      معدل کلاس: ۱۸.۴۰
-                    </span>
                     <Link to="/attendance">
-                      <Button variant="outline" size="sm">
-                        مشاهده دفتر کلاسی
-                      </Button>
+                      <Button variant="outline" size="sm">مشاهده دفتر کلاسی</Button>
                     </Link>
                   </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Pending Report Card Approvals */}
-          <Card>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
-                <Award size={16} className="text-[#2457C5]" />
-                کارنامه‌های نهایی نیازمند تایید و صدور
-              </h3>
-              <Badge variant="success">آماده صدور رسمی</Badge>
-            </div>
-            <p className="text-xs text-[#526176] dark:text-[#B3C0D2] leading-relaxed mb-3">
-              نمرات نوبت اول کلاس‌های ۱۰۱ و ۱۰۲ توسط دبیران مربوطه نهایی و ثبت شده‌اند. پس از بررسی میانگین‌ها، کارنامه‌ها آماده تنفیذ نهایی هستند.
-            </p>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-              <span className="text-slate-500">تعداد کارنامه‌های بازبینی‌شده: <strong>۸۴ فقره</strong></span>
-              <Link to="/report-card">
-                <Button variant="primary" size="sm">
-                  مشاهده و صدور دسته‌جمعی
-                </Button>
-              </Link>
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 
-        {/* Right Col: Academic Calendar & Teacher Load */}
         <div className="space-y-6">
           <Card>
             <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] mb-3 flex items-center gap-2">
               <Calendar size={16} className="text-[#2457C5]" />
-              رویدادهای تقویم آموزشی هفته
+              آزمون‌های پیش‌رو
             </h3>
-            <div className="space-y-2.5 text-xs text-right">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                <strong className="block text-[#202B3C] dark:text-[#F1F5FB]">کوییز آنلاین مستمر ریاضی دهم</strong>
-                <span className="text-slate-500 font-mono">شنبه ۲۸ مهرماه · ساعت ۱۰:۰۰</span>
+
+            {exams === null ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-xs text-[#526176] dark:text-[#B3C0D2]">
+                <Loader2 size={16} className="animate-spin" /> …
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                <strong className="block text-[#202B3C] dark:text-[#F1F5FB]">شورای دبیران و هم‌اندیشی دروس پایه</strong>
-                <span className="text-slate-500 font-mono">دوشنبه ۳۰ مهرماه · ساعت ۱۴:۳۰</span>
+            ) : upcomingExams.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4">آزمونی با زمان شروع ثبت نشده است.</p>
+            ) : (
+              <div className="space-y-2.5 text-xs text-right">
+                {upcomingExams.map((exam) => (
+                  <div key={exam.ulid} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                    <strong className="block text-[#202B3C] dark:text-[#F1F5FB]">{exam.title}</strong>
+                    <span className="text-slate-500 font-mono text-[11px]">
+                      {formatJalaliDateTime(exam.opensAt)}
+                      {exam.subject ? ` · ${exam.subject}` : ''}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                <strong className="block text-[#202B3C] dark:text-[#F1F5FB]">آزمون سالنی حضوری میان‌ترم فیزیک</strong>
-                <span className="text-slate-500 font-mono">۱۰ آبان‌ماه · ساعت ۰۸:۳۰</span>
-              </div>
-            </div>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] mb-3 flex items-center gap-2">
+              <FileText size={16} className="text-[#2457C5]" />
+              کارنامه‌های صادرشده
+            </h3>
+            <p className="text-xs text-[#526176] dark:text-[#B3C0D2] leading-relaxed">
+              {reportCards === null
+                ? 'در حال دریافت…'
+                : reportCards.length === 0
+                ? 'هنوز کارنامه‌ای منتشر نشده است.'
+                : `${toPersianDigits(reportCards.length)} کارنامه در سامانه ثبت شده است.`}
+            </p>
+            <Link to="/report-card" className="inline-block mt-3">
+              <Button variant="outline" size="sm">مشاهدهٔ فهرست کامل</Button>
+            </Link>
           </Card>
         </div>
       </div>

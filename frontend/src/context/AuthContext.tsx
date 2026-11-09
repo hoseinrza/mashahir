@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { User, Role, RoleAssignment, Student, PermissionScope } from '../types';
-import { UserService } from '../services';
 import { BASE_ROLES } from '../permissions';
 import { ApiError, getPendingToken, getToken, setPendingToken, setToken } from '../api/client';
 import * as authApi from '../api/auth';
@@ -56,7 +55,6 @@ interface AuthContextType {
   activeRole: Role;
   activeAssignment: RoleAssignment;
   userAssignments: RoleAssignment[];
-  allUsers: User[];
   allRoles: Role[];
   allStudents: Student[];
   activeStudent: Student | null;
@@ -248,12 +246,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [userAssignments],
   );
 
-  const allUsers: User[] = useMemo(() => UserService.getUsers(), []);
-  const allRoles: Role[] = useMemo(() => UserService.getRoles(), []);
-  const allStudents: Student[] = useMemo(() => {
-    // Guardian sees his real children; others keep the demo roster.
-    return myChildren.length > 0 ? myChildren : UserService.getStudents();
-  }, [myChildren]);
+  // Role definitions are static (the matrix); a guardian's children come from
+  // the live links — there is no fallback roster of demo learners.
+  const allRoles: Role[] = BASE_ROLES;
+  const allStudents: Student[] = myChildren;
 
   const activeStudent: Student | null = useMemo(() => allStudents[0] ?? null, [allStudents]);
 
@@ -279,7 +275,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeRole,
         activeAssignment,
         userAssignments,
-        allUsers,
         allRoles,
         allStudents,
         activeStudent,

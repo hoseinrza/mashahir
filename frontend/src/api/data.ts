@@ -557,6 +557,22 @@ export const ApiNotificationCenter = {
   async archive(id: number): Promise<void> {
     await api(`/v1/notifications/${id}/archive`, { method: 'POST' });
   },
+
+  /** FR-29: per-channel opt-outs; sh14 mandatory school alerts stay locked. */
+  async listPreferences(): Promise<{ rows: { type: string; channel: string; enabled: boolean }[]; mandatory: string[] }> {
+    const result = await api<{ data: any[]; mandatory_types: string[] }>('/v1/notification-preferences');
+    return {
+      rows: (result.data ?? []).map((p) => ({ type: p.type, channel: p.channel, enabled: Boolean(p.enabled) })),
+      mandatory: result.mandatory_types ?? [],
+    };
+  },
+
+  async setPreference(type: string, channel: 'in_app' | 'sms' | 'push', enabled: boolean): Promise<void> {
+    await api('/v1/notification-preferences', {
+      method: 'PUT',
+      body: { type, channel, enabled },
+    });
+  },
 };
 
 /** Attendance timeline of one student (guardian/student view). */
@@ -651,6 +667,26 @@ export const ApiAttendanceService = {
       method: 'POST',
       body: { status, reason, ...(lateMinutes !== null && lateMinutes !== undefined ? { late_minutes: lateMinutes } : {}) },
     });
+  },
+
+  /** FR-31: delivery state of the absence/late SMS alerts (sh14 channel). */
+  async smsStatus(): Promise<{
+    id: number;
+    type: string;
+    status: string;
+    channel: string;
+    lastError: string | null;
+    sentAt: string | null;
+  }[]> {
+    const result = await api<{ data: any[] }>('/v1/attendance/sms-status');
+    return (result.data ?? []).map((d) => ({
+      id: d.id,
+      type: d.type,
+      status: d.status,
+      channel: d.channel,
+      lastError: d.last_error ?? null,
+      sentAt: d.sent_at ?? null,
+    }));
   },
 };
 

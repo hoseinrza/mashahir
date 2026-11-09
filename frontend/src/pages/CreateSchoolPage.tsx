@@ -1,27 +1,26 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { SchoolCreationWizard } from '../components/schools/SchoolCreationWizard';
-import { PageHeader } from '../components/common';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader } from '../components/common';
+import { ModulePending } from '../components/common/ModulePending';
 
 export const CreateSchoolPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { currentUser, activeRole } = useAuth();
+  const { activeRole } = useAuth();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="تأسیس و راه‌اندازی واحد آموزشی جدید"
-        subtitle="فرآیند پنج مرحله‌ای ایجاد مدرسه، انتصاب کادر، تعریف کلاس‌ها، ثبت دانش‌آموزان و انتساب اولیا"
+        title="راه‌اندازی مدرسهٔ جدید"
+        subtitle={`ایجاد مدرسه، تعریف سال تحصیلی و تخصیص مدیر — نقش فعال: ${activeRole.persianTitle}`}
       />
-
-      <SchoolCreationWizard
-        onComplete={(createdSchool) => {
-          navigate('/user-management');
-        }}
-        onCancel={() => {
-          navigate('/dashboard');
-        }}
+      <ModulePending
+        title="ساخت مدرسه از طریق API ممکن نیست"
+        description="بک‌اند فعلی اندپوینت ساخت مدرسه ندارد و مدرسه‌ها از seeder می‌آیند. ویزارد قبلی فقط در حافظهٔ مرورگر مدرسه می‌ساخت؛ به همین دلیل غیرفعال شده است."
+        pending={[
+          'اندپوینت POST /v1/schools با کد مدرسه، شعبه و سال تحصیلی',
+          'تخصیص مدیر مدرسه در همان تراکنش',
+          'دسترسی انحصاری platform_admin و ثبت در لاگ ممیزی',
+        ]}
+        backTo={{ href: '/dashboard', label: 'بازگشت به داشبورد' }}
       />
     </div>
   );
