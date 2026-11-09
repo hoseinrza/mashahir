@@ -25,6 +25,7 @@ use App\Modules\People\Http\Controllers\Api\GuardianLinksApiController;
 use App\Modules\People\Http\Controllers\Api\PickupApiController;
 use App\Modules\People\Http\Controllers\Api\StudentsApiController;
 use App\Modules\School\Http\Controllers\Api\SchoolSettingsApiController;
+use App\Modules\School\Http\Controllers\Api\SchoolsApiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/auth')->group(function (): void {
@@ -215,4 +216,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/imports/{batch}', [ImportsApiController::class, 'show']);
     Route::get('/school/settings', [SchoolSettingsApiController::class, 'show']);
     Route::put('/school/settings', [SchoolSettingsApiController::class, 'update']);
+
+    // Platform school registry — schools.manage (platform admin only)
+    Route::get('/schools', [SchoolsApiController::class, 'index']);
+    Route::post('/schools', [SchoolsApiController::class, 'store']);
+    // Literal segment first: /schools/candidates must never bind as a ulid.
+    Route::get('/schools/candidates', [SchoolsApiController::class, 'candidates']);
+    Route::get('/schools/{school}', [SchoolsApiController::class, 'show']);
+    Route::patch('/schools/{school}', [SchoolsApiController::class, 'update']);
+    Route::post('/schools/{school}/principals', [SchoolsApiController::class, 'assignPrincipal']);
 });

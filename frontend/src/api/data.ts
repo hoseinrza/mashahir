@@ -1327,8 +1327,7 @@ export const ApiRolesService = {
   },
 };
 
-/** FR-35: school-level policy that consent, SMS and report cards share. */
-export interface SchoolSettingsPayload {
+/** FR-35: school-level policy that consent, SMS and report cards share. */export interface SchoolSettingsPayload {
   school: { ulid: string; name: string } | null;
   settings: Record<string, unknown>;
 }
@@ -1392,5 +1391,111 @@ export const ApiImportService = {
         errors: [],
       };
     }
+  },
+};
+
+/** دفتر مدارس پلتفرم — فقط schools.manage. */
+export interface SchoolRow {
+  ulid: string;
+  name: string;
+  level: string;
+  gradingType: string;
+  studentHasAccount: boolean;
+  timezone: string;
+  isActive: boolean;
+  createdAt: string | null;
+}
+
+export const SCHOOL_LEVEL_LABEL: Record<string, string> = {
+  elementary: 'ابتدایی',
+  middle: 'متوسطهٔ اول',
+  high: 'متوسطهٔ دوم',
+};
+
+const mapSchool = (raw: any): SchoolRow => ({
+  ulid: raw.ulid,
+  name: raw.name,
+  level: raw.level,
+  gradingType: raw.grading_type,
+  studentHasAccount: Boolean(raw.student_has_account),
+  timezone: raw.timezone ?? 'Asia/Tehran',
+  isActive: Boolean(raw.is_active),
+  createdAt: raw.created_at ?? null,
+});
+
+export interface SchoolPrincipalRow {
+  userUlid: string | null;
+  name: string | null;
+  userRoleId: number;
+  startsOn: string | null;
+}
+
+export const ApiSchoolsService = {
+  async list(): Promise<SchoolRow[]> {
+    const result = await api<{ data: any[] }>('/v1/schools');
+    return (result.data ?? []).map(mapSchool);
+  },
+
+  async show(ulid: string): Promise<SchoolRow & { principals: SchoolPrincipalRow[] }> {
+    const raw = await api<any>(`/v1/schools/${ulid}`);
+    return {
+      ...mapSchool(raw),
+      principals: (raw.principals ?? []).map((p: any) => ({
+        userUlid: p.user_ulid ?? null,
+        name: p.name ?? null,
+        userRoleId: p.user_role_id,
+        startsOn: p.starts_on ?? null,
+      })),
+    };
+  },
+
+  async create(payload: {
+    name: string;
+    level: 'elementary' | 'middle' | 'high';
+    gradingType: 'numeric' | 'descriptive';
+    studentHasAccount?: boolean;
+    timezone?: string;
+  }): Promise<SchoolRow> {
+    const raw = await api<any>('/v1/schools', {
+      method: 'POST',
+      body: {
+        name: payload.name,
+        level: payload.level,
+        grading_type: payload.gradingType,
+        ...(payload.studentHasAccount !== undefined ? { student_has_account: payload.studentHasAccount } : {}),
+        ...(payload.timezone ? { timezone: payload.timezone } : {}),
+      },
+    });
+    return mapSchool(raw);
+  },
+
+  async update(
+    ulid: string,
+    payload: Partial<{ name: string; level: string; gradingType: string; isActive: boolean }>,
+  ): Promise<void> {
+    await api(`/v1/schools/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.name !== undefined ? { name: payload.name } : {}),
+        ...(payload.level !== undefined ? { level: payload.level } : {}),
+        ...(payload.gradingType !== undefined ? { grading_type: payload.gradingType } : {}),
+        ...(payload.isActive !== undefined ? { is_active: payload.isActive } : {}),
+      },
+    });
+  },
+
+  async assignPrincipal(ulid: string, userUlid: string): Promise<void> {
+    await api(`/v1/schools/${ulid}/principals`, {
+      method: 'POST',
+      body: { user_ulid: userUlid },
+    });
+  },
+
+  /** Global user search for the principal picker (platform admin only). */
+  async candidates(query: string): Promise<{ ulid: string; name: string }[]> {
+    if (query.trim().length < 2) return [];
+
+    const result = await api<{ data: any[] }>(`/v1/schools/candidates?q=${encodeURIComponent(query.trim())}`);
+    return (result.data ?? []).map((user) => ({ ulid: user.ulid, name: user.name }));
   },
 };
