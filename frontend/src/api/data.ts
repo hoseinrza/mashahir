@@ -579,15 +579,23 @@ export const ApiAttendanceService = {
 };
 
 /** Consent inbox of the signed-in guardian (trips and activities of their children). */
+export interface ConsentResponseRow {
+  guardianUlid: string | null;
+  decision: 'approved' | 'rejected' | string;
+  decidedAt: string;
+}
+
 export interface ConsentRow {
   ulid: string;
   title: string;
   body: string;
   policy: 'one_parent' | 'both_parents' | string;
   dueAt: string | null;
+  studentUlid: string | null;
   studentName: string;
   satisfied: boolean;
   myDecision: 'approved' | 'rejected' | null;
+  responses: ConsentResponseRow[];
 }
 
 export const ApiConsentService = {
@@ -599,9 +607,15 @@ export const ApiConsentService = {
       body: c.body ?? '',
       policy: c.policy ?? 'one_parent',
       dueAt: c.due_at ?? null,
+      studentUlid: c.student_ulid ?? null,
       studentName: c.student_name ?? '—',
       satisfied: Boolean(c.satisfied),
       myDecision: c.my_decision ?? null,
+      responses: (c.responses ?? []).map((r: any) => ({
+        guardianUlid: r.guardian_ulid ?? null,
+        decision: r.decision,
+        decidedAt: r.decided_at,
+      })),
     }));
   },
 
@@ -611,6 +625,26 @@ export const ApiConsentService = {
       body: { decision },
     });
     return { satisfied: Boolean(result?.satisfied) };
+  },
+
+  /** Staff: open a consent request for one learner (trip, activity, form). */
+  async create(payload: {
+    studentUlid: string;
+    title: string;
+    body?: string;
+    dueAt?: string | null;
+    policy?: 'one_parent' | 'both_parents';
+  }): Promise<void> {
+    await api('/v1/consents', {
+      method: 'POST',
+      body: {
+        student_ulid: payload.studentUlid,
+        title: payload.title,
+        ...(payload.body ? { body: payload.body } : {}),
+        ...(payload.dueAt ? { due_at: payload.dueAt } : {}),
+        ...(payload.policy ? { policy: payload.policy } : {}),
+      },
+    });
   },
 };
 
