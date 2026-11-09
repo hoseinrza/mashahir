@@ -84,7 +84,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     // Shipped from live grade data; every viewer of the report also holds one
     // of these codes (learners get reportcards.view, staff get grades.*).
     '/performance-analytics': ['grades:view', 'grades:record', 'reportcards:view'],
-    '/counseling': null,
+    '/counseling': ['counseling:view', 'counseling:request', 'counseling:manage'],
     '/pta': null,
   };
 
@@ -227,7 +227,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           label: isFamily ? 'رزرو وقت مشاوره' : isStudent ? 'مشاوره و هدایت تحصیلی' : 'مشاوره و هدایت تحصیلی',
           href: '/counseling',
           icon: <HeartHandshake size={17} />,
-          show: !isBusDriver && (hasAccess('counseling:book') || hasAccess('counseling:manage_sessions')),
+          show: !isBusDriver && (hasAccess('counseling:view') || hasAccess('counseling:request') || hasAccess('counseling:manage')),
         },
         {
           label: 'انجمن اولیا و مربیان',

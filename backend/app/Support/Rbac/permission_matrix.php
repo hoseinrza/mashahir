@@ -153,6 +153,12 @@ return [
             ['key' => 'online_classes.manage', 'title' => 'مدیریت و بستن کلاس آنلاین'],
         ],
 
+        'counseling' => [
+            ['key' => 'counseling.request', 'title' => 'درخواست نوبت مشاوره'],
+            ['key' => 'counseling.view', 'title' => 'مشاهدهٔ نوبت‌ها و جلسات مشاوره'],
+            ['key' => 'counseling.manage', 'title' => 'زمان‌بندی، تکمیل جلسه و یادداشت محرمانهٔ مشاور'],
+        ],
+
         'transport' => [
             ['key' => 'transport.view', 'title' => 'مشاهده خطوط و ایستگاه‌های سرویس مدرسه'],
             ['key' => 'transport.manage', 'title' => 'مدیریت خط سرویس، راننده و تخصیص دانش‌آموز'],
@@ -572,6 +578,23 @@ return [
 
         'schools.manage' => [
             'platform_admin' => true,
+        ],
+
+        'counseling.request' => [
+            'student' => true,
+            'guardian' => 'sh3',
+        ],
+
+        'counseling.view' => [
+            'student' => 'sh4',
+            'guardian' => 'sh3',
+            'school_admin' => true,
+            'support' => true,
+        ],
+
+        'counseling.manage' => [
+            'school_admin' => true,
+            'support' => true,
         ],
 
         'transport.view' => [

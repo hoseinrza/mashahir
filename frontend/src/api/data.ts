@@ -1681,3 +1681,95 @@ export const ApiTransportService = {
     });
   },
 };
+
+/** ??????: ??????? ????? ????????? ? ??????? ???????? ?????. */
+export interface CounselingRow {
+  ulid: string;
+  topic: string;
+  type: string;
+  status: string;
+  studentUlid: string | null;
+  studentName: string | null;
+  requesterName: string | null;
+  counselorUlid: string | null;
+  counselorName: string | null;
+  scheduledAt: string | null;
+  sharedSummary: string | null;
+  followUpPlan: string | null;
+  confidentialNotes: string | null;
+  createdAt: string | null;
+}
+
+export const COUNSELING_STATUS_LABEL: Record<string, string> = {
+  requested: '?? ?????? ?????????',
+  scheduled: '?????????????',
+  completed: '?????????',
+  cancelled: '??????',
+};
+
+const mapCounseling = (raw: any): CounselingRow => ({
+  ulid: raw.ulid,
+  topic: raw.topic ?? '',
+  type: raw.type ?? 'in_person',
+  status: raw.status ?? 'requested',
+  studentUlid: raw.student_ulid ?? null,
+  studentName: raw.student_name ?? null,
+  requesterName: raw.requester_name ?? null,
+  counselorUlid: raw.counselor_ulid ?? null,
+  counselorName: raw.counselor_name ?? null,
+  scheduledAt: raw.scheduled_at ?? null,
+  sharedSummary: raw.shared_summary ?? null,
+  followUpPlan: raw.follow_up_plan ?? null,
+  confidentialNotes: raw.confidential_notes ?? null,
+  createdAt: raw.created_at ?? null,
+});
+
+export const ApiCounselingService = {
+  async list(): Promise<CounselingRow[]> {
+    const result = await api<{ data: any[] }>('/v1/counseling/appointments');
+    return (result.data ?? []).map(mapCounseling);
+  },
+
+  async request(payload: {
+    studentUlid: string;
+    topic: string;
+    type?: 'in_person' | 'online';
+    preferredAt?: string | null;
+  }): Promise<void> {
+    await api('/v1/counseling/appointments', {
+      method: 'POST',
+      body: {
+        student_ulid: payload.studentUlid,
+        topic: payload.topic,
+        ...(payload.type ? { type: payload.type } : {}),
+        ...(payload.preferredAt ? { preferred_at: payload.preferredAt } : {}),
+      },
+    });
+  },
+
+  async update(
+    ulid: string,
+    payload: {
+      counselorUlid?: string | null;
+      scheduledAt?: string | null;
+      status?: 'requested' | 'scheduled' | 'completed' | 'cancelled';
+      type?: 'in_person' | 'online';
+      sharedSummary?: string | null;
+      confidentialNotes?: string | null;
+      followUpPlan?: string | null;
+    },
+  ): Promise<void> {
+    await api(`/v1/counseling/appointments/${ulid}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.counselorUlid !== undefined ? { counselor_ulid: payload.counselorUlid } : {}),
+        ...(payload.scheduledAt !== undefined ? { scheduled_at: payload.scheduledAt } : {}),
+        ...(payload.status !== undefined ? { status: payload.status } : {}),
+        ...(payload.type !== undefined ? { type: payload.type } : {}),
+        ...(payload.sharedSummary !== undefined ? { shared_summary: payload.sharedSummary } : {}),
+        ...(payload.confidentialNotes !== undefined ? { confidential_notes: payload.confidentialNotes } : {}),
+        ...(payload.followUpPlan !== undefined ? { follow_up_plan: payload.followUpPlan } : {}),
+      },
+    });
+  },
+};

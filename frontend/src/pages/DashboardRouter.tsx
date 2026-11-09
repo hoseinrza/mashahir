@@ -82,6 +82,8 @@ export const DashboardRouter: React.FC = () => {
     default:
       // Custom school roles: a bus driver is whoever holds transport.board.
       if (hasAccess('transport:board')) return <BusDriverDashboard />;
+      // A counselor is whoever manages the counseling bench.
+      if (hasAccess('counseling:manage')) return <CounselorDashboard />;
       // Fallback by group
       if (activeRole.group === 'family') return <ParentDashboard />;
       if (activeRole.group === 'student') return <StudentDashboard />;

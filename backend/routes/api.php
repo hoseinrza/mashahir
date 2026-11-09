@@ -5,6 +5,7 @@ use App\Modules\Admissions\Http\Controllers\Api\PreRegistrationsApiController;
 use App\Modules\Academic\Http\Controllers\Api\TimetableApiController;
 use App\Modules\Attendance\Http\Controllers\Api\AttendanceApiController;
 use App\Modules\Audit\Http\Controllers\Api\AuditLogsApiController;
+use App\Modules\Counseling\Http\Controllers\Api\CounselingApiController;
 use App\Modules\Assignments\Http\Controllers\Api\AssignmentsApiController;
 use App\Modules\Exams\Http\Controllers\Api\ExamsApiController;
 use App\Modules\Files\Http\Controllers\Api\FilesApiController;
@@ -226,6 +227,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/schools/{school}', [SchoolsApiController::class, 'show']);
     Route::patch('/schools/{school}', [SchoolsApiController::class, 'update']);
     Route::post('/schools/{school}/principals', [SchoolsApiController::class, 'assignPrincipal']);
+
+    // Counseling — درخواست نوبت، زمان‌بندی مشاور و یادداشت محرمانه
+    Route::get('/counseling/appointments', [CounselingApiController::class, 'index']);
+    Route::post('/counseling/appointments', [CounselingApiController::class, 'store']);
+    Route::patch('/counseling/appointments/{appointment}', [CounselingApiController::class, 'update']);
 
     // Transport — خطوط سرویس، ایستگاه‌ها، تخصیص دانش‌آموز و ثبت سوارشدن
     Route::get('/transport/routes', [TransportApiController::class, 'index']);
