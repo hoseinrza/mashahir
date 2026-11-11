@@ -2,6 +2,7 @@
 
 namespace App\Modules\Identity\Http\Resources;
 
+use App\Modules\Identity\Models\UserRole;
 use App\Support\Rbac\PermissionRegistrar;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -20,6 +21,18 @@ class UserResource extends JsonResource
             // sh8: support sees minimal data only.
             'phone' => $this->when(! $minimal, fn () => $this->phone),
             'last_login_at' => $this->when(! $minimal, fn () => $this->last_login_at?->toIso8601String()),
+            // Active role assignments in the viewing school — the UI needs
+            // user_role_id to offer "end role" (DELETE /users/{user}/roles/{role}).
+            'roles' => $this->when($this->relationLoaded('userRoles') && ! $minimal, fn () => $this->userRoles
+                ->map(fn (UserRole $assignment) => [
+                    'user_role_id' => $assignment->id,
+                    'role_key' => $assignment->role?->key,
+                    'role_title' => $assignment->role?->title,
+                    'scope_type' => $assignment->scope_type,
+                    'scope_id' => $assignment->scope_id,
+                    'starts_on' => $assignment->starts_on?->toDateString(),
+                    'ends_on' => $assignment->ends_on?->toDateString(),
+                ])),
         ];
     }
 }

@@ -34,6 +34,7 @@ class PickupApiController extends Controller
             ->map(fn (PickupAuthorization $row) => [
                 'id' => $row->id,
                 'full_name' => $row->full_name,
+                'national_id' => $row->national_id,
                 'relation' => $row->relation,
                 'status' => $row->status,
                 'locked' => $row->locked,
@@ -60,6 +61,7 @@ class PickupApiController extends Controller
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:200'],
             'phone' => ['required', 'string', 'min:10', 'max:20'],
+            'national_id' => ['nullable', 'string', 'max:20'],
             'relation' => ['nullable', 'string', 'max:100'],
             'guardian_ulid' => ['nullable', 'string'],
             'reason' => ['required', 'string', 'min:5'],
@@ -80,6 +82,7 @@ class PickupApiController extends Controller
             'student_id' => $student->id,
             'full_name' => $data['full_name'],
             'phone' => $data['phone'],
+            'national_id' => $data['national_id'] ?? null,
             'relation' => $data['relation'] ?? null,
             'guardian_user_id' => $guardianId,
             'status' => $suggestionOnly ? 'inactive' : 'active',
@@ -110,6 +113,7 @@ class PickupApiController extends Controller
         $data = $request->validate([
             'full_name' => ['sometimes', 'string', 'max:200'],
             'phone' => ['sometimes', 'string', 'min:10', 'max:20'],
+            'national_id' => ['sometimes', 'nullable', 'string', 'max:20'],
             'relation' => ['sometimes', 'nullable', 'string', 'max:100'],
             'status' => ['sometimes', 'in:active,inactive'],
             'locked' => ['sometimes', 'boolean'],

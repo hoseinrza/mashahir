@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* Revives the animate-in / fade-in / slide-in-from-* utilities used across
+   the shell (Tailwind v4 has no animation plugin bundled). */
+@import "tw-animate-css";
+/* Self-hosted Vazirmatn — bundled into the build so WKWebView/offline PWA
+   never depends on the Google Fonts CDN. */
+@import "@fontsource-variable/vazirmatn";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -34,7 +40,7 @@
   }
 
   * {
-    font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Vazirmatn Variable', 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   /* Prevent unexpected horizontal page overflow across mobile devices */
@@ -42,11 +48,39 @@
     overflow-x: hidden;
     scroll-behavior: smooth;
   }
+
+  body {
+    /* No rubber-band bounce at the document level — each column scrolls
+       on its own (iOS Safari / WKWebView). */
+    overscroll-behavior-y: none;
+    /* No gray tap flash on iOS touch. */
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ── iOS safe-area helpers (index.html ships viewport-fit=cover) ─────── */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.px-safe { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* Dock: clear the home indicator (12px gap + inset). */
+.dock-bottom {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
 }
 
 /* Tabular figures for tables, metrics, dates, and scores */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ── iOS input auto-zoom ───────────────────────────────────────────────
+   Safari/WKWebView zooms the whole page when a focused control's font is
+   under 16px. On phones raise every form control to 16px — the standard
+   mobile sizing — while desktop keeps its compact classes. */
+@media (max-width: 639px) {
+  input, select, textarea {
+    font-size: 1rem !important;
+  }
 }
 
 /* Smooth custom scrollbars for RTL dashboards */

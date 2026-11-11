@@ -12,10 +12,14 @@ import { ApiError } from '../api/client';
 const PREF_TYPES: { type: string; label: string }[] = [
   { type: 'attendance.absence', label: 'پیامک ثبت غیبت در آغاز ساعت کلاسی' },
   { type: 'attendance.late', label: 'پیامک ثبت تأخیر ورود' },
+  { type: 'transport.bus_absent', label: 'سوارنشدن دانش‌آموز در سرویس مدرسه' },
   { type: 'exam.published', label: 'اطلاع‌رسانی آزمون‌های آنلاین منتشرشده' },
   { type: 'assignment.created', label: 'اطلاع‌رسانی تکلیف جدید کلاس' },
   { type: 'consent.request', label: 'درخواست رضایت‌نامه و اردو' },
   { type: 'announcement', label: 'بخشنامه و اطلاعیهٔ رسمی مدرسه' },
+  { type: 'counseling.requested', label: 'درخواست جدید نوبت مشاوره (برای مشاور)' },
+  { type: 'pta.meeting_created', label: 'جلسهٔ جدید انجمن اولیا و مربیان' },
+  { type: 'pta.survey_created', label: 'نظرسنجی جدید انجمن اولیا و مربیان' },
 ];
 
 const firstError = (e: unknown, fallback: string): string =>

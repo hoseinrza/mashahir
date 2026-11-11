@@ -221,15 +221,17 @@ export const LoginPage: React.FC = () => {
 
       {/* ── Form side ── */}
       <main className="flex-1 flex flex-col relative">
-        <div className="flex items-center justify-between px-5 lg:px-8 h-16 border-b border-[#DCE3EE] dark:border-[#223147]">
-          <div className="lg:hidden flex items-center gap-2">
-            <SchoolLogo className="w-8 h-8" />
-            <span className="text-sm font-bold">مشاهیر آینده</span>
+        <div className="pt-[env(safe-area-inset-top)] border-b border-[#DCE3EE] dark:border-[#223147]">
+          <div className="flex items-center justify-between px-5 lg:px-8 h-16">
+            <div className="lg:hidden flex items-center gap-2">
+              <SchoolLogo className="w-8 h-8" />
+              <span className="text-sm font-bold">مشاهیر آینده</span>
+            </div>
+            <Link to="/" className="hidden lg:flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-[#2457C5] transition-colors">
+              <ArrowRight size={14} /> صفحه معرفی
+            </Link>
+            {themeBtn}
           </div>
-          <Link to="/" className="hidden lg:flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-[#2457C5] transition-colors">
-            <ArrowRight size={14} /> صفحه معرفی
-          </Link>
-          {themeBtn}
         </div>
 
         <div className="flex-1 flex items-center justify-center p-5">

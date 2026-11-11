@@ -93,6 +93,8 @@ class GuardianLinksApiController extends Controller
             'can_pickup' => ['sometimes', 'boolean'],
             'can_receive_sms' => ['sometimes', 'boolean'],
             'ends_on' => ['sometimes', 'nullable', 'date'],
+            'verification_file_id' => ['sometimes', 'nullable', 'integer'],
+            'admin_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'reason' => ['required', 'string', 'min:5'],
         ]);
 
@@ -126,6 +128,8 @@ class GuardianLinksApiController extends Controller
             'can_approve_consent' => ['sometimes', 'boolean'],
             'can_pickup' => ['sometimes', 'boolean'],
             'can_receive_sms' => ['sometimes', 'boolean'],
+            'verification_file_id' => ['sometimes', 'nullable', 'integer'],
+            'admin_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'reason' => ['required', 'string', 'min:5'],
         ]);
 

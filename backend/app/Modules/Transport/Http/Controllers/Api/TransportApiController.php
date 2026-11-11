@@ -4,7 +4,12 @@ namespace App\Modules\Transport\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
+use App\Modules\Identity\Models\User;
+use App\Modules\Notifications\Models\Notification;
+use App\Modules\Notifications\Services\NotificationService;
+use App\Modules\People\Models\GuardianLink;
 use App\Modules\People\Models\Student;
+use App\Modules\People\Services\GuardianAccessService;
 use App\Modules\Transport\Models\BusAssignment;
 use App\Modules\Transport\Models\BusBoarding;
 use App\Modules\Transport\Models\BusRoute;
@@ -21,8 +26,11 @@ use Illuminate\Validation\ValidationException;
  */
 class TransportApiController extends Controller
 {
-    public function __construct(private readonly AuditService $audit)
-    {
+    public function __construct(
+        private readonly AuditService $audit,
+        private readonly NotificationService $notifications,
+        private readonly GuardianAccessService $access,
+    ) {
     }
 
     public function index(): JsonResponse
@@ -320,12 +328,50 @@ class TransportApiController extends Controller
             ],
         );
 
+        // A learner who did not board the morning bus is a safety concern:
+        // every guardian with an effective can_receive_sms flag is alerted
+        // (school-mandatory — bypasses opt-outs like attendance.absence).
+        if ($data['direction'] === BusBoarding::DIRECTION_IN && $data['status'] === BusBoarding::STATUS_ABSENT) {
+            $this->notifyBusAbsence($route, $student);
+        }
+
         return response()->json([
             'student_ulid' => $student->ulid,
             'direction' => $boarding->direction,
             'status' => $boarding->status,
             'recorded_at' => $boarding->recorded_at?->toIso8601String(),
         ]);
+    }
+
+    private function notifyBusAbsence(BusRoute $route, Student $student): void
+    {
+        $links = GuardianLink::query()
+            ->where('student_id', $student->id)
+            ->usable()
+            ->with('guardian')
+            ->get();
+
+        foreach ($links as $link) {
+            if (! $this->access->effectiveFlags($link)['can_receive_sms']) {
+                continue;
+            }
+
+            $guardian = $link->guardian;
+            if ($guardian === null) {
+                continue;
+            }
+
+            $this->notifications->notify(
+                $guardian,
+                $student->id,
+                'transport.bus_absent',
+                "سرویس مدرسه: {$student->fullName()} سوار نشد",
+                "خط {$route->title} — ".now()->format('Y-m-d'),
+                null,
+                Notification::IMPORTANCE_IMPORTANT,
+                ['in_app', 'sms'],
+            );
+        }
     }
 
     private function routePayload(BusRoute $route): array

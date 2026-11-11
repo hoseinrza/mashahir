@@ -22,6 +22,9 @@ class UsersApiController extends Controller
 
         $users = User::query()
             ->whereHas('userRoles', fn ($q) => $q->where('school_id', $request->attributes->get('school_id')))
+            ->with(['userRoles' => fn ($q) => $q->active()
+                ->where('school_id', $request->attributes->get('school_id'))
+                ->with('role')])
             ->orderBy('last_name')
             ->paginate(min($request->integer('per_page', 50), 100));
 

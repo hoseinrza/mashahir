@@ -183,7 +183,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0c1322]/90 backdrop-blur-xl border-b border-[#DCE3EE] dark:border-[#223147] transition-all duration-200 shadow-2xs">
+      {/* pt: with viewport-fit=cover the frosted glass extends under the
+          status bar/notch; the controls row stays below it. */}
+      <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0c1322]/90 backdrop-blur-xl pt-[env(safe-area-inset-top)] border-b border-[#DCE3EE] dark:border-[#223147] transition-all duration-200 shadow-2xs">
         <div className="flex items-center justify-between gap-3 sm:gap-6 max-w-7xl mx-auto px-4 lg:px-8 h-16">
           
           {/* Right Zone: Mobile Toggle & School Brand */}

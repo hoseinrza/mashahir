@@ -4,11 +4,15 @@ namespace App\Modules\Pta\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
+use App\Modules\Notifications\Models\Notification;
+use App\Modules\Notifications\Services\NotificationService;
 use App\Modules\Pta\Models\PtaMeeting;
 use App\Modules\Pta\Models\PtaSurvey;
 use App\Modules\Pta\Models\PtaVote;
+use App\Modules\People\Models\Student;
 use App\Support\Rbac\PermissionRegistrar;
 use App\Support\Rbac\ScopeResolver;
+use App\Support\Jalali;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -24,6 +28,7 @@ class PtaApiController extends Controller
         private readonly ScopeResolver $resolver,
         private readonly PermissionRegistrar $registrar,
         private readonly AuditService $audit,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -67,6 +72,12 @@ class PtaApiController extends Controller
         ]);
 
         $this->audit->log('pta.meeting_created', $meeting, new: ['title' => $meeting->title]);
+
+        $this->notifyGuardians(
+            'pta.meeting_created',
+            "جلسهٔ انجمن اولیا: {$meeting->title}",
+            Jalali::dateTime($meeting->held_at).($meeting->location ? ' — '.$meeting->location : ''),
+        );
 
         return response()->json($this->meetingPayload($meeting), 201);
     }
@@ -156,6 +167,14 @@ class PtaApiController extends Controller
 
         $this->audit->log('pta.survey_created', $survey, new: ['title' => $survey->title]);
 
+        $this->notifyGuardians(
+            'pta.survey_created',
+            "نظرسنجی جدید انجمن: {$survey->title}",
+            $survey->closes_at !== null
+                ? 'تا '.Jalali::dateTime($survey->closes_at).' فرصت دارید رأی دهید.'
+                : 'لطفاً در نظرسنجی شرکت کنید.',
+        );
+
         return response()->json($this->surveyPayload($survey->fresh('votes'), null, true), 201);
     }
 
@@ -241,6 +260,31 @@ class PtaApiController extends Controller
         $anchor = $studentIds === [] ? null : min(array_map('intval', $studentIds));
 
         return $anchor === null ? 'u:'.$userId : 's:'.$anchor;
+    }
+
+    /**
+     * School-wide guardian fan-out for new meetings/surveys — in-app only;
+     * SMS stays reserved for safety alerts (sh14).
+     */
+    private function notifyGuardians(string $type, string $title, string $body): void
+    {
+        $studentIds = Student::query()
+            ->where('school_id', app(\App\Support\SchoolContext::class)->schoolId())
+            ->pluck('id')
+            ->all();
+
+        if ($studentIds === []) {
+            return;
+        }
+
+        $this->notifications->notifyGuardiansOfLearners(
+            $studentIds,
+            $type,
+            $title,
+            $body,
+            '/pta',
+            Notification::IMPORTANCE_IMPORTANT,
+        );
     }
 
     private function meetingPayload(PtaMeeting $meeting): array

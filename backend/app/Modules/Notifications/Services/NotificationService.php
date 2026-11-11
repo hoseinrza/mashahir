@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
 final class NotificationService
 {
     /** sh14: the school's mandatory alerts cannot be muted. */
-    public const MANDATORY_TYPES = ['attendance.absence', 'attendance.late'];
+    public const MANDATORY_TYPES = ['attendance.absence', 'attendance.late', 'transport.bus_absent'];
 
     public function notify(
         User $user,

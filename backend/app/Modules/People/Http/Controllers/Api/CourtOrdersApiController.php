@@ -45,10 +45,14 @@ class CourtOrdersApiController extends Controller
                 'id' => $order->id,
                 'student_ulid' => $order->student?->ulid,
                 'restrictions' => $order->restrictions,
+                'ruling_number' => $order->ruling_number,
+                'issuing_authority' => $order->issuing_authority,
                 'valid_from' => $order->valid_from?->toDateString(),
                 'valid_to' => $order->valid_to?->toDateString(),
-                // sh16: summary only — the document reference stays hidden.
+                // sh16: summary only — the document reference and the ruling
+                // narrative stay hidden.
                 'file' => $summaryOnly ? null : $order->file?->ulid,
+                'description' => $summaryOnly ? null : $order->description,
             ]),
             'summary_only' => $summaryOnly,
         ]);
@@ -68,6 +72,9 @@ class CourtOrdersApiController extends Controller
             'restrictions' => ['nullable', 'array'],
             'restrictions.*' => ['boolean'],
             'file_id' => ['nullable', 'integer'],
+            'ruling_number' => ['nullable', 'string', 'max:100'],
+            'issuing_authority' => ['nullable', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:5000'],
             'valid_from' => ['nullable', 'date'],
             'valid_to' => ['nullable', 'date', 'after_or_equal:valid_from'],
             'reason' => ['required', 'string', 'min:5'],
@@ -91,6 +98,9 @@ class CourtOrdersApiController extends Controller
             'guardian_link_id' => $data['guardian_link_id'] ?? null,
             'restrictions' => $data['restrictions'] ?? null,
             'file_id' => $data['file_id'] ?? null,
+            'ruling_number' => $data['ruling_number'] ?? null,
+            'issuing_authority' => $data['issuing_authority'] ?? null,
+            'description' => $data['description'] ?? null,
             'valid_from' => $data['valid_from'] ?? null,
             'valid_to' => $data['valid_to'] ?? null,
             'registered_by' => $request->user()->id,
@@ -112,12 +122,15 @@ class CourtOrdersApiController extends Controller
         $data = $request->validate([
             'restrictions' => ['sometimes', 'array'],
             'restrictions.*' => ['boolean'],
+            'ruling_number' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'issuing_authority' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'valid_from' => ['sometimes', 'nullable', 'date'],
             'valid_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:valid_from'],
             'reason' => ['required', 'string', 'min:5'],
         ]);
 
-        $old = $order->only(['restrictions', 'valid_from', 'valid_to']);
+        $old = $order->only(['restrictions', 'valid_from', 'valid_to', 'ruling_number', 'issuing_authority', 'description']);
 
         $order->update(collect($data)->except(['reason'])->all());
 
@@ -132,6 +145,9 @@ class CourtOrdersApiController extends Controller
         return response()->json([
             'id' => $order->id,
             'restrictions' => $order->restrictions,
+            'ruling_number' => $order->ruling_number,
+            'issuing_authority' => $order->issuing_authority,
+            'description' => $order->description,
             'valid_from' => $order->valid_from?->toDateString(),
             'valid_to' => $order->valid_to?->toDateString(),
         ]);

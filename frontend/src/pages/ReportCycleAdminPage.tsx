@@ -553,28 +553,30 @@ const SubmissionCards: React.FC<{ periodUlid: string; submissionUlid: string }> 
       {data.groups.map((g) => (
         <div key={g.classroomSubjectId} className="space-y-2">
           <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">{g.subject} — {g.classroom}</div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-400 border-b border-[#E8EDF5] dark:border-[#223147]">
-                <th className="p-2 text-right font-medium">دانش‌آموز</th>
-                <th className="p-2 text-center font-medium">نمره</th>
-                <th className="p-2 text-center font-medium">ارزشیابی</th>
-                <th className="p-2 text-right font-medium">توضیح معلم</th>
-              </tr>
-            </thead>
-            <tbody>
-              {g.rows.map((r) => (
-                <tr key={r.studentUlid} className="border-b border-[#F0F4FA] dark:border-[#182338] last:border-0">
-                  <td className="p-2">{r.studentName}</td>
-                  <td className="p-2 text-center font-bold text-[#2457C5] dark:text-[#8BAEFF]">
-                    {r.score === null ? '—' : `${toPersianDigits(r.score)} از ${toPersianDigits(r.maxScore ?? 20)}`}
-                  </td>
-                  <td className="p-2 text-center">{r.evaluation ?? '—'}</td>
-                  <td className="p-2 text-slate-500 dark:text-slate-400">{r.notes ?? '—'}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[420px]">
+              <thead>
+                <tr className="text-slate-400 border-b border-[#E8EDF5] dark:border-[#223147]">
+                  <th className="p-2 text-right font-medium">دانش‌آموز</th>
+                  <th className="p-2 text-center font-medium">نمره</th>
+                  <th className="p-2 text-center font-medium">ارزشیابی</th>
+                  <th className="p-2 text-right font-medium">توضیح معلم</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {g.rows.map((r) => (
+                  <tr key={r.studentUlid} className="border-b border-[#F0F4FA] dark:border-[#182338] last:border-0">
+                    <td className="p-2">{r.studentName}</td>
+                    <td className="p-2 text-center font-bold text-[#2457C5] dark:text-[#8BAEFF]">
+                      {r.score === null ? '—' : `${toPersianDigits(r.score)} از ${toPersianDigits(r.maxScore ?? 20)}`}
+                    </td>
+                    <td className="p-2 text-center">{r.evaluation ?? '—'}</td>
+                    <td className="p-2 text-slate-500 dark:text-slate-400">{r.notes ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
     </div>

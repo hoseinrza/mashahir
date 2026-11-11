@@ -17,6 +17,7 @@ class CourtOrder extends Model
     protected $fillable = [
         'guardian_link_id', 'student_id', 'restrictions', 'file_id',
         'registered_by', 'valid_from', 'valid_to',
+        'ruling_number', 'issuing_authority', 'description',
     ];
 
     protected function casts(): array

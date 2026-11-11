@@ -413,7 +413,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   );
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-[#F4F6FA] dark:bg-[#0A111D] text-[#202B3C] dark:text-[#F1F5FB]">
+    <div className="h-dvh overflow-hidden flex flex-col bg-[#F4F6FA] dark:bg-[#0A111D] text-[#202B3C] dark:text-[#F1F5FB]">
       {schoolSwitched && (
         <div className="bg-emerald-600 dark:bg-emerald-700 text-white text-xs font-bold text-center py-2 px-4 shrink-0">
           ورود به {activeSchoolName ?? 'واحد آموزشی جدید'} انجام شد — داده‌ها برای این مدرسه بارگذاری شدند.
@@ -438,14 +438,16 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
         {/* ── Main column: header on top, content scrolls under it ── */}
         <div className="flex-1 min-w-0 h-full flex flex-col">
-          <div className="shrink-0 bg-white/85 dark:bg-[#0C1424]/85 backdrop-blur-xl border-b border-[#E3EAF4] dark:border-[#1B2739]">
+          {/* Visuals (glass, blur, border) live on the header itself — a
+              second translucent layer here doubled the blur on iOS. */}
+          <div className="shrink-0">
             <DashboardHeader onToggleMobileMenu={() => setIsMobileMenuOpen(true)} />
           </div>
           <main className="flex-1 min-h-0 overflow-y-auto scroll-smooth">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10">
               {children}
             </div>
-            <footer className="border-t border-[#E9EEF5] dark:border-[#16202F] py-5 px-4 text-center text-[11px] text-[#8CA0BC] dark:text-[#5E7391]">
+            <footer className="border-t border-[#E9EEF5] dark:border-[#16202F] py-5 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-5 text-center text-[11px] text-[#8CA0BC] dark:text-[#5E7391]">
               <div className="max-w-7xl mx-auto">
                 <p>© سال تحصیلی ۱۴۰۵-۱۴۰۶ — مجتمع آموزشی مشاهیر آینده</p>
               </div>
@@ -458,7 +460,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="relative z-10 w-[290px] max-w-[86%] h-full bg-white dark:bg-[#0D1523] shadow-2xl flex flex-col border-l border-[#E3EAF4] dark:border-[#1B2739]">
+          <div className="relative z-10 w-[290px] max-w-[86%] h-full bg-white dark:bg-[#0D1523] shadow-2xl flex flex-col border-l border-[#E3EAF4] dark:border-[#1B2739] pt-safe">
             <div className="px-4 pt-5 pb-3 flex items-center justify-between shrink-0">
               {brandBlock}
               <button
@@ -471,7 +473,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
             <div className="px-3 pb-3 shrink-0">{userCard}</div>
             <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-3 pb-4">{renderNav(() => setIsMobileMenuOpen(false))}</div>
-            <div className="shrink-0 px-3 pb-4 pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739]">
+            <div className="shrink-0 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 border-t border-[#EEF2F9] dark:border-[#1B2739]">
               <button
                 onClick={() => logout()}
                 className="w-full flex items-center justify-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
@@ -493,7 +495,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         const activeIdx = tabs.findIndex((t) => location.pathname === t.href);
         const slot = 100 / (tabs.length + 1); // +1 برای دکمهٔ منوی کامل
         return (
-          <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40 animate-in slide-in-from-bottom-6 fade-in duration-700">
+          <div className="lg:hidden fixed dock-bottom left-3 right-3 z-40 animate-in slide-in-from-bottom-6 fade-in duration-700">
             <div className="relative bg-white/92 dark:bg-[#0C1424]/95 backdrop-blur-xl border border-[#E3EAF4] dark:border-[#1B2739] rounded-[24px] shadow-xl shadow-black/10 dark:shadow-black/50 px-1.5 py-1.5 flex items-stretch">
               {/* gliding pill — springs to the active tab */}
               {activeIdx >= 0 && (

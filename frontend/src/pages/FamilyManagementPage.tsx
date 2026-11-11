@@ -83,12 +83,17 @@ export const FamilyManagementPage: React.FC = () => {
   const [linkFlags, setLinkFlags] = useState<GuardianFlags>(EMPTY_FLAGS);
   const [linkType, setLinkType] = useState('primary');
   const [linkReason, setLinkReason] = useState('');
+  const [linkAdminNote, setLinkAdminNote] = useState('');
+  const [linkVerifFileId, setLinkVerifFileId] = useState('');
 
   const [endTarget, setEndTarget] = useState<GuardianLinkRow | null>(null);
   const [endReason, setEndReason] = useState('');
 
   const [isCourtModalOpen, setIsCourtModalOpen] = useState(false);
   const [courtDenied, setCourtDenied] = useState<Partial<Record<keyof GuardianFlags, boolean>>>({});
+  const [courtNumber, setCourtNumber] = useState('');
+  const [courtAuthority, setCourtAuthority] = useState('');
+  const [courtDescription, setCourtDescription] = useState('');
   const [courtFrom, setCourtFrom] = useState('');
   const [courtTo, setCourtTo] = useState('');
   const [courtReason, setCourtReason] = useState('');
@@ -96,6 +101,9 @@ export const FamilyManagementPage: React.FC = () => {
   // Editing an existing court order (sh7: still reason-logged).
   const [editOrder, setEditOrder] = useState<CourtOrderRow | null>(null);
   const [editDenied, setEditDenied] = useState<Partial<Record<keyof GuardianFlags, boolean>>>({});
+  const [editNumber, setEditNumber] = useState('');
+  const [editAuthority, setEditAuthority] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editFrom, setEditFrom] = useState('');
   const [editTo, setEditTo] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -103,6 +111,7 @@ export const FamilyManagementPage: React.FC = () => {
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [pkName, setPkName] = useState('');
   const [pkPhone, setPkPhone] = useState('');
+  const [pkNational, setPkNational] = useState('');
   const [pkRelation, setPkRelation] = useState('');
   const [pkReason, setPkReason] = useState('');
 
@@ -177,6 +186,8 @@ export const FamilyManagementPage: React.FC = () => {
   const openLinkModal = (mode: 'approve' | 'edit', link: GuardianLinkRow) => {
     setLinkFlags({ ...link.flags });
     setLinkType(link.linkType || 'primary');
+    setLinkAdminNote(link.adminNote ?? '');
+    setLinkVerifFileId('');
     setLinkReason('');
     setActionError(null);
     setLinkModal({ mode, link });
@@ -189,7 +200,13 @@ export const FamilyManagementPage: React.FC = () => {
     setIsSaving(true);
     setActionError(null);
     try {
-      const payload = { flags: linkFlags, linkType, reason: linkReason.trim() };
+      const payload = {
+        flags: linkFlags,
+        linkType,
+        reason: linkReason.trim(),
+        verificationFileId: linkVerifFileId.trim() ? Number(linkVerifFileId.trim()) : null,
+        adminNote: linkAdminNote.trim() || null,
+      };
       if (linkModal.mode === 'approve') {
         await ApiFamilyService.approveLink(linkModal.link.id, payload);
       } else {
@@ -240,12 +257,18 @@ export const FamilyManagementPage: React.FC = () => {
       await ApiFamilyService.createCourtOrder({
         studentUlid: selectedStudent,
         restrictions: Object.fromEntries(denied.map((key) => [key, false])),
+        rulingNumber: courtNumber.trim() || null,
+        issuingAuthority: courtAuthority.trim() || null,
+        description: courtDescription.trim() || null,
         validFrom: courtFrom || null,
         validTo: courtTo || null,
         reason: courtReason.trim(),
       });
       setIsCourtModalOpen(false);
       setCourtDenied({});
+      setCourtNumber('');
+      setCourtAuthority('');
+      setCourtDescription('');
       setCourtFrom('');
       setCourtTo('');
       setCourtReason('');
@@ -264,6 +287,9 @@ export const FamilyManagementPage: React.FC = () => {
     });
 
     setEditDenied(denied);
+    setEditNumber(order.rulingNumber ?? '');
+    setEditAuthority(order.issuingAuthority ?? '');
+    setEditDescription(order.description ?? '');
     setEditFrom(order.validFrom ?? '');
     setEditTo(order.validTo ?? '');
     setEditReason('');
@@ -288,6 +314,9 @@ export const FamilyManagementPage: React.FC = () => {
     try {
       await ApiFamilyService.updateCourtOrder(editOrder.id, {
         restrictions: Object.fromEntries(denied.map((key) => [key, false])),
+        rulingNumber: editNumber.trim() || null,
+        issuingAuthority: editAuthority.trim() || null,
+        description: editDescription.trim() || null,
         validFrom: editFrom || null,
         validTo: editTo || null,
         reason: editReason.trim(),
@@ -312,6 +341,7 @@ export const FamilyManagementPage: React.FC = () => {
       const result = await ApiFamilyService.createPickup(selectedStudent, {
         fullName: pkName.trim(),
         phone: pkPhone.trim(),
+        nationalId: pkNational.trim() || undefined,
         relation: pkRelation.trim() || undefined,
         reason: pkReason.trim(),
       });
@@ -319,6 +349,7 @@ export const FamilyManagementPage: React.FC = () => {
       setIsPickupModalOpen(false);
       setPkName('');
       setPkPhone('');
+      setPkNational('');
       setPkRelation('');
       setPkReason('');
       setPickupsReload((k) => k + 1);
@@ -537,6 +568,15 @@ export const FamilyManagementPage: React.FC = () => {
                         );
                       })}
                     </div>
+
+                    {(link.adminNote || link.verificationFileUlid) && (
+                      <div className="mt-3 space-y-1 text-[10px] text-[#526176] dark:text-[#B3C0D2] border-t border-dashed border-[#DCE3EE] dark:border-[#344257] pt-2">
+                        {link.verificationFileUlid && (
+                          <p dir="ltr" className="font-mono text-right">مدرک راستی‌آزمایی: {link.verificationFileUlid}</p>
+                        )}
+                        {link.adminNote && <p>یادداشت اداری: {link.adminNote}</p>}
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -590,11 +630,17 @@ export const FamilyManagementPage: React.FC = () => {
               return (
                 <Card key={order.id} className="text-right border-red-200 dark:border-red-900/50">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#DCE3EE] dark:border-[#344257]">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="danger">حکم لازم‌الاجرا قضایی</Badge>
                       <span className="text-xs text-[#526176] dark:text-[#B3C0D2]">
                         اعتبار: {formatJalaliDate(order.validFrom)} تا {formatJalaliDate(order.validTo)}
                       </span>
+                      {order.rulingNumber && (
+                        <span className="text-[11px] text-slate-500">دادنامه: {order.rulingNumber}</span>
+                      )}
+                      {order.issuingAuthority && (
+                        <span className="text-[11px] text-slate-500">مرجع: {order.issuingAuthority}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {order.fileUlid && (
@@ -605,6 +651,10 @@ export const FamilyManagementPage: React.FC = () => {
                       </Button>
                     </div>
                   </div>
+
+                  {order.description && (
+                    <p className="pt-2 text-xs text-[#526176] dark:text-[#B3C0D2]">شرح حکم: {order.description}</p>
+                  )}
 
                   <div className="pt-3">
                     <span className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB] block mb-2">
@@ -668,6 +718,9 @@ export const FamilyManagementPage: React.FC = () => {
                       <div>
                         <h4 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]">{pk.fullName}</h4>
                         <span className="text-[11px] text-[#526176] dark:text-[#B3C0D2]">{pk.relation ?? 'نسبت ثبت نشده'}</span>
+                        {pk.nationalId && (
+                          <span className="block text-[11px] text-slate-500 font-mono" dir="ltr">کد ملی: {pk.nationalId}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -739,13 +792,35 @@ export const FamilyManagementPage: React.FC = () => {
             ))}
           </div>
 
+          <FormField label="شناسهٔ فایل مدرک راستی‌آزمایی (اختیاری)">
+            <input
+              type="number"
+              min={1}
+              dir="ltr"
+              value={linkVerifFileId}
+              onChange={(e) => setLinkVerifFileId(e.target.value)}
+              placeholder="شناسهٔ فایل بارگذاری‌شده در سامانه"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+            />
+          </FormField>
+
+          <FormField label="یادداشت اداری (فقط کادر مدرسه می‌بیند)">
+            <textarea
+              rows={2}
+              value={linkAdminNote}
+              onChange={(e) => setLinkAdminNote(e.target.value)}
+              placeholder="مثال: اصل حکم در پروندهٔ دبیرستان ملاحظه شد."
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
           <FormField label="دلیل تغییر مجوزها (درج در لاگ حساس)" required>
             <textarea
               rows={3}
               required
               value={linkReason}
               onChange={(e) => setLinkReason(e.target.value)}
-              placeholder="مثال: توافق‌نامه رسمی والدین / دادنامه جدید شعبه..."
+              placeholder="مثال: توافق‌نامهٔ رسمی والدین / دادنامهٔ جدید شعبه..."
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             />
           </FormField>
@@ -816,6 +891,38 @@ export const FamilyManagementPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="شمارهٔ دادنامه (اختیاری)">
+              <input
+                type="text"
+                dir="ltr"
+                value={courtNumber}
+                onChange={(e) => setCourtNumber(e.target.value)}
+                placeholder="مثال: ۱۴۰۵/۲۴/۹۹۲"
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+              />
+            </FormField>
+            <FormField label="مرجع صادرکننده (اختیاری)">
+              <input
+                type="text"
+                value={courtAuthority}
+                onChange={(e) => setCourtAuthority(e.target.value)}
+                placeholder="مثال: شعبهٔ ۲۴ دادگاه خانوادهٔ تهران"
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+              />
+            </FormField>
+          </div>
+
+          <FormField label="شرح حکم (اختیاری)">
+            <textarea
+              rows={2}
+              value={courtDescription}
+              onChange={(e) => setCourtDescription(e.target.value)}
+              placeholder="خلاصهٔ مفاد دادنامه برای پروندهٔ مدرسه"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="اعتبار از تاریخ (اختیاری)">
               <JalaliDatePicker value={courtFrom} onChange={setCourtFrom} placeholder="بدون محدودیت شروع" />
             </FormField>
@@ -868,6 +975,35 @@ export const FamilyManagementPage: React.FC = () => {
               </label>
             ))}
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="شمارهٔ دادنامه">
+              <input
+                type="text"
+                dir="ltr"
+                value={editNumber}
+                onChange={(e) => setEditNumber(e.target.value)}
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+              />
+            </FormField>
+            <FormField label="مرجع صادرکننده">
+              <input
+                type="text"
+                value={editAuthority}
+                onChange={(e) => setEditAuthority(e.target.value)}
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+              />
+            </FormField>
+          </div>
+
+          <FormField label="شرح حکم">
+            <textarea
+              rows={2}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="اعتبار از تاریخ">
@@ -928,6 +1064,18 @@ export const FamilyManagementPage: React.FC = () => {
                 value={pkPhone}
                 onChange={(e) => setPkPhone(e.target.value)}
                 placeholder="0912..."
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+              />
+            </FormField>
+
+            <FormField label="کد ملی (برای احراز در محل تحویل)">
+              <input
+                type="text"
+                dir="ltr"
+                value={pkNational}
+                onChange={(e) => setPkNational(e.target.value)}
+                placeholder="**********"
+                maxLength={20}
                 className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
               />
             </FormField>

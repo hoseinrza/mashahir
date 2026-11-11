@@ -28,6 +28,9 @@ class GuardianLinkResource extends JsonResource
                 'ulid' => $this->guardian?->ulid,
                 'name' => $this->guardian?->fullName(),
             ]),
+            // Office-side verification material is staff-only too.
+            'verification_file_ulid' => $this->when(! $isGuardianViewer, fn () => $this->verificationFile?->ulid),
+            'admin_note' => $this->when(! $isGuardianViewer, fn () => $this->admin_note),
         ];
     }
 }

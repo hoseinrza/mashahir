@@ -32,6 +32,7 @@ class GuardianLink extends Model
         'can_view_grades', 'can_view_attendance', 'can_approve_consent',
         'can_pickup', 'can_receive_sms',
         'status', 'approved_by', 'ends_on',
+        'verification_file_id', 'admin_note',
     ];
 
     protected function casts(): array
@@ -55,6 +56,11 @@ class GuardianLink extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function verificationFile(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Files\Models\File::class, 'verification_file_id');
     }
 
     /**

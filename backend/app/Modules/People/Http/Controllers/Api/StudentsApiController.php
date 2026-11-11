@@ -21,7 +21,9 @@ class StudentsApiController extends Controller
     {
         $this->authorize('viewAny', Student::class);
 
-        $query = $this->resolver->applyStudentScope(Student::query()->orderBy('last_name'));
+        $query = $this->resolver->applyStudentScope(Student::query()->orderBy('last_name'))
+            // The current classroom for the roster tables (active enrollment only).
+            ->with(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom')]);
 
         return StudentResource::collection(
             $query->paginate(min($request->integer('per_page', 50), 100)),
@@ -34,6 +36,8 @@ class StudentsApiController extends Controller
         if (! $request->user()->can('view', $student)) {
             abort(404);
         }
+
+        $student->load(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom')]);
 
         return new StudentResource($student);
     }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">مشاهیر آینده</string>
+    <string name="title_activity_main">مشاهیر آینده</string>
+    <string name="package_name">ir.mashahir.school</string>
+    <string name="custom_url_scheme">ir.mashahir.school</string>
+</resources>

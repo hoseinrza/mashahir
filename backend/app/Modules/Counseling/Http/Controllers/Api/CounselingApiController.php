@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Counseling\Models\CounselingAppointment;
 use App\Modules\Identity\Models\User;
+use App\Modules\Notifications\Models\Notification;
+use App\Modules\Notifications\Services\NotificationService;
 use App\Modules\People\Models\Student;
 use App\Support\Rbac\PermissionRegistrar;
 use App\Support\Rbac\ScopeResolver;
@@ -24,6 +26,7 @@ class CounselingApiController extends Controller
         private readonly ScopeResolver $resolver,
         private readonly PermissionRegistrar $registrar,
         private readonly AuditService $audit,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -84,6 +87,30 @@ class CounselingApiController extends Controller
         ]);
 
         $this->audit->log('counseling.requested', $student, new: ['appointment_id' => $appointment->id]);
+
+        // Every staff member whose active role holds counseling.manage follows
+        // the request bench (school_admin + support, plus any custom role).
+        $counselors = User::query()
+            ->whereHas('userRoles', fn ($q) => $q->active()
+                ->where('school_id', $student->school_id)
+                ->whereHas('role.permissions', fn ($p) => $p->where('key', 'counseling.manage')))
+            ->get();
+
+        foreach ($counselors as $counselor) {
+            if ($counselor->id === $request->user()->id) {
+                continue;
+            }
+
+            $this->notifications->notify(
+                $counselor,
+                $student->id,
+                'counseling.requested',
+                "درخواست مشاورهٔ جدید: {$student->fullName()}",
+                $data['topic'],
+                '/counseling',
+                Notification::IMPORTANCE_IMPORTANT,
+            );
+        }
 
         return response()->json(
             $this->payload($appointment->fresh(['student', 'counselor', 'requester']), false),

@@ -15,6 +15,16 @@ export interface UserRow {
   fullName: string;
   phone: string | null;
   status: string;
+  roles: UserRoleAssignment[];
+}
+
+/** One active role assignment of a user in the viewing school. */
+export interface UserRoleAssignment {
+  userRoleId: number;
+  roleKey: string | null;
+  roleTitle: string | null;
+  scopeType: string;
+  endsOn: string | null;
 }
 
 export interface StudentRow {
@@ -25,6 +35,7 @@ export interface StudentRow {
   fullName: string;
   status: string;
   birthDate: string | null;
+  classroomTitle: string | null;
 }
 
 /** Backend role keys → the titles the personnel office reads. */
@@ -52,6 +63,13 @@ export const ApiUserService = {
       fullName: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(),
       phone: u.phone ?? null,
       status: u.status ?? 'active',
+      roles: (u.roles ?? []).map((r: any) => ({
+        userRoleId: r.user_role_id,
+        roleKey: r.role_key ?? null,
+        roleTitle: r.role_title ?? null,
+        scopeType: r.scope_type ?? 'school',
+        endsOn: r.ends_on ?? null,
+      })),
     }));
   },
 
@@ -81,6 +99,17 @@ export const ApiUserService = {
     });
   },
 
+  /** sh7: ending a role is reason-logged and audited (backend endRole). */
+  async endRole(ulid: string, userRoleId: number, payload: { reason: string; endsOn?: string | null }): Promise<void> {
+    await api(`/v1/users/${ulid}/roles/${userRoleId}`, {
+      method: 'DELETE',
+      body: {
+        reason: payload.reason,
+        ...(payload.endsOn ? { ends_on: payload.endsOn } : {}),
+      },
+    });
+  },
+
   async listStudents(): Promise<StudentRow[]> {
     const result = await api<{ data: any[] }>('/v1/students?per_page=100');
     return (result.data ?? []).map((s) => ({
@@ -91,6 +120,7 @@ export const ApiUserService = {
       fullName: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
       status: s.status ?? 'active',
       birthDate: s.birth_date ?? null,
+      classroomTitle: s.classroom_title ?? null,
     }));
   },
 
@@ -314,12 +344,17 @@ export interface GuardianLinkRow {
   status: 'pending' | 'active' | 'ended' | 'rejected' | string;
   endsOn: string | null;
   flags: GuardianFlags;
+  verificationFileUlid: string | null;
+  adminNote: string | null;
 }
 
 export interface CourtOrderRow {
   id: number;
   studentUlid: string | null;
   restrictions: Partial<GuardianFlags>;
+  rulingNumber: string | null;
+  issuingAuthority: string | null;
+  description: string | null;
   validFrom: string | null;
   validTo: string | null;
   fileUlid: string | null;
@@ -328,6 +363,7 @@ export interface CourtOrderRow {
 export interface PickupRow {
   id: number;
   fullName: string;
+  nationalId: string | null;
   relation: string | null;
   status: 'active' | 'inactive' | string;
   locked: boolean;
@@ -338,6 +374,9 @@ const mapCourtOrder = (o: any): CourtOrderRow => ({
   id: o.id,
   studentUlid: o.student_ulid ?? null,
   restrictions: o.restrictions ?? {},
+  rulingNumber: o.ruling_number ?? null,
+  issuingAuthority: o.issuing_authority ?? null,
+  description: o.description ?? null,
   validFrom: o.valid_from ?? null,
   validTo: o.valid_to ?? null,
   fileUlid: o.file ?? null,
@@ -391,28 +430,54 @@ export const ApiFamilyService = {
       status: l.status ?? 'pending',
       endsOn: l.ends_on ?? null,
       flags: mapFlags(l.effective_flags),
+      verificationFileUlid: l.verification_file_ulid ?? null,
+      adminNote: l.admin_note ?? null,
     }));
   },
 
   /** sh15: school approval activates a pending link; the flags come from here. */
   async approveLink(
     id: number,
-    payload: { flags: GuardianFlags; linkType: string; reason: string },
+    payload: {
+      flags: GuardianFlags;
+      linkType: string;
+      reason: string;
+      verificationFileId?: number | null;
+      adminNote?: string | null;
+    },
   ): Promise<void> {
     await api(`/v1/guardian-links/${id}/approve`, {
       method: 'POST',
-      body: { ...payload.flags, link_type: payload.linkType, reason: payload.reason },
+      body: {
+        ...payload.flags,
+        link_type: payload.linkType,
+        ...(payload.verificationFileId ? { verification_file_id: payload.verificationFileId } : {}),
+        ...(payload.adminNote !== undefined && payload.adminNote !== null ? { admin_note: payload.adminNote } : {}),
+        reason: payload.reason,
+      },
     });
   },
 
   /** Flag changes are always reason-logged (sh7). */
   async updateLink(
     id: number,
-    payload: { flags: GuardianFlags; linkType: string; reason: string },
+    payload: {
+      flags: GuardianFlags;
+      linkType: string;
+      reason: string;
+      verificationFileId?: number | null;
+      adminNote?: string | null;
+    },
   ): Promise<void> {
     await api(`/v1/guardian-links/${id}`, {
       method: 'PATCH',
-      body: { ...payload.flags, link_type: payload.linkType, reason: payload.reason },
+      body: {
+        ...payload.flags,
+        link_type: payload.linkType,
+        ...(payload.verificationFileId !== undefined ? { verification_file_id: payload.verificationFileId } : {}),
+        ...(payload.adminNote !== undefined ? { admin_note: payload.adminNote } : {}),
+        reason: payload.reason,
+      },
     });
   },
 
@@ -433,6 +498,9 @@ export const ApiFamilyService = {
   async createCourtOrder(payload: {
     studentUlid: string;
     restrictions: Partial<GuardianFlags>;
+    rulingNumber?: string | null;
+    issuingAuthority?: string | null;
+    description?: string | null;
     validFrom?: string | null;
     validTo?: string | null;
     reason: string;
@@ -442,6 +510,9 @@ export const ApiFamilyService = {
       body: {
         student_ulid: payload.studentUlid,
         restrictions: payload.restrictions,
+        ...(payload.rulingNumber ? { ruling_number: payload.rulingNumber } : {}),
+        ...(payload.issuingAuthority ? { issuing_authority: payload.issuingAuthority } : {}),
+        ...(payload.description ? { description: payload.description } : {}),
         ...(payload.validFrom ? { valid_from: payload.validFrom } : {}),
         ...(payload.validTo ? { valid_to: payload.validTo } : {}),
         reason: payload.reason,
@@ -451,12 +522,23 @@ export const ApiFamilyService = {
 
   async updateCourtOrder(
     id: number,
-    payload: { restrictions?: Partial<GuardianFlags>; validFrom?: string | null; validTo?: string | null; reason: string },
+    payload: {
+      restrictions?: Partial<GuardianFlags>;
+      rulingNumber?: string | null;
+      issuingAuthority?: string | null;
+      description?: string | null;
+      validFrom?: string | null;
+      validTo?: string | null;
+      reason: string;
+    },
   ): Promise<void> {
     await api(`/v1/court-orders/${id}`, {
       method: 'PATCH',
       body: {
         ...(payload.restrictions ? { restrictions: payload.restrictions } : {}),
+        ...(payload.rulingNumber !== undefined ? { ruling_number: payload.rulingNumber } : {}),
+        ...(payload.issuingAuthority !== undefined ? { issuing_authority: payload.issuingAuthority } : {}),
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
         ...(payload.validFrom !== undefined ? { valid_from: payload.validFrom } : {}),
         ...(payload.validTo !== undefined ? { valid_to: payload.validTo } : {}),
         reason: payload.reason,
@@ -469,6 +551,7 @@ export const ApiFamilyService = {
     return (result.data ?? []).map((p) => ({
       id: p.id,
       fullName: p.full_name ?? '—',
+      nationalId: p.national_id ?? null,
       relation: p.relation ?? null,
       status: p.status ?? 'active',
       locked: Boolean(p.locked),
@@ -478,7 +561,7 @@ export const ApiFamilyService = {
 
   async createPickup(
     studentUlid: string,
-    payload: { fullName: string; phone: string; relation?: string; reason: string },
+    payload: { fullName: string; phone: string; nationalId?: string | null; relation?: string; reason: string },
   ): Promise<{ status: string; suggestionOnly: boolean }> {
     const result = await api<{ status: string; suggestion_only: boolean }>(
       `/v1/pickup/${encodeURIComponent(studentUlid)}`,
@@ -487,6 +570,7 @@ export const ApiFamilyService = {
         body: {
           full_name: payload.fullName,
           phone: payload.phone,
+          ...(payload.nationalId ? { national_id: payload.nationalId } : {}),
           ...(payload.relation ? { relation: payload.relation } : {}),
           reason: payload.reason,
         },

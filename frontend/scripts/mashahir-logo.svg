@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- مشاهیر آینده — app icon: open book + rising star, school blue -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B66DE"/>
+      <stop offset="1" stop-color="#173E96"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- open book -->
+  <path d="M96 340 C96 328 104 322 116 322 L232 322 C244 322 256 330 256 344 C256 330 268 322 280 322 L396 322 C408 322 416 328 416 340 L416 380 C416 390 408 396 398 396 L280 396 C268 396 256 388 256 376 C256 388 244 396 232 396 L114 396 C104 396 96 390 96 380 Z"
+        fill="#FFFFFF" opacity="0.94"/>
+  <path d="M116 306 L232 306 C244 306 256 314 256 328 C256 314 268 306 280 306 L396 306 L396 154 C396 142 388 136 378 136 L280 136 C268 136 256 144 256 158 C256 144 244 136 232 136 L134 136 C124 136 116 142 116 154 Z"
+        fill="#FFFFFF"/>
+  <!-- spine -->
+  <rect x="252" y="136" width="8" height="240" rx="4" fill="#B9CCF1"/>
+  <!-- rising star above the book -->
+  <path d="M256 62 L271 96 L308 100 L281 125 L288 161 L256 143 L224 161 L231 125 L204 100 L241 96 Z" fill="#F4B740"/>
+</svg>

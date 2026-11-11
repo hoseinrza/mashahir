@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+!.env.mobile
+
+# Capacitor native build outputs (the ios/ and android/ projects ARE committed)
+ios/App/output/
+ios/App/public/
+ios/App/Podfile.lock
+android/.gradle/
+android/app/build/
+android/build/
+android/app/src/main/assets/public/
+android/local.properties
+android/capacitor-cordova-android-plugins/

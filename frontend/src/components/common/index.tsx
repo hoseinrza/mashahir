@@ -178,7 +178,9 @@ export const Modal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
-      <div className={cn('w-full max-h-[calc(100vh-2rem)] overflow-y-auto bg-white dark:bg-[#182231] rounded-2xl border border-[#DCE3EE] dark:border-[#344257] shadow-xl', widthStyles[maxWidth])}>
+      {/* dvh (not vh): iOS Safari/WKWebView resize 100vh when the keyboard
+          opens — panels must follow the visual viewport. */}
+      <div className={cn('w-full max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white dark:bg-[#182231] rounded-2xl border border-[#DCE3EE] dark:border-[#344257] shadow-xl', widthStyles[maxWidth])}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#DCE3EE] dark:border-[#344257]">
           <h3 className="text-base font-semibold text-[#202B3C] dark:text-[#F1F5FB]">{title}</h3>
           <button
@@ -188,7 +190,8 @@ export const Modal: React.FC<{
             <X size={18} />
           </button>
         </div>
-        <div className="p-6 max-h-[80vh] overflow-y-auto">{children}</div>
+        <div className="p-6 max-h-[80dvh] overflow-y-auto">{children}</div>
+        <div className="pb-safe" />
       </div>
     </div>
   );

@@ -275,7 +275,7 @@ export const LandingPage: React.FC = () => {
     <div className="min-h-screen bg-[#F6F8FC] dark:bg-[#070D19] text-[#101A2C] dark:text-[#F1F5FB] selection:bg-[#2457C5]/20 selection:text-[#2457C5]">
 
       {/* ═══ Header ═══ */}
-      <header className="sticky top-0 z-50 bg-white/85 dark:bg-[#0A1120]/85 backdrop-blur-xl border-b border-[#E4E9F2] dark:border-[#1B2740]">
+      <header className="sticky top-0 z-50 bg-white/85 dark:bg-[#0A1120]/85 backdrop-blur-xl pt-[env(safe-area-inset-top)] border-b border-[#E4E9F2] dark:border-[#1B2740]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[72px] flex items-center justify-between gap-4">
 
           <div className="flex items-center gap-3">

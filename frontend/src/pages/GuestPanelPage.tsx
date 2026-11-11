@@ -22,18 +22,20 @@ export const GuestPanelPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F9FC] dark:bg-[#0c1322] text-[#202B3C] dark:text-[#F1F5FB] transition-colors">
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0c1322]/85 backdrop-blur-xl border-b border-[#DCE3EE] dark:border-[#223147] px-4 lg:px-8 h-16 flex items-center justify-between shadow-2xs">
-        <div className="flex items-center gap-2">
-          <SchoolLogo className="w-8 h-8" />
-          <span className="text-sm font-bold">سامانه مشاهیر آینده</span>
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#0c1322]/85 backdrop-blur-xl pt-[env(safe-area-inset-top)] border-b border-[#DCE3EE] dark:border-[#223147] px-4 lg:px-8 shadow-2xs">
+        <div className="h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <SchoolLogo className="w-8 h-8" />
+            <span className="text-sm font-bold">سامانه مشاهیر آینده</span>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="تغییر پوسته"
+          >
+            پوسته
+          </button>
         </div>
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          aria-label="تغییر پوسته"
-        >
-          پوسته
-        </button>
       </header>
 
       <main className="flex-1 flex items-center justify-center p-4">

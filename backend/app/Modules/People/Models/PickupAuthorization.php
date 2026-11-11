@@ -13,14 +13,15 @@ class PickupAuthorization extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $fillable = ['student_id', 'full_name', 'phone', 'relation', 'guardian_user_id', 'status', 'locked'];
+    protected $fillable = ['student_id', 'full_name', 'phone', 'national_id', 'relation', 'guardian_user_id', 'status', 'locked'];
 
-    protected $hidden = ['phone'];
+    protected $hidden = ['phone', 'national_id'];
 
     protected function casts(): array
     {
         return [
             'phone' => 'encrypted',
+            'national_id' => 'encrypted',
             'locked' => 'boolean',
         ];
     }

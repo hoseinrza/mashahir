@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users, GraduationCap, School, Plus, UserPlus, Phone, ShieldCheck,
-  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet,
+  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, SearchInput, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
@@ -10,7 +10,7 @@ import { formatJalaliDate } from '../utils/jalali';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
 import {
   ApiUserService, ApiClassroomAdminService, ApiImportService,
-  UserRow, StudentRow, ClassroomAdminRow, IdTitleOption, ImportBatchResult, BACKEND_ROLE_LABELS,
+  UserRow, UserRoleAssignment, StudentRow, ClassroomAdminRow, IdTitleOption, ImportBatchResult, BACKEND_ROLE_LABELS,
 } from '../api/data';
 import { ApiError } from '../api/client';
 
@@ -201,6 +201,35 @@ export const UserManagementPage: React.FC = () => {
       setUsersReload((k) => k + 1);
     } catch (err) {
       setError(firstError(err, 'خطا در تخصیص نقش'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ── End role (sh7: reason-logged, audited) ─────────────────────
+  const [endRoleTarget, setEndRoleTarget] = useState<{ user: UserRow; role: UserRoleAssignment } | null>(null);
+  const [endRoleReason, setEndRoleReason] = useState('');
+  const [endRoleEndsOn, setEndRoleEndsOn] = useState('');
+
+  const handleEndRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!endRoleTarget || endRoleReason.trim().length < 5) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await ApiUserService.endRole(endRoleTarget.user.ulid, endRoleTarget.role.userRoleId, {
+        reason: endRoleReason.trim(),
+        endsOn: endRoleEndsOn || null,
+      });
+      setEndRoleTarget(null);
+      setEndRoleReason('');
+      setEndRoleEndsOn('');
+      setUsersReload((k) => k + 1);
+      setNotice(`نقش «${endRoleTarget.role.roleTitle ?? endRoleTarget.role.roleKey}» پایان یافت و در لاگ حساس ثبت شد.`);
+    } catch (err) {
+      setError(firstError(err, 'خطا در پایان نقش'));
     } finally {
       setIsSaving(false);
     }
@@ -456,6 +485,7 @@ export const UserManagementPage: React.FC = () => {
                     <th className="pb-3 pr-2 font-medium">نام و نام خانوادگی</th>
                     <th className="pb-3 font-medium">شمارهٔ ورود</th>
                     <th className="pb-3 font-medium">وضعیت</th>
+                    <th className="pb-3 font-medium">نقش‌های فعال</th>
                     <th className="pb-3 font-medium">اقدامات</th>
                   </tr>
                 </thead>
@@ -468,6 +498,30 @@ export const UserManagementPage: React.FC = () => {
                         <Badge variant={user.status === 'active' ? 'success' : 'neutral'}>
                           {user.status === 'active' ? 'فعال' : 'غیرفعال'}
                         </Badge>
+                      </td>
+                      <td className="py-3">
+                        {user.roles.length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {user.roles.map((assignment) => (
+                              <span
+                                key={assignment.userRoleId}
+                                className="inline-flex items-center gap-1 rounded-full bg-[#EAF1FB] dark:bg-[#1D2B44] px-2 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
+                              >
+                                {assignment.roleTitle ?? BACKEND_ROLE_LABELS[assignment.roleKey ?? ''] ?? assignment.roleKey}
+                                <button
+                                  type="button"
+                                  title="پایان نقش"
+                                  onClick={() => { setError(null); setEndRoleReason(''); setEndRoleEndsOn(''); setEndRoleTarget({ user, role: assignment }); }}
+                                  className="text-[#8B96A9] hover:text-red-500"
+                                >
+                                  <UserX size={11} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3">
                         <div className="flex items-center gap-1.5">
@@ -533,6 +587,11 @@ export const UserManagementPage: React.FC = () => {
                       </td>
                       <td className="py-3">
                         <div className="flex items-center gap-1.5">
+                          {student.classroomTitle ? (
+                            <Badge variant="primary">{student.classroomTitle}</Badge>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">بدون کلاس</span>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -679,6 +738,37 @@ export const UserManagementPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setRoleTarget(null)}>انصراف</Button>
             <Button variant="primary" type="submit" disabled={isSaving}>
               {isSaving ? 'در حال ثبت…' : 'تخصیص نقش'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── End role ───────────────────────────────────────────── */}
+      <Modal
+        isOpen={endRoleTarget !== null}
+        onClose={() => setEndRoleTarget(null)}
+        title={`پایان نقش «${endRoleTarget?.role.roleTitle ?? ''}» برای ${endRoleTarget?.user.fullName ?? ''}`}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleEndRole} className="space-y-4 text-right">
+          <FormField label="دلیل پایان (درج در لاگ حساس)" required>
+            <textarea
+              rows={3}
+              required
+              value={endRoleReason}
+              onChange={(e) => setEndRoleReason(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <FormField label="تاریخ پایان (خالی = قطع از همین امروز)">
+            <JalaliDatePicker value={endRoleEndsOn} onChange={setEndRoleEndsOn} />
+          </FormField>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={() => setEndRoleTarget(null)}>انصراف</Button>
+            <Button variant="primary" type="submit" disabled={isSaving || endRoleReason.trim().length < 5}>
+              {isSaving ? 'در حال ثبت…' : 'پایان نقش'}
             </Button>
           </div>
         </form>
