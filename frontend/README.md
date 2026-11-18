@@ -22,7 +22,7 @@ npm run dev        # http://localhost:3000 — پروکسی /api → BACKEND_URL
 
 | متغیر | فایل | کاربرد |
 |---|---|---|
-| `VITE_API_URL` | `.env` / `.env.production` | base آدرس API. خالی = `/api` هم‌مبدأ (پیشنهاد پروداکشن تک‌دامنه) |
+| `VITE_API_URL` | `.env` / `.env.production` | base آدرس API. برای دپلوی تک‌دامنه `/api` بگذار (هم‌مبدأ). مقدار **خالی نده**: کلاینت با `??` می‌خواند و `""` به‌جای fallback استفاده می‌شود |
 | `BACKEND_URL` | `.env` | فقط پروکسی dev؛ در build استفاده نمی‌شود |
 | `VITE_API_URL` | `.env.mobile` | برای اپ Capacitor باید **absolute** باشد (`https://api.example.ir/api`) چون مبدأ `capacitor://localhost` است |
 
@@ -65,7 +65,7 @@ scripts/          # تولید آیکون
 
 ```bash
 npm ci
-VITE_API_URL="" npm run build     # خروجی dist/
+VITE_API_URL=/api npm run build    # خروجی dist/
 # dist/ را روی سرور کپی کن (مثلاً /var/www/mashahir/frontend/dist)
 ```
 
@@ -90,7 +90,7 @@ location /assets/        { add_header Cache-Control "public, max-age=31536000, i
 نکته‌ها:
 
 - اگر دامنه‌ی API جداست، `VITE_API_URL` را absolute بده و در بک‌اند `config/cors.php` را برای همان origin محدود کن؛ CORS سمت سرور تنظیم می‌شود، کلاینت خودش کاری نمی‌کند.
-- تغییر `VITE_API_URL` بدون build مجدد اثر ندارد. در PowerShell (ویندوز) برای build با آدرس خالی: `$env:VITE_API_URL=""; npm run build`.
+- تغییر `VITE_API_URL` بدون build مجدد اثر ندارد. در PowerShell (ویندوز): `$env:VITE_API_URL="/api"; npm run build`.
 - `dist/` را commit نکن (در `frontend/.gitignore` است)؛ روی سرور/CI بساز.
 
 ## اپ موبایل (Capacitor)

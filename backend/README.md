@@ -94,7 +94,8 @@ post_max_size = 13M
 
 ```bash
 sudo mkdir -p /var/www/mashahir && cd /var/www/mashahir
-git clone https://github.com/hoseinrza/mashahir.git .
+# ریپو خصوصی است: SSH با deploy key (فقط‌خواندنی)، نه HTTPS بدون توکن.
+sudo -u deploy git clone git@github.com:hoseinrza/mashahir.git .
 
 cd backend
 composer install --no-dev --optimize-autoloader
@@ -105,6 +106,54 @@ php artisan migrate --force        # هرگز migrate:fresh در پروداکش�
 php artisan db:seed --force        # فقط RBAC؛ LocalDemoSeeder بیرون از local کاری نمی‌کند
 php artisan optimize
 sudo chown -R www-data:www-data storage bootstrap/cache
+```
+
+**دسترسی به ریپوی خصوصی (deploy key):** یک‌بار روی سرور، به‌عنوان کاربر `deploy`:
+
+```bash
+sudo -u deploy ssh-keygen -t ed25519 -N "" -C mashahir-deploy -f /home/deploy/.ssh/mashahir_github
+sudo cat /home/deploy/.ssh/mashahir_github.pub
+```
+کلید را در `https://github.com/hoseinrza/mashahir/settings/keys` با گزینه‌ی read-only اضافه کن، بعد:
+
+```bash
+sudo -u deploy tee -a /home/deploy/.ssh/config >/dev/null <<'EOF'
+Host github.com
+  IdentityFile ~/.ssh/mashahir_github
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+EOF
+sudo chmod 600 /home/deploy/.ssh/config
+sudo -u deploy git ls-remote --exit-code git@github.com:hoseinrza/mashahir.git >/dev/null && echo OK
+```
+
+**اگر `Permission denied (publickey)` بود:** کلید اضافه نشده یا روی ریپوی دیگری است.
+
+**اگر `Connection to github.com closed by remote host` یا `expected flush after ref listing` بود:** پورت ۲۲ در مسیر شبکه بسته/دست‌کاری می‌شود. گیت‌هاب همان SSH را روی ۴۴۳ هم سرو می‌کند:
+
+```bash
+sudo -u deploy tee /home/deploy/.ssh/config >/dev/null <<'EOF'
+Host github.com
+  HostName ssh.github.com
+  Port 443
+  IdentityFile ~/.ssh/mashahir_github
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+EOF
+sudo chmod 600 /home/deploy/.ssh/config
+sudo -u deploy git ls-remote --exit-code git@github.com:hoseinrza/mashahir.git >/dev/null && echo OK
+```
+
+اگر هر دو پورت بسته بودند، از ماشین خودت باندل بساز و بفرست (کلید فقط برای `git pull`های بعدی لازم می‌شود):
+
+```powershell
+git bundle create mashahir.bundle --all
+scp mashahir.bundle root@<server>:/root/
+```
+
+```bash
+sudo -u deploy git clone /root/mashahir.bundle /var/www/mashahir
+sudo -u deploy git -C /var/www/mashahir remote set-url origin git@github.com:hoseinrza/mashahir.git
 ```
 
 ### ۳) متغیرهای محیطی پروداکشن

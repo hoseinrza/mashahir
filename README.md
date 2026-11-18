@@ -75,7 +75,18 @@ cd frontend && npm run lint && npm run build
 
 دو آرتیفکت جدا داریم: API لاراول (PHP-FPM + Nginx + PostgreSQL) و SPA استاتیک (`frontend/dist`). لاراول خودش SPA را سرو نمی‌کند (`routes/web.php` فقط welcome دارد).
 
-پیشنهاد: یک دامنه — فرانت روی `/` و API روی `/api`. این‌طور `VITE_API_URL` خالی می‌ماند (same-origin) و CORS لازم نیست. احراز هویت Bearer token است، نه کوکی.
+پیشنهاد: یک دامنه — فرانت روی `/` و API روی `/api`. این‌طور آدرس API همان `/api` هم‌مبدأ است و CORS لازم نیست. احراز هویت Bearer token است، نه کوکی.
+
+روی سرور تازه‌نصب Ubuntu 24.04 می‌توانی همه‌ی این مسیر را خودکار بروی:
+
+```bash
+scp scripts/ubuntu-bootstrap.sh root@<server>:/root/
+ssh -t root@<server> 'bash /root/ubuntu-bootstrap.sh --domain <domain> --email <email> --admin-phone 09XXXXXXXXX'
+```
+
+اسکریپت پکیج‌ها، PostgreSQL، کاربر `deploy`، کلید دیپلوی (چون ریپو خصوصی است، یک‌بار برای افزودن کلید توقف می‌کند)، `.env`، مایگریشن/سید، اولین ادمین، build فرانت، Nginx، TLS و بکاپ را انجام می‌دهد. اجرای دوباره، `.env` و سایت موجود را دست نمی‌زند.
+
+اگر شبکه‌ی سرور SSH روی پورت ۲۲ را می‌بندد، اسکریپت خودش با `ssh.github.com:443` دوباره تلاش می‌کند؛ برای اجبار یکی از آن‌ها: `--github-ssh-port 22` یا `--github-ssh-port 443`. اگر هر دو بسته بودند، روی سیستم خودت `git bundle create mashahir.bundle --all` بگیر، با `scp` بفرست و اسکریپت را با `--repo /root/mashahir.bundle` اجرا کن. جزئیات در `backend/README.md`.
 
 ```bash
 # بک‌اند
@@ -89,7 +100,7 @@ php artisan optimize
 chown -R www-data storage bootstrap/cache
 
 # فرانت
-cd ../frontend && npm ci && VITE_API_URL="" npm run build   # خروجی: dist/
+cd ../frontend && npm ci && VITE_API_URL=/api npm run build   # خروجی: dist/
 ```
 
 سه نکته‌ای که قبل از بهره‌برداری باید حل شود:

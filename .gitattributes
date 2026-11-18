@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts must stay LF: a CRLF heredoc breaks generated PHP/nginx configs.
+*.sh text eol=lf

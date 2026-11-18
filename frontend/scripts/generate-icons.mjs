@@ -1,4 +1,4 @@
-// Rasterizes scripts/mashahir-logo.svg into the PWA / iOS / Capacitor icon set.
+// Rasterizes scripts/mashahir-logo.svg into the PWA / Android launcher icon set.
 // Usage: node scripts/generate-icons.mjs
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -32,5 +32,32 @@ for (const job of jobs) {
   }
   await sharp(job.input).resize(job.size, job.size).png().toFile(target);
   console.log('generated', job.file);
+}
+
+// --- Android launcher mipmaps ---
+// Legacy square/round PNGs keep the full logo (its own rounded-rect backdrop);
+// the adaptive-icon foreground drops the backdrop and expands the viewBox so
+// the art fills only the inner 66/108dp safe zone every launcher mask shows.
+const foregroundSvg = svg
+  .toString('utf8')
+  .replace('<rect width="512" height="512" rx="112" fill="url(#bg)"/>', '')
+  .replace('viewBox="0 0 512 512"', 'viewBox="-163.2 -163.2 838.4 838.4"');
+
+const androidRes = path.join(root, 'android', 'app', 'src', 'main', 'res');
+const launcherSizes = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+const foregroundSizes = { mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
+
+for (const [density, size] of Object.entries(launcherSizes)) {
+  const dir = path.join(androidRes, `mipmap-${density}`);
+  await mkdir(dir, { recursive: true });
+  await sharp(svg).resize(size, size).png().toFile(path.join(dir, 'ic_launcher.png'));
+  await sharp(svg).resize(size, size).png().toFile(path.join(dir, 'ic_launcher_round.png'));
+  console.log('generated', `mipmap-${density}/ic_launcher*.png (${size}px)`);
+}
+for (const [density, size] of Object.entries(foregroundSizes)) {
+  const dir = path.join(androidRes, `mipmap-${density}`);
+  await mkdir(dir, { recursive: true });
+  await sharp(Buffer.from(foregroundSvg)).resize(size, size).png().toFile(path.join(dir, 'ic_launcher_foreground.png'));
+  console.log('generated', `mipmap-${density}/ic_launcher_foreground.png (${size}px)`);
 }
 console.log('icon set complete');
