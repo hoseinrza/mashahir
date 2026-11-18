@@ -1,20 +1,40 @@
 # سامانه یکپارچه مدرسه مشاهیر آینده — فاز اول (دبیرستان)
 
-بک‌اند: Laravel 12 + PostgreSQL + Redis (`backend/`) — فرانت: Vite + React 19 + TS + Tailwind 4 (`frontend/`).
+بک‌اند: Laravel 13 + PHP 8.3+ + PostgreSQL (`backend/`) — فرانت: Vite + React 19 + TS + Tailwind 4 (`frontend/`). ردیس اختیاری است.
 کنترل دسترسی فقط سمت سرور، مبتنی بر یک فایل واحد ماتریس مجوزها؛ پیش‌فرض ممنوع؛ خارج از محدوده = ۴۰۴.
 
 ## اجرای محلی
 
+پیش‌نیاز: PHP 8.3+ با اکستنشن‌های `pdo_pgsql`, `mbstring`, `intl`, `bcmath`, `zip`, `fileinfo`؛ Composer 2؛ Node.js 22+؛ PostgreSQL 16+ (در این پروژه لوکال روی پورت 5433). ردیس لازم نیست.
+
 ```bash
+# ۰) دیتابیس mashahir را روی 5433 بساز (یا DB_* را در .env عوض کن)
+
 # ۱) بک‌اند
 cd backend
-php artisan migrate:fresh --seed --force   # PostgreSQL روی پورت 5433
-php artisan serve --port=8000              # ردیس در لوکال لازم نیست؛ صف sync و کش/session فایل است
+composer install
+cp .env.example .env                 # فقط بار اول
+php artisan key:generate             # فقط بار اول؛ بعداً عوض نکن (PhoneHash به APP_KEY وابسته است)
+# اگر ردیس نداری، در .env: SESSION_DRIVER=file / CACHE_STORE=file / QUEUE_CONNECTION=sync
+php artisan migrate:fresh --seed --force
+php artisan serve --port=8000
 
 # ۲) فرانت
-cd frontend
+cd ../frontend
 npm install
-npm run dev                                # http://localhost:3000 (پروکسی /api → 8000)
+npm run dev                          # http://localhost:3000 (پروکسی /api → 8000)
+```
+
+`migrate:fresh` کل دیتابیس را پاک می‌کند — فقط لوکال.
+
+## تست‌ها
+
+```bash
+# بک‌اند: نیاز به دیتابیس mashahir_test روی 5433 (مقادیر در phpunit.xml)
+cd backend && php artisan test
+
+# فرانت: typecheck + build تولیدی (همان کاری که CI می‌کند)
+cd frontend && npm run lint && npm run build
 ```
 
 ## حساب‌های دمو
@@ -51,12 +71,41 @@ npm run dev                                # http://localhost:3000 (پروکسی
 - **انجمن اولیا**: جلسات با دستور جلسه، صورت‌جلسه و مصوبات؛ نظرسنجی با سقف یک رأی برای هر خانواده
 - **سایر**: برنامه هفتگی، ورود CSV با خطای سطری، تنظیمات مدرسه، لاگ append-only
 
+## دپلوی (پروداکشن)
+
+دو آرتیفکت جدا داریم: API لاراول (PHP-FPM + Nginx + PostgreSQL) و SPA استاتیک (`frontend/dist`). لاراول خودش SPA را سرو نمی‌کند (`routes/web.php` فقط welcome دارد).
+
+پیشنهاد: یک دامنه — فرانت روی `/` و API روی `/api`. این‌طور `VITE_API_URL` خالی می‌ماند (same-origin) و CORS لازم نیست. احراز هویت Bearer token است، نه کوکی.
+
+```bash
+# بک‌اند
+cd backend
+composer install --no-dev --optimize-autoloader
+cp .env.example .env && php artisan key:generate
+# .env: APP_ENV=production, APP_DEBUG=false, APP_URL=https://<domain>, DB_* واقعی
+php artisan migrate --force
+php artisan db:seed --force        # فقط RBAC؛ دمو در پروداکشن seed نمی‌شود
+php artisan optimize
+chown -R www-data storage bootstrap/cache
+
+# فرانت
+cd ../frontend && npm ci && VITE_API_URL="" npm run build   # خروجی: dist/
+```
+
+سه نکته‌ای که قبل از بهره‌برداری باید حل شود:
+
+1. **پیامک واقعی هنوز پیاده نشده** — `backend/app/Support/Sms/SmsManager.php` فقط درایورهای `log` و `array` را می‌شناسد؛ با `SMS_DRIVER=log` کد OTP فقط در `storage/logs/laravel.log` نوشته می‌شود.
+2. **اولین کاربر باید دستی ساخته شود** — ورود فقط OTP است و seed پروداکشن کاربر نمی‌سازد (نمونه tinker در `backend/README.md`).
+3. **`APP_KEY` را بعد از شروع کار عوض نکن** — `PhoneHash` با آن HMAC می‌شود و شماره‌ها `encrypted` هستند.
+
+Queue worker و cron لازم نیست: هیچ Job واقعی و هیچ `schedule()` در کد نیست. فایل‌ها روی دیسک خصوصی `local` ذخیره می‌شوند، پس `storage:link` هم لازم نیست. جزئیات کامل (Nginx، متغیرهای محیطی، بکاپ) در `backend/README.md` و `frontend/README.md`.
+
 ## اسناد
 
 - `docs/permission-matrix.md` — ماتریس مجوزها (تولیدشده از فایل واحد)
 - `docs/permission-matrix-review.md` — سلول‌های نیازمند تأیید
 - `docs/openapi/core.yaml` — قرارداد API
-- `backend/tests` — ۲۰۰ تست (ماتریس تولیدی، جداسازی ولی‌ها، append-only، جریان‌های کامل، فایل منیجر، مدارس/سرویس/مشاوره/انجمن)
+- `backend/tests` — ۲۰۰+ تست (ماتریس تولیدی، جداسازی ولی‌ها، append-only، جریان‌های کامل، فایل منیجر، مدارس/سرویس/مشاوره/انجمن)
 
 ## قوانین غیرقابل‌مذاکره
 

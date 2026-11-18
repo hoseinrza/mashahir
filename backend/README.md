@@ -1,58 +1,232 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# بک‌اند سامانه مشاهیر آینده
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API-only روی Laravel 13 + PostgreSQL. فرانت جداگانه در `../frontend` ساخته و به‌صورت استاتیک سرو می‌شود؛ این اپ SPA سرو نمی‌کند.
 
-## About Laravel
+- ورود فقط با OTP؛ توکن Sanctum به‌صورت Bearer در `localStorage` فرانت نگهداری می‌شود (کوکی/CSRF ندارد).
+- همه‌ی مسیرها زیر `/api/v1` هستند؛ سلامت سرویس: `GET /up`.
+- کنترل دسترسی سمت سرور از یک فایل واحد: `app/Support/Rbac/permission_matrix.php` → Seeder و تست‌ها از همان می‌خوانند.
+- `school_id` روی مدل‌های مدرسه‌ای با گلوبال اسکوپ `BelongsToSchool` اعمال می‌شود؛ خارج از محدوده = ۴۰۴.
+- زمان‌ها UTC ذخیره می‌شوند (نمایش شمسی سمت فرانت).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## پیش‌نیازها
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- PHP 8.3+ (CI با 8.4 اجرا می‌شود) و اکستنشن‌های `pdo_pgsql`, `mbstring`, `intl`, `bcmath`, `zip`, `fileinfo`, `xml`, `curl`
+- Composer 2
+- PostgreSQL 16+ (لوکال/تست روی پورت 5433)
+- ردیس اختیاری (در `.env.example` پیش‌فرض است؛ بدون آن `file`/`sync` کافی است)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## راه‌اندازی محلی
 
 ```bash
-composer require laravel/boost --dev
+composer install
+cp .env.example .env
+php artisan key:generate          # فقط یک‌بار؛ بعداً عوض نکن (به PhoneHash و فیلدهای encrypted وابسته است)
 
-php artisan boost:install
+# اگر ردیس نداری:
+# SESSION_DRIVER=file
+# CACHE_STORE=file
+# QUEUE_CONNECTION=sync
+
+php artisan migrate:fresh --seed --force
+php artisan serve --port=8000
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+`db:seed` دو Seeder را صدا می‌زند: `PermissionSeeder` (RBAC از ماتریس) و `LocalDemoSeeder` که فقط وقتی `APP_ENV=local` باشد داده‌ی دمو می‌سازد.
 
-## Contributing
+حساب‌های دمو و شماره‌ها در README ریشه آمده‌اند. در حالت dev، کد OTP در `storage/logs/laravel.log` نوشته می‌شود (`SMS_DRIVER=log`).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## تست‌ها
 
-## Code of Conduct
+`phpunit.xml` به دیتابیس `mashahir_test` روی `127.0.0.1:5433` وصل می‌شود (کاربر/رمز `mashahir`):
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```sql
+CREATE USER mashahir WITH PASSWORD 'mashahir';
+CREATE DATABASE mashahir_test OWNER mashahir;
+```
 
-## Security Vulnerabilities
+```bash
+php artisan test
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+حدود ۲۰۸ متد تست در `tests/Unit` و `tests/Feature` (ماتریس مجوزها، جداسازی ولی‌ها، append-only، جریان‌های کامل، فایل منیجر، مدارس/سرویس/مشاوره/انجمن).
 
-## License
+## ساختار
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```
+app/
+  Http/Middleware/SetAuthContext.php   # نقش فعال + SchoolContext + PermissionRegistrar
+  Modules/<Domain>/                    # Academic, Admissions, Assignments, Attendance, ...
+  Support/Rbac/                        # ماتریس مجوزها، RbacSync، Registrar
+  Support/Sms/                         # SmsManager + درایورها
+  Support/SchoolContext.php            # اسکوپ مدرسه برای هر درخواست
+config/sms.php                         # درایور پیامک و سیاست OTP
+routes/api.php                         # کل قرارداد API
+database/seeders/                      # RBAC + دمو (فقط local)
+```
+
+دستورهای مرتبط:
+
+```bash
+php artisan rbac:sync                  # همگام‌سازی idempotent نقش/مجوز از ماتریس (نقش‌های سفارشی مدارس دست‌نخورده)
+php artisan matrix:export              # تولید مجدد docs/permission-matrix.md
+```
+
+## دپلوی (پروداکشن)
+
+### ۱) آماده‌سازی سرور
+
+```bash
+sudo apt install nginx php8.4-fpm php8.4-pgsql php8.4-mbstring php8.4-intl \
+  php8.4-bcmath php8.4-zip php8.4-xml php8.4-curl php8.4-fileinfo postgresql git unzip
+
+sudo -u postgres psql -c "CREATE USER mashahir WITH PASSWORD '***';"
+sudo -u postgres psql -c "CREATE DATABASE mashahir OWNER mashahir;"
+```
+
+در PHP-FPM (`/etc/php/8.4/fpm/php.ini`) سقف آپلود را بالاتر از سقف ۱۰MB فایل‌ها بگذار، وگرنه آپلود قبل از رسیدن به لاراول رد می‌شود:
+
+```ini
+upload_max_filesize = 12M
+post_max_size = 13M
+```
+
+### ۲) کد و پیکربندی
+
+```bash
+sudo mkdir -p /var/www/mashahir && cd /var/www/mashahir
+git clone https://github.com/hoseinrza/mashahir.git .
+
+cd backend
+composer install --no-dev --optimize-autoloader
+cp .env.example .env
+php artisan key:generate           # یک‌بار؛ از .env بکاپ بگیر
+# .env را طبق جدول پایین تنظیم کن
+php artisan migrate --force        # هرگز migrate:fresh در پروداکشن
+php artisan db:seed --force        # فقط RBAC؛ LocalDemoSeeder بیرون از local کاری نمی‌کند
+php artisan optimize
+sudo chown -R www-data:www-data storage bootstrap/cache
+```
+
+### ۳) متغیرهای محیطی پروداکشن
+
+| کلید | مقدار |
+|---|---|
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` |
+| `APP_URL` | `https://<domain>` |
+| `LOG_LEVEL` | `error` (یا `warning`) |
+| `DB_*` | اتصال واقعی PostgreSQL |
+| `SESSION_DRIVER` | `file` (یا `redis`/`database`) |
+| `CACHE_STORE` | `file` (یا `redis`) |
+| `QUEUE_CONNECTION` | `sync` (هیچ Job واقعی در کد نیست) |
+| `FILESYSTEM_DISK` | `local` (فایل‌ها در `storage/app/private`) |
+| `SMS_DRIVER` | `log` — تا درایور واقعی اضافه نشده |
+| `OTP_TTL_MINUTES` | پیش‌فرض ۵ |
+| `SKYROOM_DRIVER` | `skyroom` + `SKYROOM_API_KEY` برای سرویس واقعی، `fake` برای دمو |
+
+`SESSION_DRIVER=redis` در `.env.example` آمده؛ اگر ردیس نداری حتماً `file` بگذار، وگرنه هر درخواست ۵۰۰ می‌دهد.
+
+### ۴) Nginx
+
+فرانت استاتیک روی ریشه و API روی `/api` (جزئیات فرانت در `../frontend/README.md`):
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name example.ir;
+
+    root /var/www/mashahir/frontend/dist;
+    index index.html;
+    client_max_body_size 12m;
+
+    location ^~ /api {
+        root /var/www/mashahir/backend/public;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location = /up {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /var/www/mashahir/backend/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /var/www/mashahir/backend/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+اگر API را روی زیردامنه‌ی جدا می‌بری (`api.example.ir`)، ریشه‌ی سایت همان `backend/public` می‌شود، `VITE_API_URL` باید absolute باشد، و `config/cors.php` را publish و `allowed_origins` را محدود کن (پیش‌فرض فریم‌ورک `*` است).
+
+بلوک TLS را با `sudo certbot --nginx -d example.ir` بگیر (خودش `ssl_certificate` را اضافه می‌کند)، بعد `sudo nginx -t && sudo systemctl reload nginx`. تغییر `.env` یعنی `php artisan optimize:clear && php artisan optimize`.
+
+### ۵) اولین کاربر
+
+ورود فقط OTP است و کاربر باید از قبل وجود داشته باشد؛ seed پروداکشن کاربر نمی‌سازد. یک‌بار با tinker بساز (بعد از `migrate` و `db:seed`):
+
+```bash
+php artisan tinker
+```
+
+```php
+$school = App\Modules\School\Models\School::create([
+    'name' => 'مشاهیر آینده',
+    'level' => 'high',
+    'grading_type' => 'numeric',
+    'student_has_account' => true,
+    'timezone' => 'Asia/Tehran',
+    'is_active' => true,
+]);
+
+$phone = '0912xxxxxxx';
+$user = App\Modules\Identity\Models\User::create([
+    'first_name' => '...',
+    'last_name' => '...',
+    'phone' => $phone,
+    'phone_hash' => App\Support\PhoneHash::of($phone),
+    'status' => 'active',
+]);
+
+App\Modules\Identity\Models\UserRole::create([
+    'user_id' => $user->id,
+    'role_id' => App\Modules\Identity\Models\Role::whereNull('school_id')->where('key', 'platform_admin')->value('id'),
+    'school_id' => $school->id,   // SchoolContext::set(int) است و null را قبول نمی‌کند
+    'scope_type' => 'school',
+    'scope_id' => null,
+    'starts_on' => now()->toDateString(),
+]);
+```
+
+بقیه‌ی کاربران و مدارس از داخل پنل ساخته می‌شوند.
+
+### ۶) پس از دپلوی
+
+```bash
+curl -I https://<domain>/up                                   # 200
+curl -X POST https://<domain>/api/v1/auth/otp/request \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"phone":"0912xxxxxxx"}'
+# تا درایور SMS اضافه نشده، کد در storage/logs/laravel.log است
+```
+
+### عملیات
+
+- **بکاپ**: `pg_dump` + کل `backend/storage/app/private` (پیوست‌ها) + `.env`. دیتابیس تنها جای داده‌های ساختاری است؛ فایل‌ها جای دیگری‌اند.
+- **بعد از تغییر ماتریس مجوزها**: `php artisan rbac:sync` (نیازی به reseed کامل نیست).
+- **دیباگ**: `php artisan optimize:clear` بعد `php artisan about`؛ لاگ در `storage/logs/laravel.log`.
+- **Queue worker / cron**: لازم نیست. هیچ `ShouldQueue` و هیچ `schedule()` وجود ندارد؛ `NotificationService::dispatchQueued()` از یک endpoint (دکمه‌ی ارسال) صدا زده می‌شود، نه worker.
+- **`storage:link`**: لازم نیست؛ دیسک پیش‌فرض `local` و خصوصی است و فایل‌ها با کنترل دسترسی از کنترلر stream می‌شوند.
+
+## محدودیت‌های شناخته‌شده
+
+1. **درایور پیامک**: `app/Support/Sms/SmsManager.php` فقط `log` و `array` را می‌شناسد. هر مقدار دیگری در `SMS_DRIVER` استثنا می‌دهد و کاربر واقعی کد OTP نمی‌گیرد. تا انتخاب پنل پیامکی و پیاده‌سازی درایور، فقط برای دمو/تست مناسب است.
+2. **`APP_KEY`**: تغییر آن همه‌ی `phone_hash`ها و شماره‌های `encrypted` را از کار می‌اندازد. بکاپ `.env` بخشی از بکاپ است.
+3. **CORS**: فایل `config/cors.php` در ریپو نیست؛ پیش‌فرض فریم‌ورک `allowed_origins = ['*']` است. با معماری تک‌دامنه اهمیتی ندارد؛ با دامنه‌ی جدا باید محدود شود.
