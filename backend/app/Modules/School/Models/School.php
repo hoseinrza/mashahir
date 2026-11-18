@@ -50,4 +50,13 @@ class School extends Model
 
         return in_array($raw, ['one_parent', 'both_parents'], true) ? $raw : 'one_parent';
     }
+
+    /**
+     * ورود با کد پیامکی (OTP) — کلید خاموش/روشن مدرسه. پیش‌فرض روشن؛ وقتی
+     * خاموش باشد کاربران این مدرسه فقط با رمز عبور وارد می‌شوند.
+     */
+    public function otpLoginEnabled(): bool
+    {
+        return (bool) $this->setting('otp_login_enabled', true);
+    }
 }

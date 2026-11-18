@@ -28,6 +28,76 @@ class AcademicApiTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_academic_deputy_creates_years_and_the_first_one_auto_becomes_current(): void
+    {
+        $this->actingWithRole('academic_deputy');
+
+        // The school has no year yet — the first creation becomes current
+        // even without asking for it.
+        $first = $this->postJson('/api/v1/academic/years', [
+            'title' => '۱۴۰۵-۱۴۰۶',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-20',
+        ])->assertCreated()->json();
+        $this->assertTrue($first['is_current']);
+
+        // A second year without is_current stays in the background.
+        $second = $this->postJson('/api/v1/academic/years', [
+            'title' => '۱۴۰۶-۱۴۰۷',
+            'starts_on' => '2027-09-01',
+            'ends_on' => '2028-06-20',
+        ])->assertCreated()->json();
+        $this->assertFalse($second['is_current']);
+
+        // Promoting it demotes the first one — the partial unique index is
+        // honoured through the controller, not a raw 500.
+        $this->patchJson("/api/v1/academic/years/{$second['id']}", ['is_current' => true])->assertOk();
+
+        $rows = collect($this->getJson('/api/v1/academic/years')->json('data'));
+        $this->assertTrue($rows->firstWhere('id', $second['id'])['is_current']);
+        $this->assertFalse($rows->firstWhere('id', $first['id'])['is_current']);
+    }
+
+    public function test_school_admin_renames_a_year_and_invalid_dates_are_rejected(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        $year = $this->postJson('/api/v1/academic/years', [
+            'title' => 'سال قدیم',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2027-06-20',
+        ])->assertCreated()->json();
+
+        $this->patchJson("/api/v1/academic/years/{$year['id']}", ['title' => '۱۴۰۵-۱۴۰۶'])
+            ->assertOk()
+            ->assertJsonPath('title', '۱۴۰۵-۱۴۰۶');
+
+        $this->patchJson("/api/v1/academic/years/{$year['id']}", [
+            'starts_on' => '2027-09-01',
+            'ends_on' => '2027-06-20', // ends before it starts
+        ])->assertStatus(422);
+    }
+
+    public function test_teacher_cannot_create_years_or_subjects(): void
+    {
+        $this->actingWithRole('teacher');
+
+        $this->postJson('/api/v1/academic/years', ['title' => '۱۴۰۶-۱۴۰۷'])->assertForbidden();
+        $this->postJson('/api/v1/academic/subjects', ['title' => 'شیمی'])->assertForbidden();
+    }
+
+    public function test_duplicate_subject_code_is_a_friendly_validation_error(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        $this->postJson('/api/v1/academic/subjects', ['title' => 'ریاضی', 'code' => 'MATH'])->assertCreated();
+
+        $this->postJson('/api/v1/academic/subjects', ['title' => 'ریاضی ۲', 'code' => 'MATH'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.code.0', 'این کد درس قبلاً ثبت شده است.');
+    }
+
+
     public function test_teacher_cannot_manage_academic_structure(): void
     {
         $this->actingWithRole('teacher');

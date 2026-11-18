@@ -68,9 +68,11 @@ interface AuthContextType {
   /** Logged in but the school has not assigned any role yet (guest panel). */
   needsRole: boolean;
   isSessionLoading: boolean;
+  hasPassword: boolean;
   pendingRoles: RoleOption[];
   requestOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
+  loginWithPassword: (phone: string, password: string) => Promise<void>;
   switchRole: (backendUserRoleId: number) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -142,6 +144,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyOtp = useCallback(async (phone: string, code: string) => {
     const roles = await authApi.verifyOtp(phone, code);
+    setPendingRoles(roles);
+  }, []);
+
+  const loginWithPassword = useCallback(async (phone: string, password: string) => {
+    const roles = await authApi.loginWithPassword(phone, password);
     setPendingRoles(roles);
   }, []);
 
@@ -285,9 +292,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: contextPayload !== null || pendingPayload !== null,
         needsRole: pendingPayload !== null,
         isSessionLoading: sessionLoading,
+        hasPassword: contextPayload?.user.has_password ?? false,
         pendingRoles,
         requestOtp,
         verifyOtp,
+        loginWithPassword,
         switchRole,
         logout,
       }}

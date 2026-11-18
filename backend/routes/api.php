@@ -34,11 +34,14 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1/auth')->group(function (): void {
     Route::post('/otp/request', [AuthController::class, 'requestOtp']);
     Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+    Route::post('/password/login', [AuthController::class, 'loginWithPassword']);
+    Route::get('/config', [AuthController::class, 'authConfig']);
 
     // Authenticated but role-less: switch-role is the bootstrap of the context.
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/switch-role', [AuthController::class, 'switchRole']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/password', [AuthController::class, 'setPassword']);
     });
 });
 
@@ -60,6 +63,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/users', [UsersApiController::class, 'store']);
     Route::patch('/users/{user}', [UsersApiController::class, 'update']);
     Route::post('/users/{user}/phone', [UsersApiController::class, 'updatePhone']);
+    Route::post('/users/{user}/password', [UsersApiController::class, 'setPassword']);
     Route::post('/users/{user}/roles', [UsersApiController::class, 'assignRole']);
     Route::delete('/users/{user}/roles/{role}', [UsersApiController::class, 'endRole']);
 
@@ -77,6 +81,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/academic/grade-levels', [AcademicApiController::class, 'storeGradeLevel']);
     Route::patch('/academic/grade-levels/{gradeLevel}', [AcademicApiController::class, 'updateGradeLevel']);
     Route::get('/academic/years', [AcademicApiController::class, 'indexYears']);
+    Route::post('/academic/years', [AcademicApiController::class, 'storeYear']);
+    Route::patch('/academic/years/{year}', [AcademicApiController::class, 'updateYear']);
     Route::get('/academic/subjects', [AcademicApiController::class, 'indexSubjects']);
     Route::get('/academic/teachers', [AcademicApiController::class, 'indexTeachers']);
     Route::post('/academic/subjects', [AcademicApiController::class, 'storeSubject']);

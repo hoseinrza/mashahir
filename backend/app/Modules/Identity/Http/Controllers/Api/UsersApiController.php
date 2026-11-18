@@ -99,6 +99,33 @@ class UsersApiController extends Controller
         return new UserResource($user->fresh());
     }
 
+    /**
+     * sh7/sh10: setting or replacing a user's login password (username stays
+     * the mobile number) is reason-logged and audited — the plaintext never
+     * reaches the trail. Same conditions as updatePhone.
+     */
+    public function setPassword(Request $request, User $user): UserResource
+    {
+        $this->authorize('setPassword', $user);
+
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8', 'max:64'],
+            'reason' => ['required', 'string', 'min:5'],
+        ]);
+
+        $user->forceFill(['password' => $data['password']])->save();
+
+        app(AuditService::class)->log(
+            'user.password_changed',
+            $user,
+            old: ['password' => '***masked***'],
+            new: ['password' => '***masked***'],
+            reason: $data['reason'],
+        );
+
+        return new UserResource($user->fresh());
+    }
+
     public function assignRole(Request $request, User $user, UserPolicy $policy): UserRole
     {
         $data = $request->validate([

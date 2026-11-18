@@ -62,6 +62,7 @@ return [
             ['key' => 'users.manage', 'title' => 'ساخت و ویرایش کاربران'],
             ['key' => 'roles.manage', 'title' => 'مدیریت نقش‌ها و مجوزها'],
             ['key' => 'users.update_phone', 'title' => 'تغییر شماره موبایل ورود'],
+            ['key' => 'users.set_password', 'title' => 'تعیین/تغییر رمز عبور کاربر'],
             ['key' => 'impersonate.start', 'title' => 'ورود به جای کاربر'],
             ['key' => 'audit.view', 'title' => 'مشاهده لاگ رویدادها'],
         ],
@@ -210,6 +211,12 @@ return [
         ],
 
         'users.update_phone' => [
+            'school_admin' => 'sh7',
+            'office_manager' => 'sh7',
+            'support' => 'sh10',
+        ],
+
+        'users.set_password' => [
             'school_admin' => 'sh7',
             'office_manager' => 'sh7',
             'support' => 'sh10',

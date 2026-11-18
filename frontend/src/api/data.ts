@@ -110,6 +110,25 @@ export const ApiUserService = {
     });
   },
 
+  /** sh7: setting/replacing a login password is reason-logged and audited. */
+  async setPassword(ulid: string, payload: { password: string; reason: string }): Promise<void> {
+    await api(`/v1/users/${ulid}/password`, {
+      method: 'POST',
+      body: { password: payload.password, reason: payload.reason },
+    });
+  },
+
+  /** Self-service password (username = the user's own mobile number). */
+  async setOwnPassword(payload: { password: string; currentPassword?: string }): Promise<void> {
+    await api('/v1/auth/password', {
+      method: 'POST',
+      body: {
+        password: payload.password,
+        ...(payload.currentPassword ? { current_password: payload.currentPassword } : {}),
+      },
+    });
+  },
+
   async listStudents(): Promise<StudentRow[]> {
     const result = await api<{ data: any[] }>('/v1/students?per_page=100');
     return (result.data ?? []).map((s) => ({
@@ -1177,6 +1196,15 @@ export interface IdTitleOption {
   title: string;
 }
 
+/** Full academic-year row for the management card. */
+export interface AcademicYearRow {
+  id: number;
+  title: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  isCurrent: boolean;
+}
+
 export interface TeacherOption {
   ulid: string;
   name: string;
@@ -1240,6 +1268,17 @@ export const ApiClassroomAdminService = {
     return (result.data ?? []).map((s: any) => ({ id: s.id, title: s.title }));
   },
 
+  /** academic.manage: define a subject for the school (code optional). */
+  async createSubject(payload: { title: string; code?: string }): Promise<void> {
+    await api('/v1/academic/subjects', {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        ...(payload.code ? { code: payload.code } : {}),
+      },
+    });
+  },
+
   async teachers(): Promise<TeacherOption[]> {
     const result = await api<{ data: any[] }>('/v1/academic/teachers');
     return (result.data ?? []).map((t: any) => ({ ulid: t.ulid, name: t.name }));
@@ -1248,6 +1287,42 @@ export const ApiClassroomAdminService = {
   async years(): Promise<IdTitleOption[]> {
     const result = await api<{ data: any[] }>('/v1/academic/years');
     return (result.data ?? []).map((y: any) => ({ id: y.id, title: y.title }));
+  },
+
+  /** Full year rows for the management card (is_current badge etc.). */
+  async yearRows(): Promise<AcademicYearRow[]> {
+    const result = await api<{ data: any[] }>('/v1/academic/years');
+    return (result.data ?? []).map((y: any) => ({
+      id: y.id,
+      title: y.title,
+      startsOn: y.starts_on ?? null,
+      endsOn: y.ends_on ?? null,
+      isCurrent: Boolean(y.is_current),
+    }));
+  },
+
+  /** academic.manage: create an academic year; first one auto-becomes current. */
+  async createYear(payload: { title: string; startsOn?: string | null; endsOn?: string | null; isCurrent?: boolean }): Promise<void> {
+    await api('/v1/academic/years', {
+      method: 'POST',
+      body: {
+        title: payload.title,
+        ...(payload.startsOn ? { starts_on: payload.startsOn } : {}),
+        ...(payload.endsOn ? { ends_on: payload.endsOn } : {}),
+        ...(payload.isCurrent !== undefined ? { is_current: payload.isCurrent } : {}),
+      },
+    });
+  },
+
+  /** academic.manage: rename or promote a year to the school's current one. */
+  async updateYear(id: number, payload: { title?: string; isCurrent?: boolean }): Promise<void> {
+    await api(`/v1/academic/years/${id}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+        ...(payload.isCurrent !== undefined ? { is_current: payload.isCurrent } : {}),
+      },
+    });
   },
 
   async gradeLevels(): Promise<IdTitleOption[]> {

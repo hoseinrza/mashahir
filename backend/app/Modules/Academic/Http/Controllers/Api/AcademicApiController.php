@@ -4,6 +4,7 @@ namespace App\Modules\Academic\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Academic\Http\Resources\ClassroomResource;
+use App\Modules\Academic\Models\AcademicYear;
 use App\Modules\Academic\Models\Classroom;
 use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Academic\Models\Enrollment;
@@ -57,6 +58,10 @@ class AcademicApiController extends Controller
             'code' => ['nullable', 'string', 'max:50'],
         ]);
 
+        if (($data['code'] ?? null) !== null && Subject::query()->where('code', $data['code'])->exists()) {
+            throw ValidationException::withMessages(['code' => 'این کد درس قبلاً ثبت شده است.']);
+        }
+
         return Subject::query()->create($data);
     }
 
@@ -71,18 +76,92 @@ class AcademicApiController extends Controller
         return ClassroomResource::collection($query->get());
     }
 
-    /** سال‌های تحصیلی مدرسه — فرم ساخت کلاس. */
+    /** سال‌های تحصیلی مدرسه — فرم ساخت کلاس و کارت مدیریت سال. */
     public function indexYears(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Classroom::class);
 
         return response()->json([
-            'data' => \App\Modules\Academic\Models\AcademicYear::query()
+            'data' => AcademicYear::query()
                 ->where('school_id', $request->attributes->get('school_id'))
                 ->orderByDesc('id')
                 ->get()
-                ->map(fn (\App\Modules\Academic\Models\AcademicYear $y) => ['id' => $y->id, 'title' => $y->title]),
+                ->map(fn (AcademicYear $y) => [
+                    'id' => $y->id,
+                    'title' => $y->title,
+                    'starts_on' => $y->starts_on?->toDateString(),
+                    'ends_on' => $y->ends_on?->toDateString(),
+                    'is_current' => $y->is_current,
+                ]),
         ]);
+    }
+
+    /**
+     * مدیر/معاون آموزشی سال تحصیلی می‌سازد. is_current obeys the partial
+     * unique index (one current year per school): promoting one year demotes
+     * the rest; the school's very first year auto-becomes current.
+     */
+    public function storeYear(Request $request): JsonResponse
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:100'],
+            // The academic_years columns are NOT NULL — a school year always
+            // has a span.
+            'starts_on' => ['required', 'date'],
+            'ends_on' => ['required', 'date', 'after:starts_on'],
+            'is_current' => ['nullable', 'boolean'],
+        ]);
+
+        $makeCurrent = (bool) ($data['is_current'] ?? false)
+            || ! AcademicYear::query()->where('is_current', true)->exists();
+
+        $year = \Illuminate\Support\Facades\DB::transaction(function () use ($data, $makeCurrent): AcademicYear {
+            if ($makeCurrent) {
+                AcademicYear::query()->where('is_current', true)->update(['is_current' => false]);
+            }
+
+            return AcademicYear::query()->create($data + ['is_current' => $makeCurrent]);
+        });
+
+        return response()->json($this->yearPayload($year), 201);
+    }
+
+    public function updateYear(Request $request, AcademicYear $year): JsonResponse
+    {
+        $this->authorize('create', Classroom::class);
+
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:100'],
+            'starts_on' => ['sometimes', 'nullable', 'date'],
+            'ends_on' => ['sometimes', 'nullable', 'date', 'after:starts_on'],
+            'is_current' => ['sometimes', 'boolean'],
+        ]);
+
+        $makeCurrent = (bool) ($data['is_current'] ?? false);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($year, $data, $makeCurrent): void {
+            if ($makeCurrent && ! $year->is_current) {
+                AcademicYear::query()->where('is_current', true)->whereKeyNot($year->id)
+                    ->update(['is_current' => false]);
+            }
+
+            $year->update($data);
+        });
+
+        return response()->json($this->yearPayload($year->fresh()));
+    }
+
+    private function yearPayload(?AcademicYear $year): array
+    {
+        return $year === null ? [] : [
+            'id' => $year->id,
+            'title' => $year->title,
+            'starts_on' => $year->starts_on?->toDateString(),
+            'ends_on' => $year->ends_on?->toDateString(),
+            'is_current' => $year->is_current,
+        ];
     }
 
     /** درس‌های مدرسه — فرم تخصیص دبیر. */
@@ -330,6 +409,12 @@ class AcademicApiController extends Controller
             'title' => ['sometimes', 'string', 'max:100'],
             'code' => ['sometimes', 'nullable', 'string', 'max:50'],
         ]);
+
+        if (isset($data['code']) && $data['code'] !== null
+            && Subject::query()->where('code', $data['code'])->whereKeyNot($subject->id)->exists()) {
+            throw ValidationException::withMessages(['code' => 'این کد درس قبلاً ثبت شده است.']);
+        }
+
         $subject->update($data);
 
         return $subject->fresh();

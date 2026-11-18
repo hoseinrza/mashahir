@@ -211,6 +211,31 @@ export const UserManagementPage: React.FC = () => {
   const [endRoleReason, setEndRoleReason] = useState('');
   const [endRoleEndsOn, setEndRoleEndsOn] = useState('');
 
+  // ── Admin sets/replaces a user's login password (sh7: reason-logged) ──
+  const [pwTarget, setPwTarget] = useState<UserRow | null>(null);
+  const [pwValue, setPwValue] = useState('');
+  const [pwReason, setPwReason] = useState('');
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwTarget || pwValue.length < 8 || pwReason.trim().length < 5) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await ApiUserService.setPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+      setPwTarget(null);
+      setPwValue('');
+      setPwReason('');
+      setNotice(`رمز عبور ${pwTarget.fullName} تنظیم شد و در لاگ حساس ثبت شد.`);
+    } catch (err) {
+      setError(firstError(err, 'خطا در تنظیم رمز عبور'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleEndRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!endRoleTarget || endRoleReason.trim().length < 5) return;
@@ -534,6 +559,9 @@ export const UserManagementPage: React.FC = () => {
                           <Button size="sm" variant="ghost" icon={<Phone size={13} />} onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }}>
                             تغییر شماره
                           </Button>
+                          <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget(user); }}>
+                            تعیین رمز
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -807,6 +835,47 @@ export const UserManagementPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setPhoneTarget(null)}>انصراف</Button>
             <Button variant="primary" type="submit" disabled={isSaving || newPhone.trim().length < 10 || phoneReason.trim().length < 5}>
               {isSaving ? 'در حال ثبت…' : 'ثبت تغییر'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Set password ───────────────────────────────────────── */}
+      <Modal
+        isOpen={pwTarget !== null}
+        onClose={() => setPwTarget(null)}
+        title={`تعیین رمز عبور ${pwTarget?.fullName ?? ''}`}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleSetPassword} className="space-y-4 text-right">
+          <FormField label="رمز عبور جدید (دست‌کم ۸ نویسه)" required>
+            <input
+              type="password" required minLength={8} maxLength={64} dir="ltr"
+              value={pwValue}
+              onChange={(e) => setPwValue(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+            />
+          </FormField>
+
+          <FormField label="دلیل تنظیم (درج در لاگ حساس)" required>
+            <textarea
+              rows={3}
+              required
+              value={pwReason}
+              onChange={(e) => setPwReason(e.target.value)}
+              placeholder="مثال: ورود اولیهٔ کادر تازه‌وارد / درخواست ریست رمز."
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <p className="text-[10px] text-slate-400">
+            یوزرنیم این کاربر همان شمارهٔ موبایل ثبت‌شدهٔ اوست؛ رمز فعلی او با ذخیرهٔ جدید جایگزین می‌شود.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={() => setPwTarget(null)}>انصراف</Button>
+            <Button variant="primary" type="submit" disabled={isSaving || pwValue.length < 8 || pwReason.trim().length < 5}>
+              {isSaving ? 'در حال ثبت…' : 'تنظیم رمز'}
             </Button>
           </div>
         </form>

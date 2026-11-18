@@ -64,4 +64,13 @@ class UserPolicy
     {
         return $this->registrar->allows('users.update_phone');
     }
+
+    /**
+     * Same sh7/sh10 conditions as updatePhone — setting or replacing a
+     * login password is equally sensitive and reason-logged in the controller.
+     */
+    public function setPassword(User $user): bool
+    {
+        return $this->registrar->allows('users.set_password');
+    }
 }

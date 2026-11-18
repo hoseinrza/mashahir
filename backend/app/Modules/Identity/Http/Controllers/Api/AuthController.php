@@ -3,16 +3,23 @@
 namespace App\Modules\Identity\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Audit\Services\AuditService;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Services\OtpService;
+use App\Modules\Identity\Services\PasswordAuthService;
+use App\Modules\School\Models\School;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly OtpService $otp)
-    {
+    public function __construct(
+        private readonly OtpService $otp,
+        private readonly PasswordAuthService $passwordAuth,
+    ) {
     }
 
     /**
@@ -41,7 +48,79 @@ class AuthController extends Controller
 
         [$user, $token] = $this->otp->verify($data['phone'], $data['code']);
 
-        return response()->json([
+        return response()->json($this->pendingRolePayload($user, $token));
+    }
+
+    /**
+     * Password login (username = the mobile number). Issues the SAME
+     * pending-role bootstrap token as OTP verify, so the frontend's
+     * role-selection flow treats both paths identically.
+     */
+    public function loginWithPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'phone' => ['required', 'string', 'min:10', 'max:20'],
+            'password' => ['required', 'string'],
+        ]);
+
+        [$user, $token] = $this->passwordAuth->login($data['phone'], $data['password'], (string) $request->ip());
+
+        return response()->json($this->pendingRolePayload($user, $token));
+    }
+
+    /**
+     * Public: the login page reads this to decide whether the SMS-OTP option
+     * is offered at all (a school can switch OTP off in its settings). The
+     * per-user verdict is still enforced server-side at request/verify time.
+     */
+    public function authConfig(): JsonResponse
+    {
+        $otpEnabled = School::query()
+            ->where('is_active', true)
+            ->get()
+            ->contains(fn (School $school) => $school->otpLoginEnabled());
+
+        return response()->json(['otp_enabled' => $otpEnabled]);
+    }
+
+    /**
+     * Self-service: the logged-in user creates or replaces his own password
+     * (username = his mobile number). First-time setup needs no current
+     * password; replacing one requires it.
+     */
+    public function setPassword(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8', 'max:64'],
+            'current_password' => [
+                Rule::requiredIf($user->password !== null),
+                'nullable',
+                'string',
+            ],
+        ]);
+
+        if ($user->password !== null && ! Hash::check((string) $data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'رمز فعلی نادرست است.',
+            ]);
+        }
+
+        $user->forceFill(['password' => $data['password']])->save();
+
+        app(AuditService::class)->log(
+            'auth.password_set',
+            $user,
+            new: ['password' => '***masked***'],
+        );
+
+        return response()->json(['message' => 'رمز عبور ذخیره شد.']);
+    }
+
+    private function pendingRolePayload($user, $token): array
+    {
+        return [
             'token' => $token->plainTextToken,
             // Bootstrap token: not yet bound to a role, cannot call scoped APIs.
             'token_kind' => 'pending-role',
@@ -57,7 +136,7 @@ class AuthController extends Controller
                     'school_name' => $assignment->school->name,
                 ])
                 ->values(),
-        ]);
+        ];
     }
 
     /**

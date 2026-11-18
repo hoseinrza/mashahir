@@ -14,15 +14,16 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasUlid, Notifiable;
 
-    protected $fillable = ['first_name', 'last_name', 'phone', 'phone_hash', 'status'];
+    protected $fillable = ['first_name', 'last_name', 'phone', 'phone_hash', 'status', 'password'];
 
-    protected $hidden = ['phone', 'phone_hash'];
+    protected $hidden = ['phone', 'phone_hash', 'password'];
 
     protected function casts(): array
     {
         return [
             'phone' => 'encrypted',
             'last_login_at' => 'datetime',
+            'password' => 'hashed',
         ];
     }
 

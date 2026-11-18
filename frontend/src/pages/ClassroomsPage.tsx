@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, School, Trash2, Users, CalendarDays, GraduationCap, Pencil } from 'lucide-react';
+import { Loader2, Plus, School, Trash2, Users, CalendarDays, GraduationCap, Pencil, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, PageHeader, EmptyState, AccessDeniedGate, Modal } from '../components/common';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
@@ -8,6 +8,7 @@ import { formatJalaliDate } from '../utils/jalali';
 import {
   ApiAcademicService,
   ApiClassroomAdminService,
+  AcademicYearRow,
   ClassroomAdminRow,
   EnrollmentRow,
   IdTitleOption,
@@ -60,6 +61,7 @@ export const ClassroomsPage: React.FC = () => {
   const [subjects, setSubjects] = useState<IdTitleOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [years, setYears] = useState<IdTitleOption[]>([]);
+  const [yearRows, setYearRows] = useState<AcademicYearRow[]>([]);
   const [gradeLevels, setGradeLevels] = useState<IdTitleOption[]>([]);
   const [assignments, setAssignments] = useState<{ id: number; subject: string; classroom: string; teacher: string | null }[]>([]);
   const [students, setStudents] = useState<{ ulid: string; fullName: string }[]>([]);
@@ -102,6 +104,19 @@ export const ClassroomsPage: React.FC = () => {
   const [renameModal, setRenameModal] = useState<{ ulid: string; title: string } | null>(null);
   const [renaming, setRenaming] = useState(false);
 
+  // year management form (academic.manage = مدیر / معاون آموزشی)
+  const [newYearTitle, setNewYearTitle] = useState('');
+  const [newYearStarts, setNewYearStarts] = useState('');
+  const [newYearEnds, setNewYearEnds] = useState('');
+  const [newYearCurrent, setNewYearCurrent] = useState(false);
+  const [creatingYear, setCreatingYear] = useState(false);
+  const [promotingYearId, setPromotingYearId] = useState<number | null>(null);
+
+  // subject creation form
+  const [newSubjectTitle, setNewSubjectTitle] = useState('');
+  const [newSubjectCode, setNewSubjectCode] = useState('');
+  const [creatingSubject, setCreatingSubject] = useState(false);
+
   // Ending an enrollment is a destructive, history-bearing action: the first
   // click only arms the row, the second one commits.
   const [armedEndId, setArmedEndId] = useState<number | null>(null);
@@ -112,11 +127,11 @@ export const ClassroomsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [rooms, subs, teachersList, yearsList, gradeList, teachingSubjects, studentList] = await Promise.all([
+      const [rooms, subs, teachersList, yearRowsList, gradeList, teachingSubjects, studentList] = await Promise.all([
         ApiClassroomAdminService.list(),
         ApiClassroomAdminService.subjects().catch(() => [] as IdTitleOption[]),
         ApiClassroomAdminService.teachers().catch(() => [] as TeacherOption[]),
-        ApiClassroomAdminService.years().catch(() => [] as IdTitleOption[]),
+        ApiClassroomAdminService.yearRows().catch(() => [] as AcademicYearRow[]),
         ApiClassroomAdminService.gradeLevels().catch(() => [] as IdTitleOption[]),
         ApiAcademicService.mySubjects().catch(() => []),
         ApiAcademicService.studentsInScope().catch(() => []),
@@ -124,13 +139,14 @@ export const ClassroomsPage: React.FC = () => {
       setClassrooms(rooms);
       setSubjects(subs);
       setTeachers(teachersList);
-      setYears(yearsList);
+      setYearRows(yearRowsList);
+      setYears(yearRowsList.map((y) => ({ id: y.id, title: y.title })));
       setGradeLevels(gradeList);
       setAssignments(
         teachingSubjects.map((s) => ({ id: s.id, subject: s.subject ?? '', classroom: s.classroom ?? '', teacher: s.teacher })),
       );
       setStudents(studentList);
-      setNewYearId((prev) => prev || yearsList[0]?.id || '');
+      setNewYearId((prev) => prev || yearRowsList.find((y) => y.isCurrent)?.id || yearRowsList[0]?.id || '');
       setNewGradeId((prev) => prev || gradeList[0]?.id || '');
       setSelectedUlid((prev) => prev ?? rooms[0]?.ulid ?? null);
     } catch (e) {
@@ -197,6 +213,72 @@ export const ClassroomsPage: React.FC = () => {
       setError(firstError(e, 'خطا در ساخت کلاس'));
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleCreateYear = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newYearTitle.trim()) {
+      setError('عنوان سال تحصیلی را وارد نمایید.');
+      return;
+    }
+    setCreatingYear(true);
+    setError(null);
+    try {
+      await ApiClassroomAdminService.createYear({
+        title: newYearTitle.trim(),
+        startsOn: newYearStarts || null,
+        endsOn: newYearEnds || null,
+        isCurrent: newYearCurrent,
+      });
+      setNewYearTitle('');
+      setNewYearStarts('');
+      setNewYearEnds('');
+      setNewYearCurrent(false);
+      setNotice('سال تحصیلی ساخته شد.');
+      await load();
+    } catch (err) {
+      setError(firstError(err, 'خطا در ساخت سال تحصیلی'));
+    } finally {
+      setCreatingYear(false);
+    }
+  };
+
+  const handlePromoteYear = async (id: number) => {
+    setPromotingYearId(id);
+    setError(null);
+    try {
+      await ApiClassroomAdminService.updateYear(id, { isCurrent: true });
+      setNotice('سال جاری تغییر کرد.');
+      await load();
+    } catch (err) {
+      setError(firstError(err, 'خطا در تغییر سال جاری'));
+    } finally {
+      setPromotingYearId(null);
+    }
+  };
+
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubjectTitle.trim()) {
+      setError('عنوان درس را وارد نمایید.');
+      return;
+    }
+    setCreatingSubject(true);
+    setError(null);
+    try {
+      await ApiClassroomAdminService.createSubject({
+        title: newSubjectTitle.trim(),
+        code: newSubjectCode.trim() || undefined,
+      });
+      setNewSubjectTitle('');
+      setNewSubjectCode('');
+      setNotice('درس به مدرسه اضافه شد.');
+      await load();
+    } catch (err) {
+      setError(firstError(err, 'خطا در افزودن درس'));
+    } finally {
+      setCreatingSubject(false);
     }
   };
 
@@ -391,7 +473,10 @@ export const ClassroomsPage: React.FC = () => {
       ) : (
         <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
           {/* ── classroom list + create ── */}
-          <div className="space-y-4">
+          {/* min-w-0: grid items refuse to shrink below content min-width
+              by default — the 620px timetable would stretch the whole page
+              on phones (everything cut at the left edge). */}
+          <div className="min-w-0 space-y-4">
             <Card>
               <div className="p-4">
                 <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2 pb-3">
@@ -475,10 +560,125 @@ export const ClassroomsPage: React.FC = () => {
                 </div>
               </Card>
             )}
+
+            {canManageStructure && (
+              <Card>
+                <div className="p-4 space-y-3">
+                  <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
+                    <CalendarDays size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" /> سال‌های تحصیلی
+                  </h3>
+
+                  {yearRows.length > 0 && (
+                    <div className="space-y-1.5">
+                      {yearRows.map((y) => (
+                        <div
+                          key={y.id}
+                          className="flex items-center gap-2 rounded-xl border border-[#DCE3EE] dark:border-[#344257] px-2.5 py-1.5"
+                        >
+                          <span className="flex-1 min-w-0">
+                            <span className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]">{y.title}</span>
+                            {(y.startsOn || y.endsOn) && (
+                              <span className="block text-[10px] text-[#526176] dark:text-[#B3C0D2] mt-0.5">
+                                {y.startsOn ? formatJalaliDate(y.startsOn) : '—'} تا {y.endsOn ? formatJalaliDate(y.endsOn) : '—'}
+                              </span>
+                            )}
+                          </span>
+                          {y.isCurrent ? (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                              جاری
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={promotingYearId === y.id}
+                              onClick={() => handlePromoteYear(y.id)}
+                            >
+                              {promotingYearId === y.id ? <Loader2 size={12} className="animate-spin" /> : 'تعیین جاری'}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateYear} className="space-y-2 pt-1">
+                    <input
+                      className={inputCls}
+                      placeholder="عنوان سال — مثال: ۱۴۰۶-۱۴۰۷"
+                      value={newYearTitle}
+                      onChange={(e) => setNewYearTitle(e.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <JalaliDatePicker value={newYearStarts} onChange={setNewYearStarts} placeholder="شروع (اختیاری)" />
+                      <JalaliDatePicker value={newYearEnds} onChange={setNewYearEnds} placeholder="پایان (اختیاری)" />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-[#526176] dark:text-[#B3C0D2] cursor-pointer">
+                      <input type="checkbox" checked={newYearCurrent} onChange={(e) => setNewYearCurrent(e.target.checked)} className="rounded" />
+                      تعیین به‌عنوان سال جاری
+                    </label>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="submit"
+                      disabled={!newYearTitle.trim() || creatingYear}
+                    >
+                      {creatingYear ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} افزودن سال تحصیلی
+                    </Button>
+                  </form>
+                </div>
+              </Card>
+            )}
+
+            {canManageStructure && (
+              <Card>
+                <div className="p-4 space-y-3">
+                  <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
+                    <BookOpen size={15} className="text-[#2457C5] dark:text-[#8BAEFF]" /> درس‌های مدرسه
+                  </h3>
+
+                  {subjects.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {subjects.map((s) => (
+                        <span
+                          key={s.id}
+                          className="text-[11px] bg-[#EAF1FB] dark:bg-[#1D2B44] text-[#2457C5] dark:text-[#8BAEFF] px-2 py-1 rounded-lg font-bold"
+                        >
+                          {s.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateSubject} className="space-y-2 pt-1">
+                    <input
+                      className={inputCls}
+                      placeholder="عنوان درس — مثال: شیمی"
+                      value={newSubjectTitle}
+                      onChange={(e) => setNewSubjectTitle(e.target.value)}
+                    />
+                    <input
+                      className={inputCls}
+                      placeholder="کد درس (اختیاری) — مثال: CHEM"
+                      value={newSubjectCode}
+                      onChange={(e) => setNewSubjectCode(e.target.value)}
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="submit"
+                      disabled={!newSubjectTitle.trim() || creatingSubject}
+                    >
+                      {creatingSubject ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} افزودن درس
+                    </Button>
+                  </form>
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* ── selected classroom detail ── */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {!selected ? (
               <Card>
                 <EmptyState title="کلاسی انتخاب نشده" description="از فهرست سمت راست یک کلاس انتخاب کنید یا کلاس جدیدی بسازید." />

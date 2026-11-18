@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Services;
 
 use App\Modules\Identity\Models\LoginCode;
 use App\Modules\Identity\Models\User;
+use App\Modules\School\Models\School;
 use App\Support\PhoneHash;
 use App\Support\Sms\SmsManager;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
@@ -40,6 +41,13 @@ final class OtpService
             ->where('phone_hash', $phoneHash)
             ->where('status', 'active')
             ->first();
+
+        // The school-level OTP switch (school_settings.otp_login_enabled):
+        // when every school of this user turned SMS login off, say so
+        // explicitly instead of sending a code that verifies nowhere.
+        if ($user !== null) {
+            $this->assertOtpAllowedFor($user);
+        }
 
         if ($user === null) {
             return;
@@ -83,6 +91,10 @@ final class OtpService
             ->where('status', 'active')
             ->first();
 
+        if ($user !== null) {
+            $this->assertOtpAllowedFor($user);
+        }
+
         $loginCode = $user?->id === null ? null : LoginCode::query()
             ->where('user_id', $user->id)
             ->whereNull('consumed_at')
@@ -111,5 +123,35 @@ final class OtpService
         return ValidationException::withMessages([
             'code' => 'کد ورود نامعتبر است.',
         ]);
+    }
+
+    /**
+     * school_settings.otp_login_enabled per school: OTP stays available when
+     * at least ONE of the user's active schools has it on (a multi-school
+     * user may still need SMS to enter the other school). A user with no
+     * school scope at all (platform admin) is unscoped and unaffected.
+     */
+    private function assertOtpAllowedFor(User $user): void
+    {
+        $schoolIds = $user->userRoles()->active()
+            ->pluck('school_id')
+            ->filter()
+            ->unique()
+            ->all();
+
+        if ($schoolIds === []) {
+            return;
+        }
+
+        $anySchoolAllowsOtp = School::query()
+            ->whereIn('id', $schoolIds)
+            ->get()
+            ->contains(fn (School $school) => $school->otpLoginEnabled());
+
+        if (! $anySchoolAllowsOtp) {
+            throw ValidationException::withMessages([
+                'phone' => 'ورود با کد پیامکی برای مدرسهٔ شما غیرفعال است — با رمز عبور وارد شوید.',
+            ]);
+        }
     }
 }

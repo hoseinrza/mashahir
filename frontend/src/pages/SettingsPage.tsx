@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw, School,
+  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw, School, Smartphone,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, Button, Badge, FormField, PageHeader } from '../components/common';
-import { ApiNotificationCenter, ApiSchoolSettingsService } from '../api/data';
+import { ApiNotificationCenter, ApiSchoolSettingsService, ApiUserService } from '../api/data';
 import { ApiError } from '../api/client';
 
 /** The notification types the backend actually emits, with their Persian labels. */
@@ -26,7 +26,7 @@ const firstError = (e: unknown, fallback: string): string =>
   e instanceof ApiError ? e.firstError() : fallback;
 
 export const SettingsPage: React.FC = () => {
-  const { currentUser, activeRole, hasAccess } = useAuth();
+  const { currentUser, activeRole, hasAccess, hasPassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const canManageSchool = hasAccess('schools:settings');
@@ -38,6 +38,17 @@ export const SettingsPage: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [busyType, setBusyType] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // ── Login password (self-service; username = own mobile number) ──
+  const [pwNew, setPwNew] = useState('');
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+
+  // ── School-level OTP switch (own immediate-save checkbox, not the bulk
+  //    text form — the bulk loader stringifies booleans) ──
+  const [otpLoginEnabled, setOtpLoginEnabled] = useState<boolean | null>(null);
+  const [otpBusy, setOtpBusy] = useState(false);
 
   // ── School-level policy (FR-35) — only for schools.settings holders ──
   const [schoolName, setSchoolName] = useState<string | null>(null);
@@ -53,8 +64,13 @@ export const SettingsPage: React.FC = () => {
       .then((payload) => {
         if (cancelled) return;
 
+        // otp_login_enabled is a REAL boolean with its own toggle — the text
+        // form would corrupt it ("true" string / null on empty).
+        const { otp_login_enabled: otpSetting, ...rest } = payload.settings;
+        setOtpLoginEnabled(otpSetting === undefined || otpSetting === null ? true : Boolean(otpSetting));
+
         const asText: Record<string, string> = {};
-        Object.entries(payload.settings).forEach(([key, value]) => {
+        Object.entries(rest).forEach(([key, value]) => {
           asText[key] = value === null || value === undefined
             ? ''
             : typeof value === 'string' ? value : JSON.stringify(value);
@@ -121,6 +137,55 @@ export const SettingsPage: React.FC = () => {
 
     return () => { cancelled = true; };
   }, [reloadKey]);
+
+  const handleToggleOtp = async () => {
+    if (otpLoginEnabled === null || otpBusy) return;
+
+    const next = !otpLoginEnabled;
+    setOtpLoginEnabled(next);
+    setOtpBusy(true);
+    setSchoolError(null);
+
+    try {
+      await ApiSchoolSettingsService.save([{ key: 'otp_login_enabled', value: next }]);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setOtpLoginEnabled(!next);
+      setSchoolError(firstError(err, 'خطا در ذخیرهٔ وضعیت ورود پیامکی'));
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwNew.length < 8) {
+      setPwError('رمز عبور باید دست‌کم ۸ نویسه باشد.');
+      return;
+    }
+    if (hasPassword && pwCurrent.length === 0) {
+      setPwError('رمز فعلی را وارد نمایید.');
+      return;
+    }
+
+    setPwBusy(true);
+    setPwError(null);
+    try {
+      await ApiUserService.setOwnPassword({
+        password: pwNew,
+        currentPassword: hasPassword ? pwCurrent : undefined,
+      });
+      setPwNew('');
+      setPwCurrent('');
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setPwError(firstError(err, 'خطا در ذخیرهٔ رمز عبور'));
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const handleToggle = async (type: string) => {
     if (prefs === null) return;
@@ -190,6 +255,41 @@ export const SettingsPage: React.FC = () => {
             <p className="text-[11px] text-slate-400 pt-2">
               تغییر شمارهٔ ورود و کد ملی از طریق دفتر مدرسه و با ثبت دلیل انجام می‌شود؛ از این صفحه قابل ویرایش نیست.
             </p>
+
+            <div className="pt-3 border-t border-[#DCE3EE] dark:border-[#344257]">
+              <h4 className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB] mb-3 flex items-center gap-1.5">
+                <Lock size={13} /> رمز عبور ورود (یوزرنیم = شمارهٔ همراه)
+              </h4>
+              <form onSubmit={handleSetPassword} className="space-y-2.5 text-xs">
+                {hasPassword && (
+                  <FormField label="رمز فعلی">
+                    <input
+                      type="password" dir="ltr"
+                      value={pwCurrent}
+                      onChange={(e) => setPwCurrent(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+                    />
+                  </FormField>
+                )}
+                <FormField label={hasPassword ? 'رمز جدید' : 'رمز عبور جدید'}>
+                  <input
+                    type="password" dir="ltr"
+                    value={pwNew}
+                    onChange={(e) => setPwNew(e.target.value)}
+                    placeholder="دست‌کم ۸ نویسه"
+                    className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+                  />
+                </FormField>
+                {pwError && (
+                  <p className="text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> {pwError}
+                  </p>
+                )}
+                <Button type="submit" size="sm" variant="outline" disabled={pwBusy}>
+                  {pwBusy ? <Loader2 size={13} className="animate-spin" /> : 'ذخیرهٔ رمز'}
+                </Button>
+              </form>
+            </div>
           </div>
         </Card>
 
@@ -282,6 +382,28 @@ export const SettingsPage: React.FC = () => {
               <AlertCircle size={14} /> {schoolError}
             </div>
           )}
+
+          {/* Immediate-save boolean — kept out of the bulk text form on purpose. */}
+          <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs cursor-pointer mb-4">
+            <span className="space-y-0.5">
+              <span className="flex items-center gap-2 font-bold text-[#202B3C] dark:text-[#F1F5FB]">
+                <Smartphone size={13} className="text-[#2457C5]" /> ورود با کد پیامکی (OTP)
+              </span>
+              <span className="block text-[10px] text-slate-400">
+                خاموش کردن = کاربران این مدرسه فقط با شمارهٔ موبایل و رمز عبور وارد می‌شوند
+              </span>
+            </span>
+            <span className="flex items-center gap-2">
+              {otpBusy && <Loader2 size={12} className="animate-spin text-slate-400" />}
+              <input
+                type="checkbox"
+                checked={otpLoginEnabled ?? true}
+                disabled={otpBusy || otpLoginEnabled === null}
+                onChange={handleToggleOtp}
+                className="rounded"
+              />
+            </span>
+          </label>
 
           {schoolSettings === null ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-[#526176] dark:text-[#B3C0D2]">

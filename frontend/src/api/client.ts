@@ -163,6 +163,7 @@ export async function apiDocument(path: string): Promise<string> {
     first_name: string;
     last_name: string;
     phone: string;
+    has_password: boolean;
   };
   school: { ulid: string; name: string } | null;
   active_role: {

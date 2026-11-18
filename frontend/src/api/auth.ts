@@ -2,10 +2,15 @@ import { api, setPendingToken, setToken } from './client';
 import type { AuthContextPayload, RoleOption } from './client';
 
 /**
- * Real authentication flow — SMS OTP only (the system has no passwords).
- * verify issues a pending-role token; switchRole exchanges it (and any
- * active token) for a role-scoped token.
+ * Real authentication flow — SMS OTP and phone+password (username IS the
+ * mobile number). Both verify paths issue a pending-role token; switchRole
+ * exchanges it (and any active token) for a role-scoped token.
  */
+
+/** Public: does the login page offer the SMS-OTP option (school toggle)? */
+export async function fetchAuthConfig(): Promise<{ otp_enabled: boolean }> {
+  return api<{ otp_enabled: boolean }>('/v1/auth/config', { tokenKind: 'none' });
+}
 
 export async function requestOtp(phone: string): Promise<void> {
   await api('/v1/auth/otp/request', {
@@ -27,6 +32,23 @@ export async function verifyOtp(phone: string, code: string): Promise<RoleOption
 
   setPendingToken(result.token);
   setToken(null); // any previous session ends on a new login
+
+  return result.roles ?? [];
+}
+
+/** Password login — lands on the same role-selection step as OTP verify. */
+export async function loginWithPassword(phone: string, password: string): Promise<RoleOption[]> {
+  const result = await api<{ token: string; token_kind: string; roles: RoleOption[] }>(
+    '/v1/auth/password/login',
+    {
+      method: 'POST',
+      body: { phone, password },
+      tokenKind: 'none',
+    },
+  );
+
+  setPendingToken(result.token);
+  setToken(null);
 
   return result.roles ?? [];
 }

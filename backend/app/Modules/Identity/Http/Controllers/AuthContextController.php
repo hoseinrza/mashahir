@@ -44,6 +44,7 @@ class AuthContextController extends Controller
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'phone' => $user->phone, // decrypted for the owner only
+                'has_password' => $user->password !== null,
             ],
             'school' => $school ? ['ulid' => $school->ulid, 'name' => $school->name] : null,
             'active_role' => $userRole ? [

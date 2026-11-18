@@ -267,7 +267,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               </button>
 
               {isNotifDropdownOpen && (
-                <div className="absolute left-0 mt-2 w-80 sm:w-88 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 text-right overflow-hidden">
+                <div className="fixed inset-x-2 top-[calc(4rem+env(safe-area-inset-top))] sm:absolute sm:inset-x-auto sm:left-0 sm:top-auto sm:mt-2 sm:w-88 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 text-right overflow-hidden">
                   {/* Panel header */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                                   archiveNotif(notif.id);
                                 }}
                                 title="بایگانی"
-                                className="absolute left-2 top-2 p-1 rounded-lg text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                                className="absolute left-2 top-2 p-1 rounded-lg text-slate-300 dark:text-slate-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
                               >
                                 <Archive size={13} />
                               </button>
@@ -426,7 +426,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
               {/* User Profile Popover */}
               {isProfileDropdownOpen && (
-                <div className="absolute left-0 mt-2 w-76 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 text-right">
+                <div className="fixed inset-x-2 top-[calc(4rem+env(safe-area-inset-top))] sm:absolute sm:inset-x-auto sm:left-0 sm:top-auto sm:mt-2 sm:w-76 bg-white dark:bg-[#151f32] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 text-right">
                   
                   {/* User info head */}
                   <div className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl mb-3">

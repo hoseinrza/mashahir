@@ -3,18 +3,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Smartphone, ShieldCheck, AlertTriangle, Sun, Moon,
   Loader2, KeyRound, CheckCircle2, Users, School, GraduationCap, BookOpen,
-  HeartHandshake, BellRing, ClipboardCheck, EyeOff,
+  HeartHandshake, BellRing, ClipboardCheck, EyeOff, Lock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { SchoolLogo, Button, Badge } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { ApiError } from '../api/client';
+import { fetchAuthConfig } from '../api/auth';
 import type { RoleOption } from '../api/client';
 
 /**
- * ورود واقعی: فقط کد یکبارمصرف پیامکی.
- * شماره → کد (۶ خانه با پرش خودکار) → انتخاب نقش (چندمدرسه‌ای/چندنقشی) → داشبورد.
+ * ورود واقعی: کد یکبارمصرف پیامکی یا رمز عبور (یوزرنیم = شمارهٔ موبایل).
+ * شماره → (کد یا رمز) → انتخاب نقش (چندمدرسه‌ای/چندنقشی) → داشبورد.
+ * مدرسه می‌تواند OTP را در تنظیمات خاموش کند؛ صفحه از /v1/auth/config می‌فهمد.
  */
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
@@ -38,7 +40,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export const LoginPage: React.FC = () => {
-  const { requestOtp, verifyOtp, switchRole, pendingRoles, isAuthenticated } = useAuth();
+  const { requestOtp, verifyOtp, loginWithPassword, switchRole, pendingRoles, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -48,6 +50,9 @@ export const LoginPage: React.FC = () => {
   const [otpTimer, setOtpTimer] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [loginMode, setLoginMode] = useState<'otp' | 'password'>('otp');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [otpEnabled, setOtpEnabled] = useState(true);
 
   const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
   const switchingRef = useRef(false);
@@ -56,6 +61,16 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
   }, [isAuthenticated, navigate]);
+
+  // A school can switch SMS login off entirely (settings toggle).
+  useEffect(() => {
+    fetchAuthConfig()
+      .then((c) => {
+        setOtpEnabled(c.otp_enabled);
+        if (!c.otp_enabled) setLoginMode('password');
+      })
+      .catch(() => setOtpEnabled(true));
+  }, []);
 
   // Resend countdown
   useEffect(() => {
@@ -110,6 +125,28 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await verifyOtp(phoneInput, code);
+    } catch (err) {
+      setAuthError(errorText(err));
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const clean = toAscii(phoneInput.trim()).replace(/\D/g, '');
+    if (clean.length < 10) {
+      setAuthError('لطفاً شماره موبایل معتبر وارد نمایید.');
+      return;
+    }
+    if (passwordInput.length < 8) {
+      setAuthError('رمز عبور را وارد نمایید.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      setPhoneInput(clean);
+      await loginWithPassword(clean, passwordInput);
     } catch (err) {
       setAuthError(errorText(err));
       setIsSubmitting(false);
@@ -256,13 +293,46 @@ export const LoginPage: React.FC = () => {
               })}
             </div>
 
-            {/* ── Step: phone ── */}
+            {/* ── Step: phone (SMS code or password) ── */}
             {step === 'phone' && (
-              <form onSubmit={handleSendOtp} className="space-y-5">
+              <form onSubmit={loginMode === 'otp' ? handleSendOtp : handlePasswordLogin} className="space-y-5">
                 <div className="text-center mb-2">
                   <h1 className="text-2xl font-black">ورود به سامانه</h1>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">کد یکبارمصرف به موبایل شما پیامک می‌شود</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
+                    {loginMode === 'otp' ? 'کد یکبارمصرف به موبایل شما پیامک می‌شود' : 'با شمارهٔ موبایل و رمز عبور وارد شوید'}
+                  </p>
                 </div>
+
+                {/* mode switch — the OTP option disappears when a school turns it off */}
+                <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#182231] text-xs font-bold">
+                  {otpEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMode('otp'); setAuthError(null); }}
+                      className={cn(
+                        'flex-1 py-2 rounded-lg transition-all',
+                        loginMode === 'otp'
+                          ? 'bg-white dark:bg-[#131C2E] text-[#2457C5] dark:text-[#8BAEFF] shadow-2xs'
+                          : 'text-slate-500 dark:text-slate-400',
+                      )}
+                    >
+                      <span className="flex items-center justify-center gap-1.5"><Smartphone size={13} /> کد پیامکی</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode('password'); setAuthError(null); }}
+                    className={cn(
+                      'flex-1 py-2 rounded-lg transition-all',
+                      loginMode === 'password'
+                        ? 'bg-white dark:bg-[#131C2E] text-[#2457C5] dark:text-[#8BAEFF] shadow-2xs'
+                        : 'text-slate-500 dark:text-slate-400',
+                    )}
+                  >
+                    <span className="flex items-center justify-center gap-1.5"><Lock size={13} /> رمز عبور</span>
+                  </button>
+                </div>
+
                 <div className="relative" dir="ltr">
                   <Smartphone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -273,18 +343,37 @@ export const LoginPage: React.FC = () => {
                     className="w-full h-12 pr-4 pl-11 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-center text-base font-bold tracking-widest focus:ring-2 focus:ring-[#2457C5]/40 focus:border-[#2457C5] outline-none transition-all"
                   />
                 </div>
+
+                {loginMode === 'password' && (
+                  <div className="relative" dir="ltr">
+                    <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="password" dir="ltr"
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      placeholder="رمز عبور"
+                      className="w-full h-12 pr-4 pl-11 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm font-bold focus:ring-2 focus:ring-[#2457C5]/40 focus:border-[#2457C5] outline-none transition-all"
+                    />
+                  </div>
+                )}
+
                 {authError && (
                   <div className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl p-3">
                     <AlertTriangle size={14} className="shrink-0" /> {authError}
                   </div>
                 )}
+
                 <Button type="submit" className="w-full h-12 text-sm" disabled={isSubmitting}>
                   {isSubmitting ? <Loader2 size={17} className="animate-spin" /> : (
-                    <span className="flex items-center gap-2"><KeyRound size={15} /> دریافت کد ورود</span>
+                    loginMode === 'otp'
+                      ? <span className="flex items-center gap-2"><KeyRound size={15} /> دریافت کد ورود</span>
+                      : <span className="flex items-center gap-2"><Lock size={15} /> ورود با رمز</span>
                   )}
                 </Button>
                 <p className="text-center text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5">
-                  <EyeOff size={12} /> ورود با رمز عبور وجود ندارد — امن‌تر و ساده‌تر
+                  {loginMode === 'otp'
+                    ? (<><Smartphone size={12} /> سریع‌ترین راه ورود — بدون رمز عبور</>)
+                    : (<><EyeOff size={12} /> یوزرنیم شما شمارهٔ موبایل ثبت‌شده است؛ رمز فراموش‌شده را از دفتر مدرسه بگیرید</>)}
                 </p>
               </form>
             )}

@@ -18,6 +18,7 @@ class SchoolSettingsApiController extends Controller
 {
     private const ALLOWED_KEYS = [
         'consent_policy', 'sms_quiet_hours', 'report_card_template', 'attendance_edit_window',
+        'otp_login_enabled',
     ];
 
     public function show(): JsonResponse
@@ -54,6 +55,10 @@ class SchoolSettingsApiController extends Controller
             if ($entry['key'] === 'consent_policy'
                 && ! in_array($entry['value'], ['one_parent', 'both_parents'], true)) {
                 throw ValidationException::withMessages(['settings' => 'سیاست رضایتنامه نامعتبر است.']);
+            }
+
+            if ($entry['key'] === 'otp_login_enabled' && ! is_bool($entry['value'])) {
+                throw ValidationException::withMessages(['settings' => 'مقدار کلید OTP باید true یا false باشد.']);
             }
 
             \Illuminate\Support\Facades\DB::table('school_settings')->updateOrInsert(
