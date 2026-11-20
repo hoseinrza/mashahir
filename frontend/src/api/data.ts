@@ -73,11 +73,13 @@ export const ApiUserService = {
     }));
   },
 
-  async createUser(payload: { firstName: string; lastName: string; phone: string }): Promise<void> {
-    await api('/v1/users', {
+  /** false = the phone already had a platform account and it was attached to this school. */
+  async createUser(payload: { firstName: string; lastName: string; phone: string }): Promise<boolean> {
+    const result = await api<{ fresh_account?: boolean }>('/v1/users', {
       method: 'POST',
       body: { first_name: payload.firstName, last_name: payload.lastName, phone: payload.phone },
     });
+    return result.fresh_account === true;
   },
 
   /** sh7: the login number only changes with a written reason. */
@@ -213,6 +215,7 @@ const ACTION_TITLES: Record<string, string> = {
   'pickup.authorization_updated': 'فهرست تحویل‌گیری تغییر کرد',
   'user.role_assigned': 'نقش به کاربر تخصیص یافت',
   'user.role_ended': 'تخصیص نقش کاربر پایان یافت',
+  'user.created': 'حساب کاربری جدید ساخته یا به مدرسه متصل شد',
   'user.phone_changed': 'شمارهٔ موبایل ورود تغییر کرد',
   'user.updated': 'اطلاعات کاربر ویرایش شد',
   'student.created': 'دانش‌آموز جدید ثبت شد',

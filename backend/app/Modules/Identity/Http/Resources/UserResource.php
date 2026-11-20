@@ -18,6 +18,9 @@ class UserResource extends JsonResource
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'status' => $this->status,
+            // Store response only: false = an existing platform account was
+            // attached to the school instead of being created.
+            'fresh_account' => $this->when($this->wasRecentlyCreated, fn () => true),
             // sh8: support sees minimal data only.
             'phone' => $this->when(! $minimal, fn () => $this->phone),
             'last_login_at' => $this->when(! $minimal, fn () => $this->last_login_at?->toIso8601String()),

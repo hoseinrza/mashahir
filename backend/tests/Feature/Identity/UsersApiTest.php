@@ -3,6 +3,7 @@
 namespace Tests\Feature\Identity;
 
 use App\Modules\Audit\Models\AuditLog;
+use App\Modules\Identity\Models\StaffProfile;
 use App\Modules\Identity\Models\User;
 use App\Modules\School\Models\School;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -70,6 +71,79 @@ class UsersApiTest extends TestCase
         $this->postJson('/api/v1/users', [
             'first_name' => 'علی', 'last_name' => 'محمدی', 'phone' => '09121110000',
         ])->assertCreated()->assertJsonPath('data.first_name', 'علی');
+    }
+
+    public function test_created_user_is_listed_before_holding_any_role(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        $this->postJson('/api/v1/users', [
+            'first_name' => 'سارا', 'last_name' => 'کریمی', 'phone' => '09123330000',
+        ])->assertCreated();
+
+        $created = User::query()->where('first_name', 'سارا')->firstOrFail();
+
+        // The account holds no role yet — the membership alone lists it,
+        // otherwise its role could never be assigned from the table.
+        $ulids = collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid');
+
+        $this->assertContains($created->ulid, $ulids);
+        $this->assertDatabaseHas('staff_profiles', [
+            'user_id' => $created->id,
+            'school_id' => $this->school->id,
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'user.created', 'subject_id' => $created->id]);
+    }
+
+    public function test_existing_platform_account_is_attached_to_this_school(): void
+    {
+        // Self-registered or already a member of another school: attaching is
+        // membership only, never a permission grant.
+        $existing = User::factory()->create(['phone' => '09124440000']);
+
+        $this->actingWithRole('school_admin');
+
+        $this->postJson('/api/v1/users', [
+            'first_name' => 'رضا', 'last_name' => 'مرادی', 'phone' => '09124440000',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('staff_profiles', [
+            'user_id' => $existing->id,
+            'school_id' => $this->school->id,
+        ]);
+        $this->assertContains(
+            $existing->ulid,
+            collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid'),
+        );
+    }
+
+    public function test_duplicate_membership_in_the_same_school_is_rejected(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        $payload = ['first_name' => 'مینا', 'last_name' => 'نادری', 'phone' => '09125550000'];
+        $this->postJson('/api/v1/users', $payload)->assertCreated();
+
+        $this->postJson('/api/v1/users', $payload)->assertJsonValidationErrors('phone');
+    }
+
+    public function test_member_of_another_school_without_roles_here_is_not_listed(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        $otherSchool = School::query()->create([
+            'name' => 'مدرسه دیگر', 'level' => 'high', 'grading_type' => 'numeric',
+            'student_has_account' => true, 'timezone' => 'Asia/Tehran', 'is_active' => true,
+        ]);
+        $foreign = User::factory()->create();
+        // school_id is not mass-assignable (context hook owns it) — force it.
+        StaffProfile::forceCreate(['user_id' => $foreign->id, 'school_id' => $otherSchool->id]);
+
+        $this->assertNotContains(
+            $foreign->ulid,
+            collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid'),
+        );
     }
 
     public function test_phone_change_requires_reason_and_is_audited(): void

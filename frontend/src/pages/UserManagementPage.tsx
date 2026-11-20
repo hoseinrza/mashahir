@@ -169,7 +169,7 @@ export const UserManagementPage: React.FC = () => {
     setError(null);
     setNotice(null);
     try {
-      await ApiUserService.createUser({
+      const fresh = await ApiUserService.createUser({
         firstName: userFirst.trim(),
         lastName: userLast.trim(),
         phone: userPhone.trim(),
@@ -179,7 +179,9 @@ export const UserManagementPage: React.FC = () => {
       setUserLast('');
       setUserPhone('');
       setUsersReload((k) => k + 1);
-      setNotice('کاربر ساخته شد؛ برای دسترسی به سامانه باید نقش بگیرد.');
+      setNotice(fresh
+        ? 'کاربر ساخته شد؛ برای دسترسی به سامانه باید نقش بگیرد.'
+        : 'این شماره از قبل حساب داشت؛ حساب به این مدرسه متصل شد و اکنون باید نقش بگیرد.');
     } catch (err) {
       setError(firstError(err, 'خطا در ساخت کاربر'));
     } finally {

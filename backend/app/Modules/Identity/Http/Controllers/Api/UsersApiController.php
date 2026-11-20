@@ -20,10 +20,18 @@ class UsersApiController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
+        $schoolId = $request->attributes->get('school_id');
+
+        // Affiliation, not roles: a freshly created account holds no role yet
+        // but must still be listed, otherwise its role could never be
+        // assigned from the table. Roles alone cover pre-staff-profile users.
         $users = User::query()
-            ->whereHas('userRoles', fn ($q) => $q->where('school_id', $request->attributes->get('school_id')))
+            ->where(
+                fn ($q) => $q->whereHas('staffProfiles', fn ($sp) => $sp->where('school_id', $schoolId))
+                    ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)),
+            )
             ->with(['userRoles' => fn ($q) => $q->active()
-                ->where('school_id', $request->attributes->get('school_id'))
+                ->where('school_id', $schoolId)
                 ->with('role')])
             ->orderBy('last_name')
             ->paginate(min($request->integer('per_page', 50), 100));
@@ -43,11 +51,26 @@ class UsersApiController extends Controller
 
         $phoneHash = PhoneHash::of($data['phone']);
 
-        if (User::query()->where('phone_hash', $phoneHash)->exists()) {
-            throw ValidationException::withMessages(['phone' => 'این شماره قبلاً ثبت شده است.']);
+        // The account itself is platform-global; the school link lives in
+        // staff_profiles. An existing account (self-registered or from
+        // another school) is attached here instead of erroring — only a
+        // duplicate membership within THIS school is rejected.
+        $user = User::query()->where('phone_hash', $phoneHash)->first();
+
+        if ($user !== null
+            && $user->staffProfiles()->where('school_id', $request->attributes->get('school_id'))->exists()) {
+            throw ValidationException::withMessages(['phone' => 'این شماره قبلاً در همین مدرسه ثبت شده است.']);
         }
 
-        $user = User::query()->create($data + ['phone_hash' => $phoneHash]);
+        if ($user === null) {
+            $user = User::query()->create($data + ['phone_hash' => $phoneHash]);
+        }
+
+        // Membership without a role: the user is visible in the personnel
+        // list immediately so the role can be assigned from the same table.
+        $user->staffProfiles()->create(['status' => 'active']);
+
+        app(AuditService::class)->log('user.created', $user, new: $data);
 
         return new UserResource($user);
     }
