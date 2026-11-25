@@ -60,4 +60,23 @@ for (const [density, size] of Object.entries(foregroundSizes)) {
   await sharp(Buffer.from(foregroundSvg)).resize(size, size).png().toFile(path.join(dir, 'ic_launcher_foreground.png'));
   console.log('generated', `mipmap-${density}/ic_launcher_foreground.png (${size}px)`);
 }
+
+// --- iOS home-screen icon (AppIcon.appiconset) ---
+// iOS masks the corners itself: the backdrop becomes a full-bleed SQUARE
+// (rx removed — transparent corners would make Xcode reject the icon) and
+// the PNG is flattened opaque. The appiconset references the single
+// universal 1024 icon, so this one file covers every home-screen size.
+const iosSvg = svg
+  .toString('utf8')
+  .replace('<rect width="512" height="512" rx="112" fill="url(#bg)"/>', '<rect width="512" height="512" fill="url(#bg)"/>');
+
+const appIconSet = path.join(root, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
+await mkdir(appIconSet, { recursive: true });
+await sharp(Buffer.from(iosSvg))
+  .resize(1024, 1024)
+  .flatten({ background: '#173E96' })
+  .png()
+  .toFile(path.join(appIconSet, 'AppIcon-512@2x.png'));
+console.log('generated AppIcon.appiconset/AppIcon-512@2x.png (1024px, full-bleed)');
+
 console.log('icon set complete');
