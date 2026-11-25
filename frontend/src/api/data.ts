@@ -1530,17 +1530,23 @@ export const ApiRolesService = {
   },
 };
 
-/** FR-35: school-level policy that consent, SMS and report cards share. */export interface SchoolSettingsPayload {
+/** FR-35: school-level policy that consent, SMS and report cards share. */
+export interface SchoolSettingsPayload {
   school: { ulid: string; name: string } | null;
   settings: Record<string, unknown>;
+  /** Alocom (الوکام) online-class credentials — write-only on the backend. */
+  alocomUsername: string | null;
+  alocomConfigured: boolean;
 }
 
 export const ApiSchoolSettingsService = {
   async get(): Promise<SchoolSettingsPayload> {
-    const result = await api<{ school: any; settings: Record<string, any> }>('/v1/school/settings');
+    const result = await api<{ school: any; settings: Record<string, any>; alocom_username?: string; alocom_configured?: boolean }>('/v1/school/settings');
     return {
       school: result.school ? { ulid: result.school.ulid, name: result.school.name } : null,
       settings: result.settings ?? {},
+      alocomUsername: result.alocom_username ?? null,
+      alocomConfigured: Boolean(result.alocom_configured),
     };
   },
 

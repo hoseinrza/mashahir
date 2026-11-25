@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw, School, Smartphone,
+  Bell, Moon, Sun, Lock, Save, Loader2, AlertCircle, CheckCircle2, RefreshCw, School, Smartphone, Video,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -56,6 +56,13 @@ export const SettingsPage: React.FC = () => {
   const [schoolError, setSchoolError] = useState<string | null>(null);
   const [isSavingSchool, setIsSavingSchool] = useState(false);
 
+  // ── Alocom (الوکام) online-class credentials — the principal connects ──
+  const [alocomUsername, setAlocomUsername] = useState('');
+  const [alocomPassword, setAlocomPassword] = useState('');
+  const [alocomConfigured, setAlocomConfigured] = useState(false);
+  const [alocomBusy, setAlocomBusy] = useState(false);
+  const [alocomMsg, setAlocomMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (!canManageSchool) return;
     let cancelled = false;
@@ -78,6 +85,8 @@ export const SettingsPage: React.FC = () => {
 
         setSchoolName(payload.school?.name ?? null);
         setSchoolSettings(asText);
+        setAlocomUsername(payload.alocomUsername ?? '');
+        setAlocomConfigured(payload.alocomConfigured);
       })
       .catch((e) => { if (!cancelled) setSchoolError(firstError(e, 'خطا در دریافت تنظیمات مدرسه')); });
 
@@ -103,6 +112,44 @@ export const SettingsPage: React.FC = () => {
       setSchoolError(firstError(err, 'خطا در ذخیرهٔ تنظیمات مدرسه'));
     } finally {
       setIsSavingSchool(false);
+    }
+  };
+
+  // Connect/disconnect the school's Alocom organizer account: the save is a
+  // LIVE login attempt against Alocom — wrong credentials never stick.
+  const handleSaveAlocom = async () => {
+    setAlocomBusy(true);
+    setAlocomMsg(null);
+    try {
+      await ApiSchoolSettingsService.save([
+        { key: 'alocom_credentials', value: { username: alocomUsername.trim(), password: alocomPassword } },
+      ]);
+      const payload = await ApiSchoolSettingsService.get();
+      setAlocomUsername(payload.alocomUsername ?? '');
+      setAlocomConfigured(payload.alocomConfigured);
+      setAlocomPassword('');
+      setAlocomMsg('اتصال الوکام برقرار شد — «برگزاری کلاس آنلاین» با بستر الوکام هم در دسترس است.');
+    } catch (err) {
+      setAlocomMsg(firstError(err, 'خطا در اتصال به الوکام'));
+    } finally {
+      setAlocomBusy(false);
+    }
+  };
+
+  const handleDisconnectAlocom = async () => {
+    setAlocomBusy(true);
+    setAlocomMsg(null);
+    try {
+      await ApiSchoolSettingsService.save([
+        { key: 'alocom_credentials', value: { username: '', password: '' } },
+      ]);
+      setAlocomUsername('');
+      setAlocomConfigured(false);
+      setAlocomMsg('اتصال الوکام قطع شد.');
+    } catch (err) {
+      setAlocomMsg(firstError(err, 'خطا در قطع اتصال الوکام'));
+    } finally {
+      setAlocomBusy(false);
     }
   };
 
@@ -466,6 +513,74 @@ export const SettingsPage: React.FC = () => {
               </div>
             </form>
           )}
+        </Card>
+      )}
+
+      {canManageSchool && (
+        <Card className="text-right">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#DCE3EE] dark:border-[#344257] mb-4">
+            <h3 className="text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB] flex items-center gap-2">
+              <Video size={16} className="text-[#2457C5]" /> کلاس آنلاین الوکام
+            </h3>
+            <Badge variant={alocomConfigured ? 'success' : 'neutral'}>
+              {alocomConfigured ? 'متصل' : 'متصل نشده'}
+            </Badge>
+          </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-3">
+            یوزر و پسورد حساب سازمان‌دهی (Organizer) الوکام مدرسه را وارد کنید؛ سامانه همان لحظه به الوکام وصل می‌شود و از آن پس
+            «برگزاری کلاس آنلاین» با بستر الوکام هم در دسترس است — مدرس و دانش‌آموز بدون حساب جداگانه، با لینک اختصاصی خودشان وارد کلاس می‌شوند.
+          </p>
+
+          {alocomMsg && (
+            <div className={`mb-3 flex items-center gap-2 text-xs ${alocomMsg.startsWith('اتصال الوکام برقرار') || alocomMsg.startsWith('اتصال الوکام قطع') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+              <AlertCircle size={14} /> {alocomMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormField label="یوزر الوکام">
+              <input
+                type="text"
+                dir="ltr"
+                value={alocomUsername}
+                onChange={(e) => setAlocomUsername(e.target.value)}
+                placeholder="organizer username"
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+              />
+            </FormField>
+
+            <FormField label={alocomConfigured ? 'رمز الوکام (برای تغییر بنویسید)' : 'رمز الوکام'}>
+              <input
+                type="password"
+                dir="ltr"
+                value={alocomPassword}
+                onChange={(e) => setAlocomPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+              />
+            </FormField>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] text-slate-400">
+              رمز در پایگاه داده رمزنگاری می‌شود و هرگز نمایش داده نمی‌شود؛ ذخیره با تست اتصال زندهٔ الوکام انجام می‌شود.
+            </span>
+            <div className="flex items-center gap-2">
+              {alocomConfigured && (
+                <Button variant="ghost" size="sm" disabled={alocomBusy} onClick={handleDisconnectAlocom}>قطع اتصال</Button>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={alocomBusy || alocomUsername.trim() === '' || alocomPassword === ''}
+                onClick={handleSaveAlocom}
+                icon={alocomBusy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              >
+                {alocomBusy ? 'در حال اتصال…' : 'ذخیره و اتصال'}
+              </Button>
+            </div>
+          </div>
         </Card>
       )}
     </div>

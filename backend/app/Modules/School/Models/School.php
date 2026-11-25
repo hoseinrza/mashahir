@@ -20,7 +20,16 @@ class School extends Model
         return [
             'student_has_account' => 'boolean',
             'is_active' => 'boolean',
+            // Alocom (الوکام) organizer credentials — the password is
+            // encrypted at rest and never returned by any API.
+            'alocom_password' => 'encrypted',
         ];
+    }
+
+    /** The school holds working Alocom organizer credentials? */
+    public function alocomConfigured(): bool
+    {
+        return ($this->alocom_username ?? '') !== '' && ($this->alocom_password ?? '') !== '';
     }
 
     public function setting(string $key, mixed $default = null): mixed

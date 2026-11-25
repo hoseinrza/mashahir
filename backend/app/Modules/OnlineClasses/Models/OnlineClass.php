@@ -15,9 +15,13 @@ class OnlineClass extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_CLOSED = 'closed';
 
+    public const PROVIDER_SKYROOM = 'skyroom';
+    public const PROVIDER_ALOCOM = 'alocom';
+
     protected $fillable = [
         'classroom_subject_id', 'title', 'skyroom_room_id', 'skyroom_name',
         'status', 'created_by', 'starts_at', 'ends_at',
+        'provider', 'alocom_event_id', 'alocom_link',
     ];
 
     protected function casts(): array

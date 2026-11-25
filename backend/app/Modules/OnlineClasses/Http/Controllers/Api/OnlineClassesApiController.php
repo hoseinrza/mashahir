@@ -7,12 +7,16 @@ use App\Modules\Academic\Models\ClassroomSubject;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Identity\Models\User;
 use App\Modules\OnlineClasses\Models\OnlineClass;
+use App\Modules\OnlineClasses\Services\AlocomManager;
 use App\Modules\OnlineClasses\Services\SkyroomManager;
+use App\Modules\School\Models\School;
 use App\Support\Rbac\PermissionRegistrar;
 use App\Support\Rbac\ScopeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 /**
  * کلاس آنلاین بر بستر اسکای‌روم: معلم/مدیر اتاق را برای درس-کلاس می‌سازد،
@@ -43,6 +47,9 @@ class OnlineClassesApiController extends Controller
 
         return response()->json([
             'data' => $query->orderByDesc('id')->limit(100)->get()->map(fn (OnlineClass $c) => $this->payload($c)),
+            // Whether the school holds Alocom credentials — the class form
+            // enables the Alocom provider option only when this is true.
+            'alocom_ready' => School::query()->find($request->attributes->get('school_id'))?->alocomConfigured() ?? false,
         ]);
     }
 
@@ -55,7 +62,9 @@ class OnlineClassesApiController extends Controller
             'title' => ['required', 'string', 'max:200'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
+            'provider' => ['nullable', Rule::in([OnlineClass::PROVIDER_SKYROOM, OnlineClass::PROVIDER_ALOCOM])],
         ]);
+        $provider = $data['provider'] ?? OnlineClass::PROVIDER_SKYROOM;
 
         $subject = ClassroomSubject::query()->findOrFail($data['classroom_subject_id']);
         $ids = $this->resolver->classroomIds();
@@ -68,16 +77,44 @@ class OnlineClassesApiController extends Controller
             'title' => $data['title'],
             'starts_at' => $data['starts_at'] ?? null,
             'ends_at' => $data['ends_at'] ?? null,
+            'provider' => $provider,
             'created_by' => $request->user()->id,
         ]);
 
-        // Provision the Skyroom room lazily but immediately; a provider error
-        // surfaces to the caller — no class row without a real room.
-        $roomId = SkyroomManager::createRoom(SkyroomManager::roomName($class->ulid), $data['title']);
-        $class->forceFill([
-            'skyroom_room_id' => $roomId,
-            'skyroom_name' => SkyroomManager::roomName($class->ulid),
-        ])->save();
+        // Provision the provider room lazily but immediately; a provider error
+        // surfaces to the caller — no usable class without a real room.
+        if ($provider === OnlineClass::PROVIDER_ALOCOM) {
+            $school = School::query()->findOrFail($request->attributes->get('school_id'));
+            if (! $school->alocomConfigured()) {
+                $class->delete();
+
+                throw ValidationException::withMessages([
+                    'provider' => 'برای برگزاری کلاس با الوکام، نخست یوزر و پسورد الوکام را در تنظیمات مدرسه ذخیره کنید.',
+                ]);
+            }
+
+            try {
+                [$eventId, $link] = AlocomManager::createEvent(
+                    $school->id,
+                    $school->alocom_username,
+                    $school->alocom_password,
+                    $data['title'],
+                    AlocomManager::eventSlug($class->ulid),
+                );
+            } catch (RuntimeException $e) {
+                $class->delete();
+
+                throw ValidationException::withMessages(['provider' => $e->getMessage()]);
+            }
+
+            $class->forceFill(['alocom_event_id' => $eventId, 'alocom_link' => $link])->save();
+        } else {
+            $roomId = SkyroomManager::createRoom(SkyroomManager::roomName($class->ulid), $data['title']);
+            $class->forceFill([
+                'skyroom_room_id' => $roomId,
+                'skyroom_name' => SkyroomManager::roomName($class->ulid),
+            ])->save();
+        }
 
         $this->audit->log('online_class.created', null, new: ['title' => $data['title']]);
 
@@ -121,6 +158,40 @@ class OnlineClassesApiController extends Controller
         }
 
         $user = $request->user();
+
+        // Alocom: enroll (idempotent) answers with the event_link that opens
+        // the class as this very user — the principal's credentials do the
+        // talking, nobody needs an Alocom account of their own.
+        if ($class->provider === OnlineClass::PROVIDER_ALOCOM) {
+            $school = School::query()->findOrFail($request->attributes->get('school_id'));
+            if (! $school->alocomConfigured()) {
+                throw ValidationException::withMessages(['class' => 'اعتبارنامهٔ الوکام مدرسه یافت نشد؛ در تنظیمات مدرسه ذخیره کنید.']);
+            }
+
+            $role = match ($roleKey) {
+                'teacher' => 'teacher',
+                'school_admin', 'academic_deputy', 'discipline_deputy' => 'assistant',
+                default => 'participant',
+            };
+
+            try {
+                $url = AlocomManager::enterLink(
+                    $school->id,
+                    $school->alocom_username,
+                    $school->alocom_password,
+                    (string) $class->alocom_event_id,
+                    'u' . $user->id,
+                    (string) $user->first_name,
+                    (string) $user->last_name,
+                    $role,
+                );
+            } catch (RuntimeException $e) {
+                throw ValidationException::withMessages(['class' => $e->getMessage()]);
+            }
+
+            return response()->json(['url' => $url]);
+        }
+
         $access = in_array($roleKey, ['teacher', 'school_admin', 'academic_deputy'], true) ? 2 : 1;
 
         $url = SkyroomManager::createLoginUrl(
@@ -150,7 +221,19 @@ class OnlineClassesApiController extends Controller
         $this->audit->log('online_class.deleted', null, old: ['title' => $class->title]);
 
         try {
-            SkyroomManager::deleteRoom((int) $class->skyroom_room_id);
+            if ($class->provider === OnlineClass::PROVIDER_ALOCOM && $class->alocom_event_id !== null) {
+                $school = School::query()->find($request->attributes->get('school_id'));
+                if ($school !== null && $school->alocomConfigured()) {
+                    AlocomManager::deleteEvent(
+                        $school->id,
+                        $school->alocom_username,
+                        $school->alocom_password,
+                        (string) $class->alocom_event_id,
+                    );
+                }
+            } else {
+                SkyroomManager::deleteRoom((int) $class->skyroom_room_id);
+            }
         } catch (\Throwable $e) {
             // the local record still closes even if the provider is unreachable
         }
@@ -181,6 +264,7 @@ class OnlineClassesApiController extends Controller
         return [
             'ulid' => $c->ulid,
             'title' => $c->title,
+            'provider' => $c->provider,
             'subject' => $c->classroomSubject?->subject?->title,
             'classroom' => $c->classroomSubject?->classroom?->title,
             'teacher' => $c->classroomSubject?->teacher?->fullName(),
