@@ -54,6 +54,9 @@ export const UserManagementPage: React.FC = () => {
   const [userFirst, setUserFirst] = useState('');
   const [userLast, setUserLast] = useState('');
   const [userPhone, setUserPhone] = useState('');
+  // Role picked in the create form itself — assigned the same moment the
+  // account exists, no second pass over the table needed.
+  const [userRoleKey, setUserRoleKey] = useState('');
 
   const [roleTarget, setRoleTarget] = useState<UserRow | null>(null);
   const [roleKey, setRoleKey] = useState('teacher');
@@ -169,19 +172,45 @@ export const UserManagementPage: React.FC = () => {
     setError(null);
     setNotice(null);
     try {
-      const fresh = await ApiUserService.createUser({
+      const { ulid, freshAccount } = await ApiUserService.createUser({
         firstName: userFirst.trim(),
         lastName: userLast.trim(),
         phone: userPhone.trim(),
       });
+
+      // Same-moment role assignment: the role selected in the create form is
+      // applied right here; only a failed assignment leaves the user listed
+      // without a role, retried from the table row.
+      let roleNotice: string | null = null;
+      let roleFailure: string | null = null;
+      if (userRoleKey) {
+        try {
+          await ApiUserService.assignRole(ulid, { roleKey: userRoleKey, scopeType: 'school' });
+          const roleLabel = BACKEND_ROLE_LABELS[userRoleKey] ?? userRoleKey;
+          roleNotice = freshAccount
+            ? `کاربر ساخته شد و نقش «${roleLabel}» همان لحظه تخصیص یافت.`
+            : `این شماره از قبل حساب داشت؛ حساب به این مدرسه متصل و نقش «${roleLabel}» تخصیص یافت.`;
+        } catch (roleErr) {
+          roleFailure = firstError(roleErr, 'خطا در تخصیص نقش');
+        }
+      }
+
       setIsCreateUserOpen(false);
       setUserFirst('');
       setUserLast('');
       setUserPhone('');
+      setUserRoleKey('');
       setUsersReload((k) => k + 1);
-      setNotice(fresh
-        ? 'کاربر ساخته شد؛ برای دسترسی به سامانه باید نقش بگیرد.'
-        : 'این شماره از قبل حساب داشت؛ حساب به این مدرسه متصل شد و اکنون باید نقش بگیرد.');
+
+      if (roleNotice !== null) {
+        setNotice(roleNotice);
+      } else if (roleFailure !== null) {
+        setError(`حساب ساخته/متصل شد اما تخصیص نقش ناموفق ماند: ${roleFailure} — از ردیف کاربر در جدول، «تخصیص نقش» را دوباره بزنید.`);
+      } else {
+        setNotice(freshAccount
+          ? 'کاربر ساخته شد؛ برای دسترسی به سامانه باید نقش بگیرد.'
+          : 'این شماره از قبل حساب داشت؛ حساب به این مدرسه متصل شد و اکنون باید نقش بگیرد.');
+      }
     } catch (err) {
       setError(firstError(err, 'خطا در ساخت کاربر'));
     } finally {
@@ -721,9 +750,22 @@ export const UserManagementPage: React.FC = () => {
             />
           </FormField>
 
+          <FormField label="نقش (اختیاری — همان لحظه تخصیص می‌شود)">
+            <select
+              value={userRoleKey}
+              onChange={(e) => setUserRoleKey(e.target.value)}
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            >
+              <option value="">بدون نقش — بعداً از جدول تخصیص داده می‌شود</option>
+              {roleOptions.map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </FormField>
+
           <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl">
             <Info size={13} className="shrink-0 mt-0.5" />
-            <span>پس از ساخت، با «تخصیص نقش» دسترسی او را تعیین کنید؛ بدون نقش، کاربر به داشبورد راه پیدا نمی‌کند.</span>
+            <span>اگر نقش را همین‌جا انتخاب کنید، به محض ساخت حساب همان لحظه تخصیص می‌یابد؛ بدون نقش، کاربر به داشبورد راه پیدا نمی‌کند (بعداً هم می‌توانید از ردیف او در جدول نقش بدهید).</span>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

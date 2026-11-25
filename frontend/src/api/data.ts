@@ -73,13 +73,14 @@ export const ApiUserService = {
     }));
   },
 
-  /** false = the phone already had a platform account and it was attached to this school. */
-  async createUser(payload: { firstName: string; lastName: string; phone: string }): Promise<boolean> {
-    const result = await api<{ fresh_account?: boolean }>('/v1/users', {
+  /** ulid is returned so the role can be assigned the same moment the account is created.
+   *  freshAccount false = the phone already had a platform account and it was attached to this school. */
+  async createUser(payload: { firstName: string; lastName: string; phone: string }): Promise<{ ulid: string; freshAccount: boolean }> {
+    const result = await api<{ ulid: string; fresh_account?: boolean }>('/v1/users', {
       method: 'POST',
       body: { first_name: payload.firstName, last_name: payload.lastName, phone: payload.phone },
     });
-    return result.fresh_account === true;
+    return { ulid: result.ulid, freshAccount: result.fresh_account === true };
   },
 
   /** sh7: the login number only changes with a written reason. */
