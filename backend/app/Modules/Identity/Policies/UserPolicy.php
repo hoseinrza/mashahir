@@ -43,6 +43,12 @@ class UserPolicy
             return false;
         }
 
+        // The student role is minted only by the student-record flow with a
+        // student scope — the personnel role form can never hand it out.
+        if ($targetRoleKey === 'student') {
+            return false;
+        }
+
         // The platform role is minted only from the platform context: a
         // school-scoped role can never create or hand out a platform admin.
         if ($targetRoleKey === 'platform_admin'

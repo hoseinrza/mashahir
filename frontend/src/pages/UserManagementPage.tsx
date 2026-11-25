@@ -475,9 +475,12 @@ export const UserManagementPage: React.FC = () => {
     { id: 'classrooms', label: 'کلاس‌ها و ثبت‌نام', badge: classrooms?.length ?? 0 },
   ];
 
-  // School actors never mint a platform admin — the option is platform-only.
+  // School actors never mint a platform admin, and nobody assigns the
+  // student role from the personnel form — students live in the students tab.
   const assignableRoleOptions = useMemo(
-    () => Object.entries(BACKEND_ROLE_LABELS).filter(([key]) => isPlatformAdmin || key !== 'platform_admin'),
+    () => Object.entries(BACKEND_ROLE_LABELS).filter(
+      ([key]) => key !== 'student' && (isPlatformAdmin || key !== 'platform_admin'),
+    ),
     [isPlatformAdmin],
   );
 

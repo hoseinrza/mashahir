@@ -180,6 +180,14 @@ class UsersApiController extends Controller
             'ends_on' => ['nullable', 'date'],
         ]);
 
+        // Students are not personnel: the student role is student-scoped and
+        // only the student-record flow mints it — never the role form.
+        if ($data['role_key'] === 'student') {
+            throw ValidationException::withMessages([
+                'role_key' => 'نقش «دانش‌آموز» از این فرم تخصیص داده نمی‌شود؛ دانش‌آموز را از تب دانش‌آموزان ثبت کنید.',
+            ]);
+        }
+
         if (! $policy->assignRole($request->user(), $data['role_key'])) {
             abort(403, 'Assigning this role is not allowed.');
         }
@@ -275,7 +283,6 @@ class UsersApiController extends Controller
         if ($request->user()->id === $user->id) {
             throw ValidationException::withMessages(['user' => 'حذف حساب خودتان ممکن نیست.']);
         }
-
         $isPlatformContext = $request->attributes->get('user_role')?->role?->key === 'platform_admin';
 
         if ($isPlatformContext) {

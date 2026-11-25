@@ -360,4 +360,24 @@ class UsersApiTest extends TestCase
 
         $this->assertNotNull(\DB::table('user_roles')->find($assignmentId)->ends_on);
     }
+
+    public function test_the_student_role_can_never_be_assigned_from_the_role_form(): void
+    {
+        $this->actingWithRole('school_admin');
+        $target = $this->makeUser();
+
+        // Students are registered from the students tab, never role-assigned
+        // from the personnel form — even the platform admin cannot.
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'student', 'scope_type' => 'school',
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.role_key.0', 'نقش «دانش‌آموز» از این فرم تخصیص داده نمی‌شود؛ دانش‌آموز را از تب دانش‌آموزان ثبت کنید.');
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('platform_admin');
+
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'student', 'scope_type' => 'school',
+        ])->assertStatus(422);
+    }
 }
