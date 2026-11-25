@@ -35,6 +35,7 @@ import { PreRegistrationsPage } from './pages/PreRegistrationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CreateSchoolPage } from './pages/CreateSchoolPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { IosInstallSheet } from './components/common/IosInstallSheet';
 
 function ExamsRoleRouter() {
   const { activeRole } = useAuth();
@@ -277,6 +278,7 @@ export default function App() {
             />
           </Routes>
         </BrowserRouter>
+        <IosInstallSheet />
       </AuthProvider>
     </ThemeProvider>
   );
