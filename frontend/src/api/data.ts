@@ -18,13 +18,14 @@ export interface UserRow {
   roles: UserRoleAssignment[];
 }
 
-/** One active role assignment of a user in the viewing school. */
+/** One active role assignment; the platform-wide listing adds schoolTitle. */
 export interface UserRoleAssignment {
   userRoleId: number;
   roleKey: string | null;
   roleTitle: string | null;
   scopeType: string;
   endsOn: string | null;
+  schoolTitle?: string | null;
 }
 
 export interface StudentRow {
@@ -69,6 +70,7 @@ export const ApiUserService = {
         roleTitle: r.role_title ?? null,
         scopeType: r.scope_type ?? 'school',
         endsOn: r.ends_on ?? null,
+        schoolTitle: r.school_name ?? null,
       })),
     }));
   },

@@ -43,6 +43,13 @@ class UserPolicy
             return false;
         }
 
+        // The platform role is minted only from the platform context: a
+        // school-scoped role can never create or hand out a platform admin.
+        if ($targetRoleKey === 'platform_admin'
+            && $this->registrar->activeRole()?->role?->key !== 'platform_admin') {
+            return false;
+        }
+
         if ($this->registrar->conditionFor('users.manage') === 'sh1'
             && in_array($targetRoleKey, self::MANAGERIAL_ROLES, true)) {
             return false;

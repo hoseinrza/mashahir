@@ -23,6 +23,8 @@ const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
 export const UserManagementPage: React.FC = () => {
   const { activeRole, hasAccess } = useAuth();
+  // Platform console: school-agnostic — every account of every school.
+  const isPlatformAdmin = activeRole.group === 'platform' || activeRole.id === 'platform_super_admin';
   const isAuthorized =
     hasAccess('users:manage') ||
     activeRole.group === 'school_admin' ||
@@ -447,7 +449,11 @@ export const UserManagementPage: React.FC = () => {
     { id: 'classrooms', label: 'کلاس‌ها و ثبت‌نام', badge: classrooms?.length ?? 0 },
   ];
 
-  const roleOptions = useMemo(() => Object.entries(BACKEND_ROLE_LABELS), []);
+  // School actors never mint a platform admin — the option is platform-only.
+  const assignableRoleOptions = useMemo(
+    () => Object.entries(BACKEND_ROLE_LABELS).filter(([key]) => isPlatformAdmin || key !== 'platform_admin'),
+    [isPlatformAdmin],
+  );
 
   return (
     <div className="space-y-6">
@@ -566,6 +572,7 @@ export const UserManagementPage: React.FC = () => {
                                 className="inline-flex items-center gap-1 rounded-full bg-[#EAF1FB] dark:bg-[#1D2B44] px-2 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
                               >
                                 {assignment.roleTitle ?? BACKEND_ROLE_LABELS[assignment.roleKey ?? ''] ?? assignment.roleKey}
+                                {isPlatformAdmin && assignment.schoolTitle ? ` · ${assignment.schoolTitle}` : ''}
                                 <button
                                   type="button"
                                   title="پایان نقش"
@@ -757,7 +764,7 @@ export const UserManagementPage: React.FC = () => {
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             >
               <option value="">بدون نقش — بعداً از جدول تخصیص داده می‌شود</option>
-              {roleOptions.map(([key, label]) => (
+              {assignableRoleOptions.map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>
@@ -791,7 +798,7 @@ export const UserManagementPage: React.FC = () => {
               onChange={(e) => setRoleKey(e.target.value)}
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             >
-              {roleOptions.map(([key, label]) => (
+              {assignableRoleOptions.map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>

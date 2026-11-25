@@ -132,8 +132,9 @@ class AuthController extends Controller
                     'role_key' => $assignment->role->key,
                     'role_title' => $assignment->role->title,
                     'scope_type' => $assignment->scope_type,
-                    'school_ulid' => $assignment->school->ulid,
-                    'school_name' => $assignment->school->name,
+                    // Null-safe: a platform-level assignment has no school.
+                    'school_ulid' => $assignment->school?->ulid,
+                    'school_name' => $assignment->school?->name,
                 ])
                 ->values(),
         ];

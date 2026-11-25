@@ -196,4 +196,88 @@ class UsersApiTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->withToken($staffToken)->getJson('/api/v1/auth/context')->assertNotFound();
     }
+
+    public function test_platform_admin_lists_all_schools_and_roleless_accounts(): void
+    {
+        // A role-less account of this school (staff membership only).
+        $this->actingWithRole('school_admin');
+        $this->postJson('/api/v1/users', [
+            'first_name' => 'بی‌نقش', 'last_name' => 'تازه', 'phone' => '09127770001',
+        ])->assertCreated();
+        $roleless = User::query()->where('phone_hash', \App\Support\PhoneHash::of('09127770001'))->firstOrFail();
+
+        // Another school with its own staff member.
+        $otherSchool = School::query()->create([
+            'name' => 'مدرسهٔ دیگر', 'level' => 'high', 'grading_type' => 'numeric',
+            'student_has_account' => true, 'timezone' => 'Asia/Tehran', 'is_active' => true,
+        ]);
+        $foreign = User::factory()->create();
+        \DB::table('user_roles')->insert([
+            'user_id' => $foreign->id,
+            'role_id' => \DB::table('roles')->where('key', 'teacher')->value('id'),
+            'school_id' => $otherSchool->id,
+            'scope_type' => 'school', 'scope_id' => null,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        // The platform console: school-agnostic list, role-less included —
+        // even though the platform_admin row itself carries a school_id.
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('platform_admin');
+
+        $rows = collect($this->getJson('/api/v1/users')->assertOk()->json('data'));
+        $ulids = $rows->pluck('ulid');
+
+        $this->assertContains($roleless->ulid, $ulids);
+        $this->assertContains($foreign->ulid, $ulids);
+        $this->assertContains($this->actor->ulid, $ulids);
+
+        // Each role carries its school's name for the cross-school view.
+        $foreignRow = $rows->firstWhere('ulid', $foreign->ulid);
+        $this->assertSame('مدرسهٔ دیگر', $foreignRow['roles'][0]['school_name']);
+    }
+
+    public function test_school_admin_list_hides_school_attached_platform_admin(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        // Legacy data shape: a platform_admin row carrying THIS school's id.
+        // It must never surface in the school's user list.
+        $platformGuy = $this->makeUser();
+        \DB::table('user_roles')->insert([
+            'user_id' => $platformGuy->id,
+            'role_id' => \DB::table('roles')->where('key', 'platform_admin')->value('id'),
+            'school_id' => $this->school->id,
+            'scope_type' => 'school', 'scope_id' => null,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->assertNotContains(
+            $platformGuy->ulid,
+            collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid'),
+        );
+    }
+
+    public function test_school_roles_cannot_mint_a_platform_admin(): void
+    {
+        $this->actingWithRole('office_manager'); // users.manage (sh1)
+        $target = $this->makeUser();
+
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'platform_admin', 'scope_type' => 'school',
+        ])->assertForbidden();
+
+        // Only the platform context itself can mint one.
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('platform_admin');
+
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'platform_admin', 'scope_type' => 'school',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('user_roles', [
+            'user_id' => $target->id,
+            'role_id' => \DB::table('roles')->where('key', 'platform_admin')->value('id'),
+        ]);
+    }
 }

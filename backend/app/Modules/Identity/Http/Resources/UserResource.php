@@ -35,6 +35,8 @@ class UserResource extends JsonResource
                     'scope_id' => $assignment->scope_id,
                     'starts_on' => $assignment->starts_on?->toDateString(),
                     'ends_on' => $assignment->ends_on?->toDateString(),
+                    // Platform-wide listing labels each role with its school.
+                    'school_name' => $assignment->school?->name,
                 ])),
         ];
     }

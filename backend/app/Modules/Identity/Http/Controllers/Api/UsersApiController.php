@@ -21,18 +21,37 @@ class UsersApiController extends Controller
         $this->authorize('viewAny', User::class);
 
         $schoolId = $request->attributes->get('school_id');
+        $isPlatformContext = $request->attributes->get('user_role')?->role?->key === 'platform_admin';
+
+        // Platform console is school-agnostic: EVERY account on the platform
+        // is listed — other schools' staff and role-less accounts included —
+        // so no school can be missing from the list and any role-less
+        // account can receive its role from here. Each role is labeled with
+        // its school's name for the cross-school view.
+        if ($isPlatformContext) {
+            $users = User::query()
+                ->with(['userRoles' => fn ($q) => $q->active()->with(['role', 'school'])])
+                ->orderBy('last_name')
+                ->paginate(min($request->integer('per_page', 50), 100));
+
+            return UserResource::collection($users);
+        }
 
         // Affiliation, not roles: a freshly created account holds no role yet
         // but must still be listed, otherwise its role could never be
         // assigned from the table. Roles alone cover pre-staff-profile users.
+        // Platform-role rows never count as affiliation and never surface in
+        // the role chips: the platform admin is not a member of this school.
         $users = User::query()
             ->where(
                 fn ($q) => $q->whereHas('staffProfiles', fn ($sp) => $sp->where('school_id', $schoolId))
-                    ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)),
+                    ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)
+                        ->whereHas('role', fn ($r) => $r->where('key', '!=', 'platform_admin'))),
             )
             ->with(['userRoles' => fn ($q) => $q->active()
                 ->where('school_id', $schoolId)
-                ->with('role')])
+                ->whereHas('role', fn ($r) => $r->where('key', '!=', 'platform_admin'))
+                ->with(['role', 'school'])])
             ->orderBy('last_name')
             ->paginate(min($request->integer('per_page', 50), 100));
 
@@ -161,6 +180,14 @@ class UsersApiController extends Controller
 
         if (! $policy->assignRole($request->user(), $data['role_key'])) {
             abort(403, 'Assigning this role is not allowed.');
+        }
+
+        // School-scoped assignments must land inside a school; the platform
+        // context (school_id = null) hands out only the platform role itself.
+        if ($data['role_key'] !== 'platform_admin' && $request->attributes->get('school_id') === null) {
+            throw ValidationException::withMessages([
+                'role_key' => 'برای تخصیص نقشِ مدرسه‌ای باید در کانتکست یک مدرسه باشید.',
+            ]);
         }
 
         // System roles are global; custom roles belong to the active school.

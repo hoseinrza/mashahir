@@ -199,11 +199,14 @@ return [
             'school_admin' => true,
             'office_manager' => true,
             'support' => 'sh8',
+            // Platform console lists every account platform-wide.
+            'platform_admin' => true,
         ],
 
         'users.manage' => [
             'school_admin' => true,
             'office_manager' => 'sh1',
+            'platform_admin' => true,
         ],
 
         'roles.manage' => [
@@ -214,12 +217,14 @@ return [
             'school_admin' => 'sh7',
             'office_manager' => 'sh7',
             'support' => 'sh10',
+            'platform_admin' => true,
         ],
 
         'users.set_password' => [
             'school_admin' => 'sh7',
             'office_manager' => 'sh7',
             'support' => 'sh10',
+            'platform_admin' => true,
         ],
 
         'impersonate.start' => [
