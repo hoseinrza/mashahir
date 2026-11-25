@@ -20,7 +20,7 @@ type Availability = 'open' | 'scheduled' | 'ended' | 'closed';
 interface OnlineClassRow {
   ulid: string;
   title: string;
-  provider: 'skyroom' | 'alocam';
+  provider: 'skyroom' | 'alocom';
   subject: string | null;
   classroom: string | null;
   teacher: string | null;
@@ -32,7 +32,7 @@ interface OnlineClassRow {
 
 const PROVIDER_LABEL: Record<OnlineClassRow['provider'], string> = {
   skyroom: 'اسکای‌روم',
-  alocam: 'الوکام',
+  alocom: 'الوکام',
 };
 
 const AVAILABILITY_META: Record<Availability, { label: string; variant: 'success' | 'warning' | 'neutral' }> = {
@@ -59,7 +59,7 @@ export const OnlineClassesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // The school holds Alocom credentials — the provider option lights up.
-  const [alocamReady, setAlocomReady] = useState(false);
+  const [alocomReady, setAlocomReady] = useState(false);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [subjects, setSubjects] = useState<{ id: number; label: string }[]>([]);
@@ -67,7 +67,7 @@ export const OnlineClassesPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [startLocal, setStartLocal] = useState(defaultStartLocal);
   const [durationMinutes, setDurationMinutes] = useState(60);
-  const [provider, setProvider] = useState<'skyroom' | 'alocam'>('skyroom');
+  const [provider, setProvider] = useState<'skyroom' | 'alocom'>('skyroom');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -86,7 +86,7 @@ export const OnlineClassesPage: React.FC = () => {
     setStartLocal(defaultStartLocal());
     setDurationMinutes(60);
     // Alocom is the default when the school connected its account.
-    setProvider(alocamReady ? 'alocam' : 'skyroom');
+    setProvider(alocomReady ? 'alocom' : 'skyroom');
     setFormError(null);
     api<{ data: { id: number; subject: string; classroom: string; teacher?: string | null }[] }>('/v1/academic/my-subjects')
       .then((r) => {
@@ -199,7 +199,7 @@ export const OnlineClassesPage: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-bold">{c.title}</h3>
-                    <Badge variant={c.provider === 'alocam' ? 'primary' : 'neutral'}>{PROVIDER_LABEL[c.provider] ?? c.provider}</Badge>
+                    <Badge variant={c.provider === 'alocom' ? 'primary' : 'neutral'}>{PROVIDER_LABEL[c.provider] ?? c.provider}</Badge>
                     <Badge variant={meta.variant}>{meta.label}</Badge>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -241,9 +241,9 @@ export const OnlineClassesPage: React.FC = () => {
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="برگزاری کلاس آنلاین جدید">
         <div className="space-y-4">
           <FormField label="بستر برگزاری" required>
-            <select value={provider} onChange={(e) => setProvider(e.target.value as 'skyroom' | 'alocam')}
+            <select value={provider} onChange={(e) => setProvider(e.target.value as 'skyroom' | 'alocom')}
               className="w-full h-10 px-3 rounded-xl border border-[#DCE3EE] dark:border-[#223147] bg-white dark:bg-[#131C2E] text-sm outline-none">
-              <option value="alocam">الوکام{alocamReady ? '' : ' — اتصال مدرسه برقرار نیست'}</option>
+              <option value="alocom">الوکام{alocomReady ? '' : ' — اتصال مدرسه برقرار نیست'}</option>
               <option value="skyroom">اسکای‌روم</option>
             </select>
           </FormField>
