@@ -12,6 +12,7 @@ import {
   ClassroomAdminRow,
   EnrollmentRow,
   IdTitleOption,
+  SubjectRow,
   TeacherOption,
   TimetableSlotRow,
 } from '../api/data';
@@ -58,7 +59,7 @@ export const ClassroomsPage: React.FC = () => {
   const [selectedUlid, setSelectedUlid] = useState<string | null>(null);
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
   const [slots, setSlots] = useState<TimetableSlotRow[]>([]);
-  const [subjects, setSubjects] = useState<IdTitleOption[]>([]);
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [years, setYears] = useState<IdTitleOption[]>([]);
   const [yearRows, setYearRows] = useState<AcademicYearRow[]>([]);
@@ -117,6 +118,14 @@ export const ClassroomsPage: React.FC = () => {
   const [newSubjectCode, setNewSubjectCode] = useState('');
   const [creatingSubject, setCreatingSubject] = useState(false);
 
+  // subject edit / delete (blocked server-side while assigned to a classroom)
+  const [editSubject, setEditSubject] = useState<SubjectRow | null>(null);
+  const [editSubjectTitle, setEditSubjectTitle] = useState('');
+  const [editSubjectCode, setEditSubjectCode] = useState('');
+  const [savingSubject, setSavingSubject] = useState(false);
+  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<SubjectRow | null>(null);
+  const [deletingSubject, setDeletingSubject] = useState(false);
+
   // Ending an enrollment is a destructive, history-bearing action: the first
   // click only arms the row, the second one commits.
   const [armedEndId, setArmedEndId] = useState<number | null>(null);
@@ -129,7 +138,7 @@ export const ClassroomsPage: React.FC = () => {
     try {
       const [rooms, subs, teachersList, yearRowsList, gradeList, teachingSubjects, studentList] = await Promise.all([
         ApiClassroomAdminService.list(),
-        ApiClassroomAdminService.subjects().catch(() => [] as IdTitleOption[]),
+        ApiClassroomAdminService.subjects().catch(() => [] as SubjectRow[]),
         ApiClassroomAdminService.teachers().catch(() => [] as TeacherOption[]),
         ApiClassroomAdminService.yearRows().catch(() => [] as AcademicYearRow[]),
         ApiClassroomAdminService.gradeLevels().catch(() => [] as IdTitleOption[]),
@@ -279,6 +288,51 @@ export const ClassroomsPage: React.FC = () => {
       setError(firstError(err, 'خطا در افزودن درس'));
     } finally {
       setCreatingSubject(false);
+    }
+  };
+
+  const openEditSubject = (s: SubjectRow) => {
+    setEditSubject(s);
+    setEditSubjectTitle(s.title);
+    setEditSubjectCode(s.code ?? '');
+  };
+
+  const handleUpdateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSubject || !editSubjectTitle.trim()) return;
+
+    setSavingSubject(true);
+    setError(null);
+    try {
+      await ApiClassroomAdminService.updateSubject(editSubject.id, {
+        title: editSubjectTitle.trim(),
+        code: editSubjectCode.trim() || null,
+      });
+      setEditSubject(null);
+      setNotice('درس ویرایش شد.');
+      await load();
+    } catch (err) {
+      setError(firstError(err, 'خطا در ویرایش درس'));
+    } finally {
+      setSavingSubject(false);
+    }
+  };
+
+  const handleDeleteSubject = async () => {
+    if (!deleteSubjectTarget) return;
+
+    setDeletingSubject(true);
+    setError(null);
+    try {
+      await ApiClassroomAdminService.deleteSubject(deleteSubjectTarget.id);
+      setNotice(`درس «${deleteSubjectTarget.title}» حذف شد.`);
+      setDeleteSubjectTarget(null);
+      await load();
+    } catch (err) {
+      setError(firstError(err, 'خطا در حذف درس'));
+      setDeleteSubjectTarget(null);
+    } finally {
+      setDeletingSubject(false);
     }
   };
 
@@ -642,9 +696,25 @@ export const ClassroomsPage: React.FC = () => {
                       {subjects.map((s) => (
                         <span
                           key={s.id}
-                          className="text-[11px] bg-[#EAF1FB] dark:bg-[#1D2B44] text-[#2457C5] dark:text-[#8BAEFF] px-2 py-1 rounded-lg font-bold"
+                          className="inline-flex items-center gap-1 text-[11px] bg-[#EAF1FB] dark:bg-[#1D2B44] text-[#2457C5] dark:text-[#8BAEFF] px-2 py-1 rounded-lg font-bold"
                         >
                           {s.title}
+                          <button
+                            type="button"
+                            title="ویرایش درس"
+                            onClick={() => openEditSubject(s)}
+                            className="opacity-60 hover:opacity-100"
+                          >
+                            <Pencil size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            title="حذف درس"
+                            onClick={() => setDeleteSubjectTarget(s)}
+                            className="opacity-60 hover:opacity-100 hover:text-red-500"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </span>
                       ))}
                     </div>
@@ -1028,6 +1098,59 @@ export const ClassroomsPage: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ── edit subject ── */}
+      <Modal
+        isOpen={editSubject !== null}
+        onClose={() => setEditSubject(null)}
+        title={`ویرایش درس «${editSubject?.title ?? ''}»`}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleUpdateSubject} className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-[#202B3C] dark:text-[#F1F5FB] pb-1">عنوان درس</label>
+            <input
+              className={inputCls}
+              value={editSubjectTitle}
+              onChange={(e) => setEditSubjectTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#202B3C] dark:text-[#F1F5FB] pb-1">کد درس (اختیاری)</label>
+            <input
+              className={inputCls}
+              value={editSubjectCode}
+              onChange={(e) => setEditSubjectCode(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" type="button" onClick={() => setEditSubject(null)}>انصراف</Button>
+            <Button variant="primary" size="sm" type="submit" disabled={!editSubjectTitle.trim() || savingSubject}>
+              {savingSubject ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={13} />} ذخیره
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── delete subject confirm ── */}
+      <Modal
+        isOpen={deleteSubjectTarget !== null}
+        onClose={() => setDeleteSubjectTarget(null)}
+        title={`حذف درس «${deleteSubjectTarget?.title ?? ''}»`}
+        maxWidth="sm"
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-[#526176] dark:text-[#B3C0D2] leading-relaxed">
+            اگر این درس به کلاس‌ها تخصیص یافته باشد، سرور اجازهٔ حذف نمی‌دهد و پیام خطا می‌گیرید؛ درس بدون تخصیص برای همیشه حذف می‌شود.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={() => setDeleteSubjectTarget(null)}>انصراف</Button>
+            <Button variant="primary" size="sm" disabled={deletingSubject} onClick={handleDeleteSubject}>
+              {deletingSubject ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />} حذف درس
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

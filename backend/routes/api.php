@@ -66,6 +66,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::post('/users/{user}/password', [UsersApiController::class, 'setPassword']);
     Route::post('/users/{user}/roles', [UsersApiController::class, 'assignRole']);
     Route::delete('/users/{user}/roles/{role}', [UsersApiController::class, 'endRole']);
+    Route::delete('/users/{user}', [UsersApiController::class, 'destroy']);
 
     // Students
     Route::get('/students', [StudentsApiController::class, 'index']);
@@ -87,6 +88,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/academic/teachers', [AcademicApiController::class, 'indexTeachers']);
     Route::post('/academic/subjects', [AcademicApiController::class, 'storeSubject']);
     Route::patch('/academic/subjects/{subject}', [AcademicApiController::class, 'updateSubject']);
+    Route::delete('/academic/subjects/{subject}', [AcademicApiController::class, 'destroySubject']);
     Route::get('/academic/classrooms', [AcademicApiController::class, 'indexClassrooms']);
     Route::post('/academic/classrooms', [AcademicApiController::class, 'storeClassroom']);
     Route::patch('/academic/classrooms/{classroom}', [AcademicApiController::class, 'updateClassroom']);

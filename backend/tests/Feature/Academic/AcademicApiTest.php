@@ -193,4 +193,36 @@ class AcademicApiTest extends TestCase
             'ends_on' => now()->toDateString(), 'status' => 'transferred',
         ])->assertOk()->assertJsonPath('status', 'transferred');
     }
+
+    public function test_subject_can_be_edited_and_deleted_while_unused(): void
+    {
+        $this->actingWithRole('school_admin');
+        $subject = $this->makeSubject();
+
+        $this->patchJson("/api/v1/academic/subjects/{$subject->id}", ['title' => 'شیمی پیشرفته'])
+            ->assertOk()
+            ->assertJsonPath('title', 'شیمی پیشرفته');
+        $this->assertDatabaseHas('subjects', ['id' => $subject->id, 'title' => 'شیمی پیشرفته']);
+
+        $this->deleteJson("/api/v1/academic/subjects/{$subject->id}")->assertOk();
+        $this->assertDatabaseMissing('subjects', ['id' => $subject->id]);
+    }
+
+    public function test_subject_assigned_to_a_classroom_cannot_be_deleted(): void
+    {
+        $this->actingWithRole('academic_deputy');
+        $classroom = $this->makeClassroom();
+        $subject = $this->makeSubject();
+        $teacher = $this->makeUser();
+
+        $this->postJson("/api/v1/academic/classrooms/{$classroom->ulid}/subjects", [
+            'subject_id' => $subject->id, 'teacher_ulid' => $teacher->ulid,
+        ])->assertCreated();
+
+        $this->deleteJson("/api/v1/academic/subjects/{$subject->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('errors.subject.0', 'این درس به کلاس‌ها تخصیص یافته است؛ نخست تخصیص آن را از کلاس‌ها حذف کنید.');
+
+        $this->assertDatabaseHas('subjects', ['id' => $subject->id]);
+    }
 }

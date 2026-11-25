@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users, GraduationCap, School, Plus, UserPlus, Phone, ShieldCheck,
-  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX,
+  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, SearchInput, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
@@ -248,6 +248,32 @@ export const UserManagementPage: React.FC = () => {
   const [pwTarget, setPwTarget] = useState<UserRow | null>(null);
   const [pwValue, setPwValue] = useState('');
   const [pwReason, setPwReason] = useState('');
+
+  // ── Delete user: school context detaches the membership; the platform
+  // context hard-deletes a ghost account (the backend decides by context) ──
+  const [delTarget, setDelTarget] = useState<UserRow | null>(null);
+  const [delReason, setDelReason] = useState('');
+
+  // Delete user: reason-logged and audited — school detach or ghost removal.
+  const handleDeleteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!delTarget || delReason.trim().length < 5) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const message = await ApiUserService.deleteUser(delTarget.ulid, delReason.trim());
+      setDelTarget(null);
+      setDelReason('');
+      setNotice(message);
+      setUsersReload((k) => k + 1);
+    } catch (err) {
+      setError(firstError(err, 'خطا در حذف کاربر'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -600,6 +626,9 @@ export const UserManagementPage: React.FC = () => {
                           <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget(user); }}>
                             تعیین رمز
                           </Button>
+                          <Button size="sm" variant="ghost" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
+                            حذف
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -927,6 +956,43 @@ export const UserManagementPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setPwTarget(null)}>انصراف</Button>
             <Button variant="primary" type="submit" disabled={isSaving || pwValue.length < 8 || pwReason.trim().length < 5}>
               {isSaving ? 'در حال ثبت…' : 'تنظیم رمز'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Delete user ────────────────────────────────────────── */}
+      <Modal
+        isOpen={delTarget !== null}
+        onClose={() => setDelTarget(null)}
+        title={`حذف ${delTarget?.fullName ?? ''}`}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleDeleteUser} className="space-y-4 text-right">
+          <div className="flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl">
+            <Info size={13} className="shrink-0 mt-0.5" />
+            <span>
+              {isPlatformAdmin
+                ? 'اگر این حساب عضو هیچ مدرسه‌ای نباشد، برای همیشه حذف می‌شود؛ در غیر این صورت پیام خطا راهنمایی می‌کند که عضویت‌هایش را نخست از لیست همان مدرسه حذف کنید.'
+                : 'عضویت او از این مدرسه حذف می‌شود (نقش‌هایش در این مدرسه پایان می‌یابد)؛ حساب پلتفرمی‌اش برای مدارس دیگر باقی می‌ماند.'}
+            </span>
+          </div>
+
+          <FormField label="دلیل حذف (درج در لاگ حساس)" required>
+            <textarea
+              rows={3}
+              required
+              value={delReason}
+              onChange={(e) => setDelReason(e.target.value)}
+              placeholder="مثال: ثبت اشتباه / پایان همکاری"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={() => setDelTarget(null)}>انصراف</Button>
+            <Button variant="primary" type="submit" disabled={isSaving || delReason.trim().length < 5}>
+              {isSaving ? 'در حال حذف…' : 'حذف کاربر'}
             </Button>
           </div>
         </form>

@@ -420,6 +420,26 @@ class AcademicApiController extends Controller
         return $subject->fresh();
     }
 
+    /**
+     * Deleting a school's subject. The database restricts deletion while the
+     * subject is assigned to any classroom (classroom_subjects.subject_id is
+     * restrictOnDelete) — the pre-check turns that into a friendly error.
+     */
+    public function destroySubject(Request $request, Subject $subject): JsonResponse
+    {
+        $this->authorize('create', Classroom::class);
+
+        if (ClassroomSubject::query()->where('subject_id', $subject->id)->exists()) {
+            throw ValidationException::withMessages([
+                'subject' => 'این درس به کلاس‌ها تخصیص یافته است؛ نخست تخصیص آن را از کلاس‌ها حذف کنید.',
+            ]);
+        }
+
+        $subject->delete();
+
+        return response()->json(['message' => 'درس حذف شد.']);
+    }
+
     public function updateGradeLevel(Request $request, GradeLevel $gradeLevel): GradeLevel
     {
         $this->authorize('create', Classroom::class);

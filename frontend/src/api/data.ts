@@ -28,6 +28,13 @@ export interface UserRoleAssignment {
   schoolTitle?: string | null;
 }
 
+/** A school subject: editable and deletable while not assigned to any classroom. */
+export interface SubjectRow {
+  id: number;
+  title: string;
+  code: string | null;
+}
+
 export interface StudentRow {
   ulid: string;
   code: string;
@@ -113,6 +120,16 @@ export const ApiUserService = {
         ...(payload.endsOn ? { ends_on: payload.endsOn } : {}),
       },
     });
+  },
+
+  /** Deleting a user: school context detaches the membership, the platform
+   *  context hard-deletes a ghost account — the backend decides by context. */
+  async deleteUser(ulid: string, reason: string): Promise<string> {
+    const result = await api<{ message?: string }>(`/v1/users/${ulid}`, {
+      method: 'DELETE',
+      body: { reason },
+    });
+    return result.message ?? 'کاربر حذف شد.';
   },
 
   /** sh7: setting/replacing a login password is reason-logged and audited. */
@@ -1269,9 +1286,9 @@ export const ApiClassroomAdminService = {
     });
   },
 
-  async subjects(): Promise<IdTitleOption[]> {
+  async subjects(): Promise<SubjectRow[]> {
     const result = await api<{ data: any[] }>('/v1/academic/subjects');
-    return (result.data ?? []).map((s: any) => ({ id: s.id, title: s.title }));
+    return (result.data ?? []).map((s: any) => ({ id: s.id, title: s.title, code: s.code ?? null }));
   },
 
   /** academic.manage: define a subject for the school (code optional). */
@@ -1283,6 +1300,22 @@ export const ApiClassroomAdminService = {
         ...(payload.code ? { code: payload.code } : {}),
       },
     });
+  },
+
+  /** academic.manage: rename/recode a school subject. */
+  async updateSubject(id: number, payload: { title?: string; code?: string | null }): Promise<void> {
+    await api(`/v1/academic/subjects/${id}`, {
+      method: 'PATCH',
+      body: {
+        ...(payload.title ? { title: payload.title } : {}),
+        ...(payload.code !== undefined ? { code: payload.code || null } : {}),
+      },
+    });
+  },
+
+  /** Blocked server-side while the subject is assigned to any classroom. */
+  async deleteSubject(id: number): Promise<void> {
+    await api(`/v1/academic/subjects/${id}`, { method: 'DELETE' });
   },
 
   async teachers(): Promise<TeacherOption[]> {

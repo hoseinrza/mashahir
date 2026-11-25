@@ -64,6 +64,16 @@ class UserPolicy
     }
 
     /**
+     * Deleting a user is a managerial action: the office manager (sh1) never
+     * deletes; the school admin and the platform admin do.
+     */
+    public function destroy(User $user): bool
+    {
+        return $this->registrar->allows('users.manage')
+            && $this->registrar->conditionFor('users.manage') !== 'sh1';
+    }
+
+    /**
      * sh7 (school_admin, office_manager) / sh10 (support): phone changes are
      * reason-logged. The condition code is surfaced to the controller.
      */

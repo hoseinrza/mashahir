@@ -5,10 +5,12 @@ namespace App\Modules\Identity\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Identity\Http\Resources\UserResource;
+use App\Modules\Identity\Models\StaffProfile;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Policies\UserPolicy;
 use App\Support\PhoneHash;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -45,7 +47,7 @@ class UsersApiController extends Controller
         $users = User::query()
             ->where(
                 fn ($q) => $q->whereHas('staffProfiles', fn ($sp) => $sp->where('school_id', $schoolId))
-                    ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)
+                    ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)->active()
                         ->whereHas('role', fn ($r) => $r->where('key', '!=', 'platform_admin'))),
             )
             ->with(['userRoles' => fn ($q) => $q->active()
@@ -225,7 +227,13 @@ class UsersApiController extends Controller
     {
         $this->authorize('endRole', $user);
 
-        if ($role->user_id !== $user->id || $role->school_id !== $request->attributes->get('school_id')) {
+        // The platform context ends any assignment platform-wide (its list
+        // spans every school); a school context only ends roles of its own
+        // school — anything else is simply not visible to it (404).
+        $isPlatformContext = $request->attributes->get('user_role')?->role?->key === 'platform_admin';
+
+        if ($role->user_id !== $user->id
+            || (! $isPlatformContext && $role->school_id !== $request->attributes->get('school_id'))) {
             abort(404);
         }
 
@@ -248,5 +256,59 @@ class UsersApiController extends Controller
         );
 
         return $role->fresh();
+    }
+
+    /**
+     * Deleting a user. School context detaches the membership: the roles of
+     * THIS school end now and its staff profile row is removed, so the user
+     * disappears from the school's list while the platform account itself
+     * survives for its other schools. The platform context may hard-delete a
+     * true ghost account — no memberships, no roles, no family links
+     * anywhere. Both paths are reason-logged (sh7 pattern).
+     */
+    public function destroy(Request $request, User $user): JsonResponse
+    {
+        $this->authorize('destroy', $user);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5']]);
+
+        if ($request->user()->id === $user->id) {
+            throw ValidationException::withMessages(['user' => 'حذف حساب خودتان ممکن نیست.']);
+        }
+
+        $isPlatformContext = $request->attributes->get('user_role')?->role?->key === 'platform_admin';
+
+        if ($isPlatformContext) {
+            $linked = $user->userRoles()->exists()
+                || $user->staffProfiles()->exists()
+                || \DB::table('guardian_links')->where('guardian_user_id', $user->id)->exists()
+                || \DB::table('students')->where('user_id', $user->id)->exists();
+
+            if ($linked) {
+                throw ValidationException::withMessages([
+                    'user' => 'این حساب عضو یک مدرسه یا خانواده است؛ نخست عضویت او را از لیست همان مدرسه حذف کنید.',
+                ]);
+            }
+
+            app(AuditService::class)->log('user.deleted', $user, old: ['name' => $user->fullName()], reason: $data['reason']);
+            $user->delete();
+
+            return response()->json(['message' => 'حساب برای همیشه حذف شد.']);
+        }
+
+        $ended = UserRole::query()
+            ->where('user_id', $user->id)
+            ->where('school_id', $request->attributes->get('school_id'))
+            ->active()
+            ->update(['ends_on' => now()->subDay()->toDateString()]);
+
+        StaffProfile::query()
+            ->where('user_id', $user->id)
+            ->where('school_id', $request->attributes->get('school_id'))
+            ->delete();
+
+        app(AuditService::class)->log('user.detached', $user, old: ['ended_roles' => $ended], reason: $data['reason']);
+
+        return response()->json(['message' => 'کاربر از این مدرسه حذف شد؛ حساب پلتفرمی او برای مدارس دیگر باقی ماند.']);
     }
 }

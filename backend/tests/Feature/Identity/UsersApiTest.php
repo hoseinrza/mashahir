@@ -280,4 +280,84 @@ class UsersApiTest extends TestCase
             'role_id' => \DB::table('roles')->where('key', 'platform_admin')->value('id'),
         ]);
     }
+
+    public function test_school_admin_detaches_a_user_from_the_school(): void
+    {
+        $this->actingWithRole('school_admin');
+        $target = $this->makeUser();
+
+        $assignmentId = \DB::table('user_roles')->insertGetId([
+            'user_id' => $target->id,
+            'role_id' => \DB::table('roles')->where('key', 'teacher')->value('id'),
+            'school_id' => $this->school->id,
+            'scope_type' => 'school', 'scope_id' => null,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        StaffProfile::forceCreate(['user_id' => $target->id, 'school_id' => $this->school->id]);
+
+        $this->deleteJson("/api/v1/users/{$target->ulid}", ['reason' => 'اشتباه در ثبت‌نام کادر'])
+            ->assertOk()
+            ->assertJsonPath('message', 'کاربر از این مدرسه حذف شد؛ حساب پلتفرمی او برای مدارس دیگر باقی ماند.');
+
+        $this->assertDatabaseMissing('staff_profiles', ['user_id' => $target->id, 'school_id' => $this->school->id]);
+        $this->assertNotNull(\DB::table('user_roles')->find($assignmentId)->ends_on);
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'user.detached', 'subject_id' => $target->id]);
+
+        $this->assertNotContains(
+            $target->ulid,
+            collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid'),
+        );
+    }
+
+    public function test_office_manager_cannot_delete_a_user_sh1(): void
+    {
+        $this->actingWithRole('office_manager');
+        $target = $this->makeUser();
+
+        $this->deleteJson("/api/v1/users/{$target->ulid}", ['reason' => 'تلاش مسئول دفتر برای حذف'])
+            ->assertForbidden();
+    }
+
+    public function test_platform_admin_hard_deletes_a_ghost_account_only(): void
+    {
+        $this->actingWithRole('platform_admin');
+
+        // A true ghost: no roles, no membership, no family links anywhere.
+        $ghost = User::factory()->create();
+        $this->deleteJson("/api/v1/users/{$ghost->ulid}", ['reason' => 'حساب آزمایشی بلااستفاده'])
+            ->assertOk()
+            ->assertJsonPath('message', 'حساب برای همیشه حذف شد.');
+        $this->assertDatabaseMissing('users', ['id' => $ghost->id]);
+
+        // A school-attached account can NOT be hard-deleted from the platform.
+        $attached = User::factory()->create();
+        StaffProfile::forceCreate(['user_id' => $attached->id, 'school_id' => $this->school->id]);
+        $this->deleteJson("/api/v1/users/{$attached->ulid}", ['reason' => 'تلاش برای حذف حساب عضو'])
+            ->assertStatus(422);
+        $this->assertDatabaseHas('users', ['id' => $attached->id]);
+    }
+
+    public function test_platform_admin_ends_a_role_in_any_school(): void
+    {
+        $this->actingWithRole('platform_admin');
+        $target = $this->makeUser();
+
+        $otherSchool = School::query()->create([
+            'name' => 'مدرسهٔ دیگر', 'level' => 'high', 'grading_type' => 'numeric',
+            'student_has_account' => true, 'timezone' => 'Asia/Tehran', 'is_active' => true,
+        ]);
+        $assignmentId = \DB::table('user_roles')->insertGetId([
+            'user_id' => $target->id,
+            'role_id' => \DB::table('roles')->where('key', 'teacher')->value('id'),
+            'school_id' => $otherSchool->id,
+            'scope_type' => 'school', 'scope_id' => null,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->deleteJson("/api/v1/users/{$target->ulid}/roles/{$assignmentId}", ['reason' => 'پایان همکاری از کنسول پلتفرم'])
+            ->assertOk();
+
+        $this->assertNotNull(\DB::table('user_roles')->find($assignmentId)->ends_on);
+    }
 }

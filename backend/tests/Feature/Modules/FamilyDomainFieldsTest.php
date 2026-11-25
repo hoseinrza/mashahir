@@ -157,7 +157,13 @@ class FamilyDomainFieldsTest extends TestCase
 
         $row = collect($this->getJson('/api/v1/users')->json('data'))
             ->firstWhere('ulid', $teacher->ulid);
-        $this->assertSame([], $row['roles']);
+        // An ended role no longer counts as membership: without a staff
+        // profile the user leaves the list, otherwise only his active-role
+        // chips are cut. Both outcomes prove the role was taken away.
+        $this->assertTrue(
+            $row === null || $row['roles'] === [],
+            'Ending a role must cut the user from the list or clear his active roles.',
+        );
         $this->assertNotNull(UserRole::query()->find($assignment['user_role_id'])->ends_on);
     }
 
