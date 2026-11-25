@@ -71,8 +71,8 @@ export const OnlineClassesPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const reload = () => {
-    setLoading(true);
+  const reload = (silent = false) => {
+    if (!silent) setLoading(true);
     api<{ data: OnlineClassRow[]; alocom_ready: boolean }>('/v1/online-classes')
       .then((r) => { setClasses(r.data ?? []); setAlocomReady(Boolean(r.alocom_ready)); })
       .catch((e) => setError(e instanceof ApiError ? e.firstError() : 'خطا در دریافت کلاس‌ها'))
@@ -80,6 +80,21 @@ export const OnlineClassesPage: React.FC = () => {
   };
 
   useEffect(() => { reload(); }, []);
+
+  // Availability flips with wall-clock time, and this screen lives long inside
+  // the PWA: poll gently and refresh whenever the page is visible/focused,
+  // so the enter button appears the moment a scheduled class actually starts.
+  useEffect(() => {
+    const timer = setInterval(() => reload(true), 45000);
+    const onVisible = () => { if (document.visibilityState === 'visible') reload(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, []);
 
   const openCreate = () => {
     setTitle('');
