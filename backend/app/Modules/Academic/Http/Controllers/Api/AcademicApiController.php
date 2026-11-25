@@ -421,20 +421,25 @@ class AcademicApiController extends Controller
     }
 
     /**
-     * Deleting a school's subject. The database restricts deletion while the
-     * subject is assigned to any classroom (classroom_subjects.subject_id is
-     * restrictOnDelete) — the pre-check turns that into a friendly error.
+     * Deleting a school's subject. While the subject is assigned to any
+     * classroom the plain call answers 422; force=true cascades the
+     * classroom-subject rows — their timetable slots, attendance sessions,
+     * assignments, exams, grades and online classes all carry
+     * cascadeOnDelete, so the explicit UI confirmation owns the destruction.
      */
     public function destroySubject(Request $request, Subject $subject): JsonResponse
     {
         $this->authorize('create', Classroom::class);
 
-        if (ClassroomSubject::query()->where('subject_id', $subject->id)->exists()) {
+        $data = $request->validate(['force' => ['sometimes', 'boolean']]);
+
+        if (ClassroomSubject::query()->where('subject_id', $subject->id)->exists() && ! ($data['force'] ?? false)) {
             throw ValidationException::withMessages([
-                'subject' => 'این درس به کلاس‌ها تخصیص یافته است؛ نخست تخصیص آن را از کلاس‌ها حذف کنید.',
+                'subject' => 'این درس به کلاس‌ها تخصیص یافته است؛ با «حذف قطعی» زنگ‌ها، تکالیف، آزمون‌ها و نمرات آن هم پاک می‌شوند.',
             ]);
         }
 
+        ClassroomSubject::query()->where('subject_id', $subject->id)->delete();
         $subject->delete();
 
         return response()->json(['message' => 'درس حذف شد.']);

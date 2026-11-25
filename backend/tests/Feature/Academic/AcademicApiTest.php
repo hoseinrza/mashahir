@@ -219,10 +219,14 @@ class AcademicApiTest extends TestCase
             'subject_id' => $subject->id, 'teacher_ulid' => $teacher->ulid,
         ])->assertCreated();
 
+        // Plain delete refuses while the subject is assigned to a classroom.
         $this->deleteJson("/api/v1/academic/subjects/{$subject->id}")
-            ->assertStatus(422)
-            ->assertJsonPath('errors.subject.0', 'این درس به کلاس‌ها تخصیص یافته است؛ نخست تخصیص آن را از کلاس‌ها حذف کنید.');
-
+            ->assertStatus(422);
         $this->assertDatabaseHas('subjects', ['id' => $subject->id]);
+
+        // The explicit force cascades the assignment with its dependents.
+        $this->deleteJson("/api/v1/academic/subjects/{$subject->id}", ['force' => true])->assertOk();
+        $this->assertDatabaseMissing('subjects', ['id' => $subject->id]);
+        $this->assertDatabaseMissing('classroom_subjects', ['subject_id' => $subject->id]);
     }
 }

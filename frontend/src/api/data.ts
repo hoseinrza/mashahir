@@ -1313,9 +1313,14 @@ export const ApiClassroomAdminService = {
     });
   },
 
-  /** Blocked server-side while the subject is assigned to any classroom. */
-  async deleteSubject(id: number): Promise<void> {
-    await api(`/v1/academic/subjects/${id}`, { method: 'DELETE' });
+  /** Plain delete answers 422 while the subject is assigned to a classroom;
+   *  force=true cascades the assignments with their slots, assignments,
+   *  exams and grades — the UI owns the explicit confirmation. */
+  async deleteSubject(id: number, force = false): Promise<void> {
+    await api(`/v1/academic/subjects/${id}`, {
+      method: 'DELETE',
+      ...(force ? { body: { force: true } } : {}),
+    });
   },
 
   async teachers(): Promise<TeacherOption[]> {

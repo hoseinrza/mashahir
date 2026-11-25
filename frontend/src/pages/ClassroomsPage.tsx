@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, School, Trash2, Users, CalendarDays, GraduationCap, Pencil, BookOpen } from 'lucide-react';
+import { Loader2, Plus, School, Trash2, Users, CalendarDays, GraduationCap, Pencil, BookOpen, Info } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, PageHeader, EmptyState, AccessDeniedGate, Modal } from '../components/common';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
@@ -125,6 +125,9 @@ export const ClassroomsPage: React.FC = () => {
   const [savingSubject, setSavingSubject] = useState(false);
   const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<SubjectRow | null>(null);
   const [deletingSubject, setDeletingSubject] = useState(false);
+  // Armed after a 422: the subject is assigned, so the modal offers the
+  // destructive "force" confirm that cascades the dependents.
+  const [forceDeleteArmed, setForceDeleteArmed] = useState(false);
 
   // Ending an enrollment is a destructive, history-bearing action: the first
   // click only arms the row, the second one commits.
@@ -318,19 +321,26 @@ export const ClassroomsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteSubject = async () => {
+  const handleDeleteSubject = async (force: boolean) => {
     if (!deleteSubjectTarget) return;
 
     setDeletingSubject(true);
     setError(null);
     try {
-      await ApiClassroomAdminService.deleteSubject(deleteSubjectTarget.id);
+      await ApiClassroomAdminService.deleteSubject(deleteSubjectTarget.id, force);
       setNotice(`درس «${deleteSubjectTarget.title}» حذف شد.`);
       setDeleteSubjectTarget(null);
+      setForceDeleteArmed(false);
       await load();
     } catch (err) {
-      setError(firstError(err, 'خطا در حذف درس'));
-      setDeleteSubjectTarget(null);
+      if (err instanceof ApiError && err.status === 422) {
+        // Assigned to classrooms: arm the destructive confirm in the modal.
+        setForceDeleteArmed(true);
+      } else {
+        setError(firstError(err, 'خطا در حذف درس'));
+        setDeleteSubjectTarget(null);
+        setForceDeleteArmed(false);
+      }
     } finally {
       setDeletingSubject(false);
     }
@@ -1136,19 +1146,32 @@ export const ClassroomsPage: React.FC = () => {
       {/* ── delete subject confirm ── */}
       <Modal
         isOpen={deleteSubjectTarget !== null}
-        onClose={() => setDeleteSubjectTarget(null)}
+        onClose={() => { setDeleteSubjectTarget(null); setForceDeleteArmed(false); }}
         title={`حذف درس «${deleteSubjectTarget?.title ?? ''}»`}
         maxWidth="sm"
       >
         <div className="space-y-3">
-          <p className="text-xs text-[#526176] dark:text-[#B3C0D2] leading-relaxed">
-            اگر این درس به کلاس‌ها تخصیص یافته باشد، سرور اجازهٔ حذف نمی‌دهد و پیام خطا می‌گیرید؛ درس بدون تخصیص برای همیشه حذف می‌شود.
-          </p>
+          {forceDeleteArmed ? (
+            <div className="flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl">
+              <Info size={13} className="shrink-0 mt-0.5" />
+              <span>این درس به کلاس‌ها تخصیص یافته است. «حذف قطعی» تخصیص‌ها و همهٔ زنگ‌های برنامهٔ هفتگی، تکالیف، آزمون‌ها و نمرات این درس را هم پاک می‌کند — برگشت‌پذیر نیست.</span>
+            </div>
+          ) : (
+            <p className="text-xs text-[#526176] dark:text-[#B3C0D2] leading-relaxed">
+              درس برای همیشه حذف می‌شود؛ اگر به کلاس‌ها تخصیص یافته باشد، گام بعدی «حذف قطعی» پیشنهاد می‌شود.
+            </p>
+          )}
           <div className="flex items-center justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" onClick={() => setDeleteSubjectTarget(null)}>انصراف</Button>
-            <Button variant="primary" size="sm" disabled={deletingSubject} onClick={handleDeleteSubject}>
-              {deletingSubject ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />} حذف درس
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setDeleteSubjectTarget(null); setForceDeleteArmed(false); }}>انصراف</Button>
+            {forceDeleteArmed ? (
+              <Button variant="danger" size="sm" disabled={deletingSubject} onClick={() => handleDeleteSubject(true)}>
+                {deletingSubject ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />} حذف قطعی
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" disabled={deletingSubject} onClick={() => handleDeleteSubject(false)}>
+                {deletingSubject ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />} حذف درس
+              </Button>
+            )}
           </div>
         </div>
       </Modal>
