@@ -629,7 +629,7 @@ export const UserManagementPage: React.FC = () => {
                           <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget(user); }}>
                             تعیین رمز
                           </Button>
-                          <Button size="sm" variant="ghost" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
+                          <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
                             حذف
                           </Button>
                         </div>
@@ -994,7 +994,7 @@ export const UserManagementPage: React.FC = () => {
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" type="button" onClick={() => setDelTarget(null)}>انصراف</Button>
-            <Button variant="primary" type="submit" disabled={isSaving || delReason.trim().length < 5}>
+            <Button variant="danger" type="submit" disabled={isSaving || delReason.trim().length < 5}>
               {isSaving ? 'در حال حذف…' : 'حذف کاربر'}
             </Button>
           </div>
