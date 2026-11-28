@@ -14,7 +14,13 @@
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F9FC" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101722" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <!-- Dark home-screen icon. iOS still picks the light one and darkens it
+         itself (Safari ignores media on apple-touch-icon), but the file is
+         ready wherever a browser starts honouring it. Both are opaque and
+         full-bleed: iOS adds the rounded mask, so transparent corners would
+         show as black on a dark Home Screen. -->
+    <link rel="apple-touch-icon" sizes="180x180" media="(prefers-color-scheme: dark)" href="/icons/apple-touch-icon-dark.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
