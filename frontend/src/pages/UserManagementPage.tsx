@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users, GraduationCap, School, Plus, UserPlus, Phone, ShieldCheck,
-  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX, Trash2,
+  Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX, Trash2, Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, Button, Badge, Modal, FormField, SearchInput, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
@@ -1261,13 +1261,50 @@ export const UserManagementPage: React.FC = () => {
       {/* ── Roster import (FR-34) ──────────────────────────────── */}
       <Modal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} title="ورود گروهی دانش‌آموزان از فایل CSV یا Excel" maxWidth="md">
         <form onSubmit={handleImport} className="space-y-4 text-right">
-          <div className="flex items-start gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl">
-            <FileSpreadsheet size={14} className="shrink-0 mt-0.5 text-[#2457C5]" />
-            <div className="space-y-1">
-              <p>ردیف اول باید سرستون باشد؛ ستون‌های لازم:</p>
-              <p className="font-mono" dir="ltr">student_code, first_name, last_name, national_code, phone</p>
-              <p className="text-slate-400">ستون‌های کد ملی و phone اختیاری‌اند؛ اگر phone (۱۱ رقم با ۰۹، ارقام فارسی هم قبول است) بدهید، حساب ورود دانش‌آموز همان لحظه ساخته می‌شود. فرمت CSV (UTF-8) یا Excel با پسوند xlsx پذیرفته می‌شود؛ در فایل اکسل فقط برگهٔ اول خوانده می‌شود و پسوند قدیمی xls باید اول به xlsx تبدیل شود. حداکثر حجم فایل ۲ مگابایت.</p>
+          <div className="rounded-xl border border-[#DCE3EE] dark:border-[#344257] overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/40 border-b border-[#DCE3EE] dark:border-[#344257]">
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                <FileSpreadsheet size={13} className="text-[#2457C5]" />
+                ساختار دقیق برگهٔ اکسل — ردیف ۱ سرستون، داده‌ها از ردیف ۲
+              </span>
+              <a href="/templates/student-roster-sample.xlsx" download className="flex items-center gap-1 text-[11px] font-medium text-[#2457C5] dark:text-[#8BAEFF] hover:underline">
+                <Download size={13} />
+                دانلود فایل نمونه
+              </a>
             </div>
+
+            <div className="overflow-x-auto" dir="ltr">
+              <table dir="ltr" className="w-full text-left text-[10px] border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/60 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500">
+                    <th className="w-6 px-1.5 py-1.5 font-normal border-b border-[#DCE3EE] dark:border-[#344257]"></th>
+                    {['A', 'B', 'C', 'D', 'E'].map((letter) => (
+                      <th key={letter} className="px-1.5 py-1.5 font-normal border-b border-[#DCE3EE] dark:border-[#344257]">{letter}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="text-slate-700 dark:text-slate-200">
+                  <tr>
+                    <td className="px-1.5 py-1.5 text-slate-400 border-b border-[#DCE3EE] dark:border-[#344257]">1</td>
+                    {['student_code', 'first_name', 'last_name', 'national_code', 'phone'].map((column) => (
+                      <td key={column} className="px-1.5 py-1.5 font-mono text-[9px] whitespace-nowrap border-b border-[#DCE3EE] dark:border-[#344257]">{column}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="px-1.5 py-1.5 text-slate-400">2</td>
+                    <td className="px-1.5 py-1.5 font-mono">S1001</td>
+                    <td className="px-1.5 py-1.5" dir="rtl">پارسا</td>
+                    <td className="px-1.5 py-1.5" dir="rtl">رادمنش</td>
+                    <td className="px-1.5 py-1.5 font-mono">0012345678</td>
+                    <td className="px-1.5 py-1.5 font-mono">09121234567</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p className="px-3 py-2 text-[11px] leading-6 text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/20">
+              ردیف ۲ فقط نمونه است. <span className="font-mono" dir="ltr">national_code</span> و <span className="font-mono" dir="ltr">phone</span> اختیاری‌اند (کد ملی ۱۰ رقم، موبایل ۱۱ رقم با ۰۹؛ ارقام فارسی هم قبول است) و با ثبت موبایل، حساب ورود دانش‌آموز ساخته می‌شود. فقط برگهٔ اول خوانده می‌شود؛ xls قدیمی باید اول به xlsx تبدیل شود. حداکثر ۲ مگابایت.
+            </p>
           </div>
 
           <FormField label="فایل CSV یا Excel (xlsx)" required>
