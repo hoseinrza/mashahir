@@ -4,7 +4,7 @@ import {
   Loader2, AlertCircle, RefreshCw, KeyRound, Info, Upload, Eye, Pencil, FileSpreadsheet, UserX, Trash2, Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button, Badge, Modal, FormField, SearchInput, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
+import { Card, Button, Badge, Modal, FormField, SearchInput, Select, Tabs, PageHeader, AccessDeniedGate, EmptyState } from '../components/common';
 import { toPersianDigits, cn } from '../utils/persian';
 import { formatJalaliDate } from '../utils/jalali';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
@@ -25,7 +25,7 @@ const firstError = (e: unknown, fallback: string): string =>
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
 export const UserManagementPage: React.FC = () => {
-  const { activeRole, hasAccess } = useAuth();
+  const { activeRole, hasAccess, passwordChangeReasons } = useAuth();
   // Platform console: school-agnostic — every account of every school.
   const isPlatformAdmin = activeRole.group === 'platform' || activeRole.id === 'platform_super_admin';
   const isAuthorized =
@@ -282,16 +282,16 @@ export const UserManagementPage: React.FC = () => {
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pwTarget || pwValue.length < 8 || pwReason.trim().length < 5) return;
+    if (!pwTarget || pwValue.length < 8 || !pwReason) return;
 
     setIsSaving(true);
     setError(null);
     setNotice(null);
     try {
       if (pwTarget.kind === 'student') {
-        await ApiUserService.setStudentPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+        await ApiUserService.setStudentPassword(pwTarget.ulid, { password: pwValue, reason: pwReason });
       } else {
-        await ApiUserService.setPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+        await ApiUserService.setPassword(pwTarget.ulid, { password: pwValue, reason: pwReason });
       }
       setPwTarget(null);
       setPwValue('');
@@ -980,13 +980,13 @@ export const UserManagementPage: React.FC = () => {
           </FormField>
 
           <FormField label="دلیل تنظیم (درج در لاگ حساس)" required>
-            <textarea
-              rows={3}
-              required
+            <Select
               value={pwReason}
-              onChange={(e) => setPwReason(e.target.value)}
-              placeholder="مثال: ورود اولیهٔ کادر تازه‌وارد / درخواست ریست رمز."
-              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+              onChange={setPwReason}
+              options={[
+                { value: '', label: passwordChangeReasons.length ? '— انتخاب دلیل —' : '— فهرست دلایل در دسترس نیست —' },
+                ...passwordChangeReasons.map((reason) => ({ value: reason, label: reason })),
+              ]}
             />
           </FormField>
 
@@ -998,7 +998,7 @@ export const UserManagementPage: React.FC = () => {
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" type="button" onClick={() => setPwTarget(null)}>انصراف</Button>
-            <Button variant="primary" type="submit" disabled={isSaving || pwValue.length < 8 || pwReason.trim().length < 5}>
+            <Button variant="primary" type="submit" disabled={isSaving || pwValue.length < 8 || !pwReason}>
               {isSaving ? 'در حال ثبت…' : 'تنظیم رمز'}
             </Button>
           </div>

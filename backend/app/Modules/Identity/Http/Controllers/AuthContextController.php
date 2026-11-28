@@ -4,6 +4,7 @@ namespace App\Modules\Identity\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Identity\Models\UserRole;
+use App\Modules\Identity\Services\AdminPasswordService;
 use App\Modules\School\Models\School;
 use App\Support\Rbac\PermissionRegistrar;
 use App\Support\SchoolContext;
@@ -57,6 +58,9 @@ class AuthContextController extends Controller
             'permissions' => $registrar->grants()
                 ->map(fn ($condition, $key) => ['key' => $key, 'condition' => $condition])
                 ->values(),
+            // The office's password form offers exactly these labels; the write
+            // path rejects anything else, so the list travels with the session.
+            'password_change_reasons' => AdminPasswordService::reasons(),
         ]);
     }
 }

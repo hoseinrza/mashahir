@@ -150,12 +150,12 @@ class PasswordAuthTest extends TestCase
 
         $this->postJson("/api/v1/users/{$teacher->ulid}/password", [
             'password' => 'office-set-1',
-            'reason' => 'ورود اولیهٔ دبیر تازه‌وارد.',
+            'reason' => 'راه‌اندازی اولیهٔ حساب ورود',
         ])->assertOk();
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'user.password_changed',
-            'reason' => 'ورود اولیهٔ دبیر تازه‌وارد.',
+            'reason' => 'راه‌اندازی اولیهٔ حساب ورود',
         ]);
 
         // The password works; a teacher may not set passwords for others.

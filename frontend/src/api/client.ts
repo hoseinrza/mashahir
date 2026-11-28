@@ -172,6 +172,8 @@ export async function apiDocument(path: string): Promise<string> {
     scope_type: string;
   } | null;
   permissions: { key: string; condition: string | null }[];
+  /** Labels the office may pick as the reason for a password (re)set. */
+  password_change_reasons?: string[];
 }
 
 export interface RoleOption {

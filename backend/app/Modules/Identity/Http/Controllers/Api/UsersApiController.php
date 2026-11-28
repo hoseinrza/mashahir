@@ -155,7 +155,7 @@ class UsersApiController extends Controller
 
         $data = $request->validate([
             'password' => ['required', 'string', 'min:8', 'max:64'],
-            'reason' => ['required', 'string', 'min:5'],
+            'reason' => ['required', 'string', Rule::in(AdminPasswordService::reasons())],
         ]);
 
         return new UserResource($passwords->set($user, $data['password'], $data['reason']));

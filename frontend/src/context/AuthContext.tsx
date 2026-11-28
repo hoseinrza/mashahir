@@ -69,6 +69,8 @@ interface AuthContextType {
   needsRole: boolean;
   isSessionLoading: boolean;
   hasPassword: boolean;
+  /** The curated reasons offered by the password form (server-owned list). */
+  passwordChangeReasons: string[];
   pendingRoles: RoleOption[];
   requestOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
@@ -293,6 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         needsRole: pendingPayload !== null,
         isSessionLoading: sessionLoading,
         hasPassword: contextPayload?.user.has_password ?? false,
+        passwordChangeReasons: contextPayload?.password_change_reasons ?? [],
         pendingRoles,
         requestOtp,
         verifyOtp,

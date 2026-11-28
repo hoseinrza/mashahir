@@ -12,6 +12,7 @@ use App\Support\Rbac\ScopeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class StudentsApiController extends Controller
@@ -137,7 +138,7 @@ class StudentsApiController extends Controller
 
         $data = $request->validate([
             'password' => ['required', 'string', 'min:8', 'max:64'],
-            'reason' => ['required', 'string', 'min:5'],
+            'reason' => ['required', 'string', Rule::in(AdminPasswordService::reasons())],
         ]);
 
         $passwords->set($user, $data['password'], $data['reason']);
