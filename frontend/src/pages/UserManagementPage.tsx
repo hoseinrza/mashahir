@@ -96,7 +96,7 @@ export const UserManagementPage: React.FC = () => {
   const [ncValue, setNcValue] = useState<string | null>(null);
   const [isRevealing, setIsRevealing] = useState(false);
 
-  // FR-34: bulk CSV import
+  // FR-34: bulk roster import (CSV or xlsx)
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<ImportBatchResult | null>(null);
@@ -510,7 +510,7 @@ export const UserManagementPage: React.FC = () => {
             {activeTab === 'students' && (
               <>
                 <Button variant="outline" size="sm" icon={<Upload size={15} />} onClick={() => { setImportFile(null); setImportResult(null); setIsImportOpen(true); }}>
-                  ورود گروهی (CSV)
+                  ورود گروهی (CSV/Excel)
                 </Button>
                 <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => setIsCreateStudentOpen(true)}>
                   دانش‌آموز جدید
@@ -1258,22 +1258,22 @@ export const UserManagementPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── CSV import (FR-34) ─────────────────────────────────── */}
-      <Modal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} title="ورود گروهی دانش‌آموزان از فایل CSV" maxWidth="md">
+      {/* ── Roster import (FR-34) ──────────────────────────────── */}
+      <Modal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} title="ورود گروهی دانش‌آموزان از فایل CSV یا Excel" maxWidth="md">
         <form onSubmit={handleImport} className="space-y-4 text-right">
           <div className="flex items-start gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl">
             <FileSpreadsheet size={14} className="shrink-0 mt-0.5 text-[#2457C5]" />
             <div className="space-y-1">
               <p>ردیف اول باید سرستون باشد؛ ستون‌های لازم:</p>
               <p className="font-mono" dir="ltr">student_code, first_name, last_name, national_code, phone</p>
-              <p className="text-slate-400">ستون‌های کد ملی و phone اختیاری‌اند؛ اگر phone (۱۱ رقم با ۰۹، ارقام فارسی هم قبول است) بدهید، حساب ورود دانش‌آموز همان لحظه ساخته می‌شود. فایل حداکثر ۲ مگابایت و با کدگذاری UTF-8 ذخیره شود.</p>
+              <p className="text-slate-400">ستون‌های کد ملی و phone اختیاری‌اند؛ اگر phone (۱۱ رقم با ۰۹، ارقام فارسی هم قبول است) بدهید، حساب ورود دانش‌آموز همان لحظه ساخته می‌شود. فرمت CSV (UTF-8) یا Excel با پسوند xlsx پذیرفته می‌شود؛ در فایل اکسل فقط برگهٔ اول خوانده می‌شود و پسوند قدیمی xls باید اول به xlsx تبدیل شود. حداکثر حجم فایل ۲ مگابایت.</p>
             </div>
           </div>
 
-          <FormField label="فایل CSV" required>
+          <FormField label="فایل CSV یا Excel (xlsx)" required>
             <input
               type="file"
-              accept=".csv,text/csv,text/plain"
+              accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }}
               className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
             />

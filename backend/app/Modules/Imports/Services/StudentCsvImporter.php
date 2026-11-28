@@ -7,14 +7,15 @@ use App\Modules\Imports\Models\ImportBatch;
 use App\Modules\People\Models\Student;
 use App\Modules\People\Services\StudentAccountService;
 use App\Modules\Identity\Models\User;
+use App\Modules\Imports\Services\SpreadsheetReader;
 use App\Support\PhoneHash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * CSV importer for students. Columns (header row required):
- * student_code, first_name, last_name, national_code (optional),
- * phone (optional — mints/links the student's login account).
+ * Roster importer. Accepts CSV or Excel (xlsx) — SpreadsheetReader hands the
+ * rows. Columns (header row required): student_code, first_name, last_name,
+ * national_code (optional), phone (optional — mints/links the login account).
  * Every rejected row is reported with its line number (FR-34).
  */
 final class StudentCsvImporter
@@ -38,38 +39,34 @@ final class StudentCsvImporter
             'created_by' => $actor->id,
         ]);
 
-        $handle = fopen($path, 'r');
-        if ($handle === false) {
-            $batch->forceFill(['status' => 'failed'])->save();
-
-            return $batch;
-        }
+        $rows = SpreadsheetReader::rows($path);
 
         $header = null;
         $rowNumber = 0;
         $ok = 0;
 
         try {
-            DB::transaction(function () use ($handle, $batch, $schoolId, $actor, &$header, &$rowNumber, &$ok) {
-                while (($raw = fgetcsv($handle, 0, ',')) !== false) {
+            DB::transaction(function () use ($rows, $batch, $schoolId, &$header, &$rowNumber, &$ok) {
+                foreach ($rows as $raw) {
                     $rowNumber++;
 
                     if ($rowNumber === 1) {
-                        $header = array_map(fn ($h) => strtolower(trim((string) $h)), $raw);
+                        $header = array_map(fn ($h) => strtolower(trim((string) $h)), $raw ?? []);
                         continue;
                     }
 
-                    if (count(array_filter($raw, fn ($v) => trim((string) $v) !== '')) === 0) {
+                    if (count(array_filter($raw ?? [], fn ($v) => trim((string) $v) !== '')) === 0) {
                         continue; // skip blank lines
                     }
 
-                    $row = array_combine($header, array_pad(array_map('trim', $raw), count($header), null));
-
-                    $error = $this->validateRow($row, $schoolId);
-                    if ($error !== null) {
-                        $batch->errors()->create(['row_number' => $rowNumber, 'message' => $error]);
-                        continue;
-                    }
+                    // Align to the header width both ways — Excel rows carry
+                    // trailing empty columns, CSV rows may run past the header.
+                    $values = array_slice(
+                        array_pad(array_map(fn ($v) => $v === null ? null : trim((string) $v), $raw), count($header), null),
+                        0,
+                        count($header),
+                    );
+                    $row = array_combine($header, $values);
 
                     $error = $this->validateRow($row, $schoolId);
                     if ($error !== null) {
@@ -109,8 +106,6 @@ final class StudentCsvImporter
         } catch (\Throwable $e) {
             $batch->forceFill(['status' => 'failed'])->save();
             throw $e;
-        } finally {
-            fclose($handle);
         }
 
         $this->audit->log('import.students_done', $batch, new: [

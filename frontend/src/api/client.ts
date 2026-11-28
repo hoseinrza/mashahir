@@ -103,7 +103,7 @@ export async function api<T = any>(path: string, options: RequestOptions = {}): 
 }
 
 /**
- * Multipart upload (CSV import, file manager). The browser sets the boundary,
+ * Multipart upload (roster import, file manager). The browser sets the boundary,
  * so the caller must not set Content-Type.
  */
 export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {
