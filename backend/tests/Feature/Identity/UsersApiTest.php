@@ -197,6 +197,51 @@ class UsersApiTest extends TestCase
         $this->withToken($staffToken)->getJson('/api/v1/auth/context')->assertNotFound();
     }
 
+    public function test_a_students_login_account_is_not_in_the_staff_list(): void
+    {
+        $this->actingWithRole('school_admin');
+
+        // A phone on the roster creates the student's login account + role.
+        $this->postJson('/api/v1/students', [
+            'student_code' => 'S9101',
+            'first_name' => 'پارسا',
+            'last_name' => 'رادمنش',
+            'phone' => '09127770101',
+        ])->assertCreated();
+        $student = \App\Modules\People\Models\Student::query()->where('student_code', 'S9101')->firstOrFail();
+
+        $account = User::query()->where('phone_hash', \App\Support\PhoneHash::of('09127770101'))->firstOrFail();
+
+        $ulids = collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid');
+        $this->assertNotContains($account->ulid, $ulids);
+
+        // Still on the roster, where the office works with students.
+        $this->assertContains(
+            $student->ulid,
+            collect($this->getJson('/api/v1/students')->assertOk()->json('data'))->pluck('ulid'),
+        );
+    }
+
+    public function test_the_platform_console_hides_student_only_accounts(): void
+    {
+        $this->actingWithRole('school_admin');
+        $this->postJson('/api/v1/students', [
+            'student_code' => 'S9102',
+            'first_name' => 'سارا',
+            'last_name' => 'موسوی',
+            'phone' => '09127770102',
+        ])->assertCreated();
+        $account = User::query()->where('phone_hash', \App\Support\PhoneHash::of('09127770102'))->firstOrFail();
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('platform_admin');
+
+        $ulids = collect($this->getJson('/api/v1/users')->assertOk()->json('data'))->pluck('ulid');
+
+        $this->assertNotContains($account->ulid, $ulids);
+        $this->assertContains($this->actor->ulid, $ulids);
+    }
+
     public function test_platform_admin_lists_all_schools_and_roleless_accounts(): void
     {
         // A role-less account of this school (staff membership only).

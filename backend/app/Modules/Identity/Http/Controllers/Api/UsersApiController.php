@@ -30,10 +30,14 @@ class UsersApiController extends Controller
         // is listed — other schools' staff and role-less accounts included —
         // so no school can be missing from the list and any role-less
         // account can receive its role from here. Each role is labeled with
-        // its school's name for the cross-school view.
+        // its school's name for the cross-school view. Students have their own
+        // tab, so an account that signs in as a student is never a staff row
+        // here — in either console. Guardians are not affected.
         if ($isPlatformContext) {
             $users = User::query()
                 ->with(['userRoles' => fn ($q) => $q->active()->with(['role', 'school'])])
+                ->whereDoesntHave('userRoles', fn ($ur) => $ur->active()
+                    ->whereHas('role', fn ($r) => $r->where('key', 'student')))
                 ->orderBy('last_name')
                 ->paginate(min($request->integer('per_page', 50), 100));
 
@@ -49,11 +53,13 @@ class UsersApiController extends Controller
             ->where(
                 fn ($q) => $q->whereHas('staffProfiles', fn ($sp) => $sp->where('school_id', $schoolId))
                     ->orWhereHas('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)->active()
-                        ->whereHas('role', fn ($r) => $r->where('key', '!=', 'platform_admin'))),
+                        ->whereHas('role', fn ($r) => $r->whereNotIn('key', ['platform_admin', 'student']))),
             )
+            ->whereDoesntHave('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)->active()
+                ->whereHas('role', fn ($r) => $r->where('key', 'student')))
             ->with(['userRoles' => fn ($q) => $q->active()
                 ->where('school_id', $schoolId)
-                ->whereHas('role', fn ($r) => $r->where('key', '!=', 'platform_admin'))
+                ->whereHas('role', fn ($r) => $r->whereNotIn('key', ['platform_admin', 'student']))
                 ->with(['role', 'school'])])
             ->orderBy('last_name')
             ->paginate(min($request->integer('per_page', 50), 100));
