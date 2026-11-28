@@ -16,6 +16,9 @@ import { ApiError } from '../api/client';
 
 type TabId = 'users' | 'students' | 'classrooms';
 
+/** A login account owner whose password the office may (re)set. */
+type PasswordTarget = { ulid: string; fullName: string; kind: 'user' | 'student' };
+
 const firstError = (e: unknown, fallback: string): string =>
   e instanceof ApiError ? e.firstError() : fallback;
 
@@ -247,7 +250,7 @@ export const UserManagementPage: React.FC = () => {
   const [endRoleEndsOn, setEndRoleEndsOn] = useState('');
 
   // ── Admin sets/replaces a user's login password (sh7: reason-logged) ──
-  const [pwTarget, setPwTarget] = useState<UserRow | null>(null);
+  const [pwTarget, setPwTarget] = useState<PasswordTarget | null>(null);
   const [pwValue, setPwValue] = useState('');
   const [pwReason, setPwReason] = useState('');
 
@@ -285,7 +288,11 @@ export const UserManagementPage: React.FC = () => {
     setError(null);
     setNotice(null);
     try {
-      await ApiUserService.setPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+      if (pwTarget.kind === 'student') {
+        await ApiUserService.setStudentPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+      } else {
+        await ApiUserService.setPassword(pwTarget.ulid, { password: pwValue, reason: pwReason.trim() });
+      }
       setPwTarget(null);
       setPwValue('');
       setPwReason('');
@@ -637,9 +644,11 @@ export const UserManagementPage: React.FC = () => {
                           <Button size="sm" variant="ghost" icon={<Phone size={13} />} onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }}>
                             تغییر شماره
                           </Button>
-                          <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget(user); }}>
-                            تعیین رمز
-                          </Button>
+                          {hasAccess('users:set_password') && (
+                            <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget({ ulid: user.ulid, fullName: user.fullName, kind: 'user' }); }}>
+                              تعیین رمز
+                            </Button>
+                          )}
                           <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
                             حذف
                           </Button>
@@ -724,6 +733,23 @@ export const UserManagementPage: React.FC = () => {
                           >
                             کد ملی
                           </Button>
+                          {hasAccess('users:set_password') && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              icon={<KeyRound size={13} />}
+                              disabled={!student.phone}
+                              title={student.phone ? undefined : 'اول شمارهٔ ورود دانش‌آموز را ثبت کنید تا حساب ساخته شود'}
+                              onClick={() => {
+                                setError(null);
+                                setPwValue('');
+                                setPwReason('');
+                                setPwTarget({ ulid: student.ulid, fullName: student.fullName, kind: 'student' });
+                              }}
+                            >
+                              تعیین رمز
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -965,7 +991,9 @@ export const UserManagementPage: React.FC = () => {
           </FormField>
 
           <p className="text-[10px] text-slate-400">
-            یوزرنیم این کاربر همان شمارهٔ موبایل ثبت‌شدهٔ اوست؛ رمز فعلی او با ذخیرهٔ جدید جایگزین می‌شود.
+            {pwTarget?.kind === 'student'
+              ? 'یوزرنیم این دانش‌آموز همان شمارهٔ موبایل ثبت‌شدهٔ اوست؛ رمز فعلی او با ذخیرهٔ جدید جایگزین می‌شود.'
+              : 'یوزرنیم این کاربر همان شمارهٔ موبایل ثبت‌شدهٔ اوست؛ رمز فعلی او با ذخیرهٔ جدید جایگزین می‌شود.'}
           </p>
 
           <div className="flex justify-end gap-2">

@@ -4,6 +4,7 @@ namespace App\Modules\People\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
+use App\Modules\Identity\Services\AdminPasswordService;
 use App\Modules\People\Http\Resources\StudentResource;
 use App\Modules\People\Models\Student;
 use App\Modules\People\Services\StudentAccountService;
@@ -113,5 +114,34 @@ class StudentsApiController extends Controller
         );
 
         return response()->json(['national_code' => $student->national_code]);
+    }
+
+    /**
+     * The student's login account is an ordinary platform user — the same
+     * reason-logged password flow as the staff page, reached from the roster
+     * so the office never has to hunt for the account in the users table.
+     */
+    public function setPassword(Request $request, Student $student, AdminPasswordService $passwords): StudentResource
+    {
+        $user = $student->user;
+
+        if ($user === null) {
+            throw ValidationException::withMessages([
+                'password' => 'این دانش‌آموز حساب ورود ندارد؛ نخست شمارهٔ موبایل او را ثبت کنید.',
+            ]);
+        }
+
+        if (! $request->user()->can('setPassword', $user)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8', 'max:64'],
+            'reason' => ['required', 'string', 'min:5'],
+        ]);
+
+        $passwords->set($user, $data['password'], $data['reason']);
+
+        return new StudentResource($student->fresh()->load('user'));
     }
 }

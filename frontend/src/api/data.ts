@@ -190,6 +190,17 @@ export const ApiUserService = {
     });
   },
 
+  /**
+   * sh7: the student's own login account — the same reason-logged password
+   * flow as the staff page, reached from the roster row.
+   */
+  async setStudentPassword(studentUlid: string, payload: { password: string; reason: string }): Promise<void> {
+    await api(`/v1/students/${studentUlid}/password`, {
+      method: 'POST',
+      body: { password: payload.password, reason: payload.reason },
+    });
+  },
+
   async updateName(ulid: string, firstName: string, lastName: string): Promise<void> {
     await api(`/v1/users/${ulid}`, {
       method: 'PATCH',

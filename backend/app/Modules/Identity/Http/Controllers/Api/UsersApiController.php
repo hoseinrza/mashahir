@@ -9,6 +9,7 @@ use App\Modules\Identity\Models\StaffProfile;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Policies\UserPolicy;
+use App\Modules\Identity\Services\AdminPasswordService;
 use App\Support\PhoneHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -148,7 +149,7 @@ class UsersApiController extends Controller
      * the mobile number) is reason-logged and audited — the plaintext never
      * reaches the trail. Same conditions as updatePhone.
      */
-    public function setPassword(Request $request, User $user): UserResource
+    public function setPassword(Request $request, User $user, AdminPasswordService $passwords): UserResource
     {
         $this->authorize('setPassword', $user);
 
@@ -157,17 +158,7 @@ class UsersApiController extends Controller
             'reason' => ['required', 'string', 'min:5'],
         ]);
 
-        $user->forceFill(['password' => $data['password']])->save();
-
-        app(AuditService::class)->log(
-            'user.password_changed',
-            $user,
-            old: ['password' => '***masked***'],
-            new: ['password' => '***masked***'],
-            reason: $data['reason'],
-        );
-
-        return new UserResource($user->fresh());
+        return new UserResource($passwords->set($user, $data['password'], $data['reason']));
     }
 
     public function assignRole(Request $request, User $user, UserPolicy $policy): UserRole

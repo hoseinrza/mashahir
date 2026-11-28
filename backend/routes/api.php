@@ -74,6 +74,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::get('/students/{student}', [StudentsApiController::class, 'show']);
     Route::patch('/students/{student}', [StudentsApiController::class, 'update']);
     Route::post('/students/{student}/national-code', [StudentsApiController::class, 'nationalCode']);
+    Route::post('/students/{student}/password', [StudentsApiController::class, 'setPassword']);
 
     // Academic structure
     Route::get('/academic/my-subjects', [AcademicApiController::class, 'mySubjects']);
