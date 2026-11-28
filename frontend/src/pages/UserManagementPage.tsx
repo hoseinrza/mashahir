@@ -259,6 +259,30 @@ export const UserManagementPage: React.FC = () => {
   const [delTarget, setDelTarget] = useState<UserRow | null>(null);
   const [delReason, setDelReason] = useState('');
 
+  // ── Remove a student: a reason-logged soft delete that keeps the history ──
+  const [delStudentTarget, setDelStudentTarget] = useState<StudentRow | null>(null);
+  const [delStudentReason, setDelStudentReason] = useState('');
+
+  const handleDeleteStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!delStudentTarget || delStudentReason.trim().length < 5) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const message = await ApiUserService.deleteStudent(delStudentTarget.ulid, delStudentReason.trim());
+      setDelStudentTarget(null);
+      setDelStudentReason('');
+      setNotice(message);
+      setStudentsReload((k) => k + 1);
+    } catch (err) {
+      setError(firstError(err, 'خطا در حذف دانش‌آموز'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Delete user: reason-logged and audited — school detach or ghost removal.
   const handleDeleteUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -672,84 +696,92 @@ export const UserManagementPage: React.FC = () => {
             />
           </Card>
         ) : (
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="border-b border-[#DCE3EE] dark:border-[#344257] text-[#526176] dark:text-[#B3C0D2]">
-                    <th className="pb-3 pr-2 font-medium">نام دانش‌آموز</th>
-                    <th className="pb-3 font-medium">کد دانش‌آموزی</th>
-                    <th className="pb-3 font-medium">شماره ورود</th>
-                    <th className="pb-3 font-medium">تاریخ تولد</th>
-                    <th className="pb-3 font-medium">وضعیت</th>
-                    <th className="pb-3 font-medium">ثبت‌نام در کلاس</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#DCE3EE]/60 dark:divide-[#344257]/60">
-                  {filteredStudents.map((student) => (
-                    <tr key={student.ulid} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 pr-2 font-bold text-[#202B3C] dark:text-[#F1F5FB] whitespace-nowrap">{student.fullName}</td>
-                      <td className="py-3 font-mono tabular-nums text-slate-500">{student.code}</td>
-                      <td className="py-3 font-mono tabular-nums text-slate-500" dir="ltr">{student.phone ?? '—'}</td>
-                      <td className="py-3 text-slate-500 whitespace-nowrap">{formatJalaliDate(student.birthDate)}</td>
-                      <td className="py-3">
-                        <Badge variant={student.status === 'active' ? 'success' : 'neutral'}>
-                          {student.status === 'active' ? 'فعال' : student.status === 'left' ? 'جدا شده' : 'فارغ‌التحصیل'}
-                        </Badge>
-                      </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-1.5">
-                          {student.classroomTitle ? (
-                            <Badge variant="primary">{student.classroomTitle}</Badge>
-                          ) : (
-                            <span className="text-slate-400 text-[10px]">بدون کلاس</span>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setError(null);
-                              setEnrollClassroom(classrooms?.[0]?.ulid ?? '');
-                              setEnrollStartsOn(todayIso());
-                              setEnrollTarget(student);
-                            }}
-                            disabled={(classrooms ?? []).length === 0}
-                          >
-                            ثبت‌نام
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            icon={<Eye size={13} />}
-                            onClick={() => { setError(null); setNcReason(''); setNcValue(null); setNcTarget(student); }}
-                          >
-                            کد ملی
-                          </Button>
-                          {hasAccess('users:set_password') && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              icon={<KeyRound size={13} />}
-                              disabled={!student.phone}
-                              title={student.phone ? undefined : 'اول شمارهٔ ورود دانش‌آموز را ثبت کنید تا حساب ساخته شود'}
-                              onClick={() => {
-                                setError(null);
-                                setPwValue('');
-                                setPwReason('');
-                                setPwTarget({ ulid: student.ulid, fullName: student.fullName, kind: 'student' });
-                              }}
-                            >
-                              تعیین رمز
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
+            {filteredStudents.map((student) => (
+              <div
+                key={student.ulid}
+                className="rounded-xl border border-[#DCE3EE] bg-white p-2 transition-colors hover:border-[#BECDE2] dark:border-[#344257] dark:bg-[#182231] dark:hover:border-[#4A5A73]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB]" title={student.fullName}>
+                    {student.fullName}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-[#8B96A9]">{student.code}</span>
+                  <span className={'flex shrink-0 items-center gap-1 text-[10px] ' + (student.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#8B96A9]')}>
+                    <span className={'h-1.5 w-1.5 rounded-full ' + (student.status === 'active' ? 'bg-emerald-500' : student.status === 'left' ? 'bg-amber-500' : 'bg-slate-400')} />
+                    {student.status === 'active' ? 'فعال' : student.status === 'left' ? 'جدا شده' : 'فارغ‌التحصیل'}
+                  </span>
+                </div>
+
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-[#8B96A9]">
+                  {student.classroomTitle ? (
+                    <span className="rounded-md bg-[#EAF1FB] dark:bg-[#1D2B44] px-1.5 py-0.5 text-[#2457C5] dark:text-[#8BAEFF]">{student.classroomTitle}</span>
+                  ) : (
+                    <span className="rounded-md bg-[#F1F4F9] dark:bg-[#1B2534] px-1.5 py-0.5">بدون کلاس</span>
+                  )}
+                  <span className={student.phone ? 'font-mono tabular-nums' : 'italic'} dir={student.phone ? 'ltr' : undefined}>
+                    {student.phone ?? 'بدون شمارهٔ ورود'}
+                  </span>
+                  {student.birthDate && <span>{formatJalaliDate(student.birthDate)}</span>}
+                </div>
+
+                <div className="mt-1.5 flex items-center gap-1 border-t border-[#E8EDF5] pt-1 dark:border-[#2C3A4E]">
+                  <button
+                    type="button"
+                    title="ثبت‌نام در کلاس"
+                    aria-label="ثبت‌نام در کلاس"
+                    disabled={(classrooms ?? []).length === 0}
+                    onClick={() => {
+                      setError(null);
+                      setEnrollClassroom(classrooms?.[0]?.ulid ?? '');
+                      setEnrollStartsOn(todayIso());
+                      setEnrollTarget(student);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white"
+                  >
+                    <UserPlus size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    title="کد ملی"
+                    aria-label="کد ملی"
+                    onClick={() => { setError(null); setNcReason(''); setNcValue(null); setNcTarget(student); }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white"
+                  >
+                    <Eye size={13} />
+                  </button>
+                  {hasAccess('users:set_password') && (
+                    <button
+                      type="button"
+                      title={student.phone ? 'تعیین رمز' : 'اول شمارهٔ ورود دانش‌آموز را ثبت کنید تا حساب ساخته شود'}
+                      aria-label="تعیین رمز"
+                      disabled={!student.phone}
+                      onClick={() => {
+                        setError(null);
+                        setPwValue('');
+                        setPwReason('');
+                        setPwTarget({ ulid: student.ulid, fullName: student.fullName, kind: 'student' });
+                      }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white"
+                    >
+                      <KeyRound size={13} />
+                    </button>
+                  )}
+                  {hasAccess('students:manage') && (
+                    <button
+                      type="button"
+                      title="حذف دانش‌آموز"
+                      aria-label="حذف دانش‌آموز"
+                      onClick={() => { setError(null); setDelStudentReason(''); setDelStudentTarget(student); }}
+                      className="mr-auto flex h-7 w-7 items-center justify-center rounded-lg text-[#8B96A9] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         )
       )}
 
@@ -1029,6 +1061,41 @@ export const UserManagementPage: React.FC = () => {
             <Button variant="ghost" type="button" onClick={() => setDelTarget(null)}>انصراف</Button>
             <Button variant="danger" type="submit" disabled={isSaving || delReason.trim().length < 5}>
               {isSaving ? 'در حال حذف…' : 'حذف کاربر'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Remove a student ───────────────────────────────────── */}
+      <Modal
+        isOpen={delStudentTarget !== null}
+        onClose={() => setDelStudentTarget(null)}
+        title={`حذف دانش‌آموز ${delStudentTarget?.fullName ?? ''}`}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleDeleteStudent} className="space-y-4 text-right">
+          <div className="flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl">
+            <Info size={13} className="shrink-0 mt-0.5" />
+            <span>
+              دانش‌آموز از فهرست مدرسه حذف می‌شود و دیگر در لیست‌ها دیده نمی‌شود؛ حضور و غیاب، نمرات و ثبت‌نام‌هایش برای بازیابی باقی می‌ماند و نقش ورود او پایان می‌یابد.
+            </span>
+          </div>
+
+          <FormField label="دلیل حذف (درج در لاگ حساس)" required>
+            <textarea
+              rows={3}
+              required
+              value={delStudentReason}
+              onChange={(e) => setDelStudentReason(e.target.value)}
+              placeholder="مثال: ثبت اشتباه در فهرست / انتقال به مدرسهٔ دیگر"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+            />
+          </FormField>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={() => setDelStudentTarget(null)}>انصراف</Button>
+            <Button variant="danger" type="submit" disabled={isSaving || delStudentReason.trim().length < 5}>
+              {isSaving ? 'در حال حذف…' : 'حذف دانش‌آموز'}
             </Button>
           </div>
         </form>

@@ -201,6 +201,18 @@ export const ApiUserService = {
     });
   },
 
+  /**
+   * sh7: removing a student is a reason-logged soft delete — the roster row
+   * goes, the history (attendance, marks) stays for a restore.
+   */
+  async deleteStudent(studentUlid: string, reason: string): Promise<string> {
+    const result = await api<{ message?: string }>(`/v1/students/${studentUlid}`, {
+      method: 'DELETE',
+      body: { reason },
+    });
+    return result.message ?? 'دانش‌آموز حذف شد.';
+  },
+
   async updateName(ulid: string, firstName: string, lastName: string): Promise<void> {
     await api(`/v1/users/${ulid}`, {
       method: 'PATCH',

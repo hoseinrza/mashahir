@@ -43,6 +43,15 @@ class StudentPolicy
     }
 
     /**
+     * Removing a student from the roster is a soft delete: the row stays for a
+     * restore and the history (attendance, marks) is never cascaded away.
+     */
+    public function delete(User $user, Student $student): bool
+    {
+        return $this->registrar->allows('students.manage');
+    }
+
+    /**
      * sh7: national code reveal requires the dedicated permission AND a
      * logged reason; the controller enforces the reason + audit write.
      */

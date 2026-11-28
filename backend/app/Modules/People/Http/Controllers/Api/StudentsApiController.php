@@ -4,11 +4,13 @@ namespace App\Modules\People\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
+use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Services\AdminPasswordService;
 use App\Modules\People\Http\Resources\StudentResource;
 use App\Modules\People\Models\Student;
 use App\Modules\People\Services\StudentAccountService;
 use App\Support\Rbac\ScopeResolver;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -144,5 +146,33 @@ class StudentsApiController extends Controller
         $passwords->set($user, $data['password'], $data['reason']);
 
         return new StudentResource($student->fresh()->load('user'));
+    }
+
+    /**
+     * Removing a student is a reason-logged soft delete (sh7): the roster row
+     * disappears, the history stays for a restore, and only the role scoped to
+     * this student ends — a family number keeps its platform account.
+     */
+    public function destroy(Request $request, Student $student): JsonResponse
+    {
+        $this->authorize('delete', $student);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5']]);
+
+        $ended = UserRole::query()
+            ->where('scope_type', 'student')
+            ->where('scope_id', $student->id)
+            ->active()
+            ->update(['ends_on' => now()->subDay()->toDateString()]);
+
+        app(AuditService::class)->log('student.deleted', $student, old: [
+            'student_code' => $student->student_code,
+            'name' => $student->fullName(),
+            'ended_roles' => $ended,
+        ], reason: $data['reason']);
+
+        $student->delete();
+
+        return response()->json(['message' => 'دانش‌آموز از فهرست حذف شد؛ سوابق آموزشی او برای بازیابی باقی می‌ماند.']);
     }
 }

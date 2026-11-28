@@ -7,11 +7,14 @@ use App\Support\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
 {
     use BelongsToSchool;
     use HasUlid;
+    // Leaving the roster is a removal, not a purge: the row and its history stay.
+    use SoftDeletes;
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_LEFT = 'left';
