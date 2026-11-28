@@ -586,79 +586,72 @@ export const UserManagementPage: React.FC = () => {
             />
           </Card>
         ) : (
-          <Card>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-              {filteredUsers.map((user) => (
-                <div
-                  key={user.ulid}
-                  className="rounded-2xl border border-[#DCE3EE] p-3 transition-colors hover:border-[#C9D5E6] dark:border-[#344257] dark:hover:border-[#43536B]"
-                >
-                  <p className="truncate text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]" title={user.fullName}>{user.fullName}</p>
-
-                  <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                    <div className="flex items-center justify-between gap-2 rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 dark:bg-[#111B29]">
-                      <span className="text-[10px] text-[#8B96A9]">شمارهٔ ورود</span>
-                      <span className="font-mono text-[11px] tabular-nums text-[#202B3C] dark:text-[#F1F5FB]" dir="ltr">{user.phone ?? '—'}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 dark:bg-[#111B29]">
-                      <span className="text-[10px] text-[#8B96A9]">وضعیت</span>
-                      <Badge variant={user.status === 'active' ? 'success' : 'neutral'}>
-                        {user.status === 'active' ? 'فعال' : 'غیرفعال'}
-                      </Badge>
-                    </div>
-                    <div className="rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 sm:col-span-2 dark:bg-[#111B29]">
-                      <span className="text-[10px] text-[#8B96A9]">نقش‌های فعال</span>
-                      {user.roles.length === 0 ? (
-                        <span className="mt-1 block text-[11px] text-slate-400">—</span>
-                      ) : (
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          {user.roles.map((assignment) => (
-                            <span
-                              key={assignment.userRoleId}
-                              className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#EAF1FB] dark:bg-[#1D2B44] px-2 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
-                            >
-                              <span className="truncate">
-                                {assignment.roleTitle ?? BACKEND_ROLE_LABELS[assignment.roleKey ?? ''] ?? assignment.roleKey}
-                                {isPlatformAdmin && assignment.schoolTitle ? ` · ${assignment.schoolTitle}` : ''}
-                              </span>
-                              <button
-                                type="button"
-                                title="پایان نقش"
-                                onClick={() => { setError(null); setEndRoleReason(''); setEndRoleEndsOn(''); setEndRoleTarget({ user, role: assignment }); }}
-                                className="shrink-0 text-[#8B96A9] hover:text-red-500"
-                              >
-                                <UserX size={11} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-1.5 border-t border-[#DCE3EE] pt-2 dark:border-[#344257]">
-                    <Button size="sm" variant="outline" icon={<KeyRound size={13} />} onClick={() => { setError(null); setRoleKey('teacher'); setRoleTarget(user); }}>
-                      تخصیص نقش
-                    </Button>
-                    <Button size="sm" variant="ghost" icon={<Pencil size={13} />} onClick={() => { setError(null); setEditFirst(user.firstName); setEditLast(user.lastName); setNameTarget(user); }}>
-                      ویرایش نام
-                    </Button>
-                    <Button size="sm" variant="ghost" icon={<Phone size={13} />} onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }}>
-                      تغییر شماره
-                    </Button>
-                    {hasAccess('users:set_password') && (
-                      <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget({ ulid: user.ulid, fullName: user.fullName, kind: 'user' }); }}>
-                        تعیین رمز
-                      </Button>
-                    )}
-                    <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
-                      حذف
-                    </Button>
-                  </div>
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2 2xl:grid-cols-3">
+            {filteredUsers.map((user) => (
+              <div
+                key={user.ulid}
+                className="rounded-xl border border-[#DCE3EE] bg-white p-2 transition-colors hover:border-[#BECDE2] dark:border-[#344257] dark:bg-[#182231] dark:hover:border-[#4A5A73]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB]" title={user.fullName}>
+                    {user.fullName}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-[#8B96A9]" dir="ltr">{user.phone ?? '—'}</span>
+                  <span className={'flex shrink-0 items-center gap-1 text-[10px] ' + (user.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#8B96A9]')}>
+                    <span className={'h-1.5 w-1.5 rounded-full ' + (user.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400')} />
+                    {user.status === 'active' ? 'فعال' : 'غیرفعال'}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </Card>
+
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {user.roles.length === 0 ? (
+                    <span className="text-[10px] text-[#8B96A9]">بدون نقش فعال</span>
+                  ) : (
+                    user.roles.map((assignment) => (
+                      <span
+                        key={assignment.userRoleId}
+                        className="inline-flex max-w-full items-center gap-1 rounded-md bg-[#EAF1FB] dark:bg-[#1D2B44] px-1.5 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
+                      >
+                        <span className="truncate">
+                          {assignment.roleTitle ?? BACKEND_ROLE_LABELS[assignment.roleKey ?? ''] ?? assignment.roleKey}
+                          {isPlatformAdmin && assignment.schoolTitle ? ` · ${assignment.schoolTitle}` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          title="پایان نقش"
+                          aria-label="پایان نقش"
+                          onClick={() => { setError(null); setEndRoleReason(''); setEndRoleEndsOn(''); setEndRoleTarget({ user, role: assignment }); }}
+                          className="shrink-0 text-[#8B96A9] hover:text-red-500"
+                        >
+                          <UserX size={10} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-1.5 flex items-center gap-1 border-t border-[#E8EDF5] pt-1 dark:border-[#2C3A4E]">
+                  <button type="button" title="تخصیص نقش" aria-label="تخصیص نقش" onClick={() => { setError(null); setRoleKey('teacher'); setRoleTarget(user); }} className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white">
+                    <ShieldCheck size={13} />
+                  </button>
+                  <button type="button" title="ویرایش نام" aria-label="ویرایش نام" onClick={() => { setError(null); setEditFirst(user.firstName); setEditLast(user.lastName); setNameTarget(user); }} className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white">
+                    <Pencil size={13} />
+                  </button>
+                  <button type="button" title="تغییر شماره" aria-label="تغییر شماره" onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }} className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white">
+                    <Phone size={13} />
+                  </button>
+                  {hasAccess('users:set_password') && (
+                    <button type="button" title="تعیین رمز" aria-label="تعیین رمز" onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget({ ulid: user.ulid, fullName: user.fullName, kind: 'user' }); }} className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white">
+                      <KeyRound size={13} />
+                    </button>
+                  )}
+                  <button type="button" title="حذف کاربر" aria-label="حذف کاربر" onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }} className="mr-auto flex h-7 w-7 items-center justify-center rounded-lg text-[#8B96A9] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )
       )}
 
