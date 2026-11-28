@@ -587,77 +587,76 @@ export const UserManagementPage: React.FC = () => {
           </Card>
         ) : (
           <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="border-b border-[#DCE3EE] dark:border-[#344257] text-[#526176] dark:text-[#B3C0D2]">
-                    <th className="pb-3 pr-2 font-medium">نام و نام خانوادگی</th>
-                    <th className="pb-3 font-medium">شمارهٔ ورود</th>
-                    <th className="pb-3 font-medium">وضعیت</th>
-                    <th className="pb-3 font-medium">نقش‌های فعال</th>
-                    <th className="pb-3 font-medium">اقدامات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#DCE3EE]/60 dark:divide-[#344257]/60">
-                  {filteredUsers.map((user) => (
-                    <tr key={user.ulid} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 pr-2 font-bold text-[#202B3C] dark:text-[#F1F5FB] whitespace-nowrap">{user.fullName}</td>
-                      <td className="py-3 font-mono tabular-nums text-slate-500" dir="ltr">{user.phone ?? '—'}</td>
-                      <td className="py-3">
-                        <Badge variant={user.status === 'active' ? 'success' : 'neutral'}>
-                          {user.status === 'active' ? 'فعال' : 'غیرفعال'}
-                        </Badge>
-                      </td>
-                      <td className="py-3">
-                        {user.roles.length === 0 ? (
-                          <span className="text-slate-400">—</span>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {user.roles.map((assignment) => (
-                              <span
-                                key={assignment.userRoleId}
-                                className="inline-flex items-center gap-1 rounded-full bg-[#EAF1FB] dark:bg-[#1D2B44] px-2 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
-                              >
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.ulid}
+                  className="rounded-2xl border border-[#DCE3EE] p-3 transition-colors hover:border-[#C9D5E6] dark:border-[#344257] dark:hover:border-[#43536B]"
+                >
+                  <p className="truncate text-sm font-bold text-[#202B3C] dark:text-[#F1F5FB]" title={user.fullName}>{user.fullName}</p>
+
+                  <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    <div className="flex items-center justify-between gap-2 rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 dark:bg-[#111B29]">
+                      <span className="text-[10px] text-[#8B96A9]">شمارهٔ ورود</span>
+                      <span className="font-mono text-[11px] tabular-nums text-[#202B3C] dark:text-[#F1F5FB]" dir="ltr">{user.phone ?? '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 dark:bg-[#111B29]">
+                      <span className="text-[10px] text-[#8B96A9]">وضعیت</span>
+                      <Badge variant={user.status === 'active' ? 'success' : 'neutral'}>
+                        {user.status === 'active' ? 'فعال' : 'غیرفعال'}
+                      </Badge>
+                    </div>
+                    <div className="rounded-xl bg-[#F6F9FD] px-2.5 py-1.5 sm:col-span-2 dark:bg-[#111B29]">
+                      <span className="text-[10px] text-[#8B96A9]">نقش‌های فعال</span>
+                      {user.roles.length === 0 ? (
+                        <span className="mt-1 block text-[11px] text-slate-400">—</span>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {user.roles.map((assignment) => (
+                            <span
+                              key={assignment.userRoleId}
+                              className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#EAF1FB] dark:bg-[#1D2B44] px-2 py-0.5 text-[10px] text-[#2457C5] dark:text-[#8BAEFF]"
+                            >
+                              <span className="truncate">
                                 {assignment.roleTitle ?? BACKEND_ROLE_LABELS[assignment.roleKey ?? ''] ?? assignment.roleKey}
                                 {isPlatformAdmin && assignment.schoolTitle ? ` · ${assignment.schoolTitle}` : ''}
-                                <button
-                                  type="button"
-                                  title="پایان نقش"
-                                  onClick={() => { setError(null); setEndRoleReason(''); setEndRoleEndsOn(''); setEndRoleTarget({ user, role: assignment }); }}
-                                  className="text-[#8B96A9] hover:text-red-500"
-                                >
-                                  <UserX size={11} />
-                                </button>
                               </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-1.5">
-                          <Button size="sm" variant="outline" icon={<KeyRound size={13} />} onClick={() => { setError(null); setRoleKey('teacher'); setRoleTarget(user); }}>
-                            تخصیص نقش
-                          </Button>
-                          <Button size="sm" variant="ghost" icon={<Pencil size={13} />} onClick={() => { setError(null); setEditFirst(user.firstName); setEditLast(user.lastName); setNameTarget(user); }}>
-                            ویرایش نام
-                          </Button>
-                          <Button size="sm" variant="ghost" icon={<Phone size={13} />} onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }}>
-                            تغییر شماره
-                          </Button>
-                          {hasAccess('users:set_password') && (
-                            <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget({ ulid: user.ulid, fullName: user.fullName, kind: 'user' }); }}>
-                              تعیین رمز
-                            </Button>
-                          )}
-                          <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
-                            حذف
-                          </Button>
+                              <button
+                                type="button"
+                                title="پایان نقش"
+                                onClick={() => { setError(null); setEndRoleReason(''); setEndRoleEndsOn(''); setEndRoleTarget({ user, role: assignment }); }}
+                                className="shrink-0 text-[#8B96A9] hover:text-red-500"
+                              >
+                                <UserX size={11} />
+                              </button>
+                            </span>
+                          ))}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5 border-t border-[#DCE3EE] pt-2 dark:border-[#344257]">
+                    <Button size="sm" variant="outline" icon={<KeyRound size={13} />} onClick={() => { setError(null); setRoleKey('teacher'); setRoleTarget(user); }}>
+                      تخصیص نقش
+                    </Button>
+                    <Button size="sm" variant="ghost" icon={<Pencil size={13} />} onClick={() => { setError(null); setEditFirst(user.firstName); setEditLast(user.lastName); setNameTarget(user); }}>
+                      ویرایش نام
+                    </Button>
+                    <Button size="sm" variant="ghost" icon={<Phone size={13} />} onClick={() => { setError(null); setNewPhone(user.phone ?? ''); setPhoneReason(''); setPhoneTarget(user); }}>
+                      تغییر شماره
+                    </Button>
+                    {hasAccess('users:set_password') && (
+                      <Button size="sm" variant="ghost" icon={<KeyRound size={13} />} onClick={() => { setError(null); setPwValue(''); setPwReason(''); setPwTarget({ ulid: user.ulid, fullName: user.fullName, kind: 'user' }); }}>
+                        تعیین رمز
+                      </Button>
+                    )}
+                    <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={() => { setError(null); setDelReason(''); setDelTarget(user); }}>
+                      حذف
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
         )
