@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\People\Http\Resources\StudentResource;
 use App\Modules\People\Models\Student;
+use App\Modules\People\Services\StudentAccountService;
 use App\Support\Rbac\ScopeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class StudentsApiController extends Controller
@@ -22,8 +24,9 @@ class StudentsApiController extends Controller
         $this->authorize('viewAny', Student::class);
 
         $query = $this->resolver->applyStudentScope(Student::query()->orderBy('last_name'))
-            // The current classroom for the roster tables (active enrollment only).
-            ->with(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom')]);
+            // The current classroom for the roster tables (active enrollment only)
+            // and the linked login account, whose phone the roster shows.
+            ->with(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom'), 'user']);
 
         return StudentResource::collection(
             $query->paginate(min($request->integer('per_page', 50), 100)),
@@ -37,7 +40,7 @@ class StudentsApiController extends Controller
             abort(404);
         }
 
-        $student->load(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom')]);
+        $student->load(['enrollments' => fn ($q) => $q->where('status', 'active')->with('classroom'), 'user']);
 
         return new StudentResource($student);
     }
@@ -52,15 +55,26 @@ class StudentsApiController extends Controller
             'last_name' => ['required', 'string', 'max:100'],
             'birth_date' => ['nullable', 'date'],
             'national_code' => ['nullable', 'digits:10'],
+            // A phone mints/links the student's login account (OTP + panel).
+            'phone' => ['nullable', 'string', 'max:20'],
         ]);
 
         if (Student::query()->where('student_code', $data['student_code'])->exists()) {
             throw ValidationException::withMessages(['student_code' => 'این کد دانش‌آموزی قبلاً ثبت شده است.']);
         }
 
-        $student = Student::query()->create($data);
+        // Create + account-linking are atomic: a rejected phone leaves no
+        // half-registered student behind.
+        $student = DB::transaction(function () use ($data) {
+            $student = Student::query()->create($data);
+            app(StudentAccountService::class)->linkPhone($student, $data['phone'] ?? null);
 
-        return new StudentResource($student);
+            return $student;
+        });
+
+        // The recently-created model keeps 201 semantics AND carries the
+        // linked user for the phone field of the response.
+        return new StudentResource($student->load('user'));
     }
 
     public function update(Request $request, Student $student): StudentResource

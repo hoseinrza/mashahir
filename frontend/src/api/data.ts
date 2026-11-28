@@ -42,6 +42,8 @@ export interface StudentRow {
   lastName: string;
   fullName: string;
   status: string;
+  /** Login number of the linked account — null when the student has none. */
+  phone: string | null;
   birthDate: string | null;
   classroomTitle: string | null;
 }
@@ -160,6 +162,7 @@ export const ApiUserService = {
       lastName: s.last_name ?? '',
       fullName: `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim(),
       status: s.status ?? 'active',
+      phone: s.phone ?? null,
       birthDate: s.birth_date ?? null,
       classroomTitle: s.classroom_title ?? null,
     }));
@@ -171,6 +174,8 @@ export const ApiUserService = {
     studentCode: string;
     birthDate?: string | null;
     nationalCode?: string | null;
+    /** Given a phone, the backend mints/links the student's login account. */
+    phone?: string | null;
   }): Promise<void> {
     await api('/v1/students', {
       method: 'POST',
@@ -180,6 +185,7 @@ export const ApiUserService = {
         student_code: payload.studentCode,
         ...(payload.birthDate ? { birth_date: payload.birthDate } : {}),
         ...(payload.nationalCode ? { national_code: payload.nationalCode } : {}),
+        ...(payload.phone ? { phone: payload.phone } : {}),
       },
     });
   },

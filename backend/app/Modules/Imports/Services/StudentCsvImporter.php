@@ -5,18 +5,24 @@ namespace App\Modules\Imports\Services;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Imports\Models\ImportBatch;
 use App\Modules\People\Models\Student;
+use App\Modules\People\Services\StudentAccountService;
 use App\Modules\Identity\Models\User;
+use App\Support\PhoneHash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * CSV importer for students. Columns (header row required):
- * student_code, first_name, last_name, national_code (optional).
+ * student_code, first_name, last_name, national_code (optional),
+ * phone (optional — mints/links the student's login account).
  * Every rejected row is reported with its line number (FR-34).
  */
 final class StudentCsvImporter
 {
-    public function __construct(private readonly AuditService $audit)
-    {
+    public function __construct(
+        private readonly AuditService $audit,
+        private readonly StudentAccountService $accounts,
+    ) {
     }
 
     public function import(string $path, User $actor): ImportBatch
@@ -65,7 +71,13 @@ final class StudentCsvImporter
                         continue;
                     }
 
-                    Student::query()->create([
+                    $error = $this->validateRow($row, $schoolId);
+                    if ($error !== null) {
+                        $batch->errors()->create(['row_number' => $rowNumber, 'message' => $error]);
+                        continue;
+                    }
+
+                    $student = Student::query()->create([
                         'school_id' => $schoolId,
                         'student_code' => $row['student_code'],
                         'first_name' => $row['first_name'],
@@ -73,6 +85,17 @@ final class StudentCsvImporter
                         'national_code' => $row['national_code'] ?? null,
                         'status' => 'active',
                     ]);
+
+                    try {
+                        // Mints/links the login account when a phone is given.
+                        $this->accounts->linkPhone($student, $row['phone'] ?? null);
+                    } catch (ValidationException $e) {
+                        // Same-transaction rollback of the just-created row
+                        // plus a per-line error report (FR-34).
+                        $student->delete();
+                        $batch->errors()->create(['row_number' => $rowNumber, 'message' => $e->getMessage()]);
+                        continue;
+                    }
 
                     $ok++;
                 }
@@ -105,6 +128,18 @@ final class StudentCsvImporter
 
         if (! empty($row['national_code']) && ! preg_match('/^\d{10}$/', $row['national_code'])) {
             return 'کد ملی باید ۱۰ رقم باشد.';
+        }
+
+        $phone = $this->accounts->normalizePhone($row['phone'] ?? null);
+        if ($phone !== null) {
+            if (! preg_match('/^09\d{9}$/', $phone)) {
+                return 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.';
+            }
+
+            $user = User::query()->where('phone_hash', PhoneHash::of($phone))->first();
+            if ($user !== null && Student::query()->where('user_id', $user->id)->exists()) {
+                return 'این شماره قبلاً به دانش‌آموز دیگری متصل شده است.';
+            }
         }
 
         if (Student::query()->where('school_id', $schoolId)->where('student_code', $row['student_code'])->exists()) {

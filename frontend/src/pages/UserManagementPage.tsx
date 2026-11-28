@@ -73,6 +73,8 @@ export const UserManagementPage: React.FC = () => {
   const [stuCode, setStuCode] = useState('');
   const [stuBirth, setStuBirth] = useState('');
   const [stuNational, setStuNational] = useState('');
+  // Phone = login: the backend mints/links the student's account from it.
+  const [stuPhone, setStuPhone] = useState('');
 
   const [enrollTarget, setEnrollTarget] = useState<StudentRow | null>(null);
   const [enrollClassroom, setEnrollClassroom] = useState('');
@@ -349,6 +351,11 @@ export const UserManagementPage: React.FC = () => {
       return;
     }
 
+    if (stuPhone.trim() && !/^09\d{9}$/.test(stuPhone.trim())) {
+      setError('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود (مثال: 09121234567).');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setNotice(null);
@@ -359,6 +366,7 @@ export const UserManagementPage: React.FC = () => {
         studentCode: stuCode.trim(),
         birthDate: stuBirth || null,
         nationalCode: stuNational.trim() || null,
+        phone: stuPhone.trim() || null,
       });
       setIsCreateStudentOpen(false);
       setStuFirst('');
@@ -366,8 +374,11 @@ export const UserManagementPage: React.FC = () => {
       setStuCode('');
       setStuBirth('');
       setStuNational('');
+      setStuPhone('');
       setStudentsReload((k) => k + 1);
-      setNotice('دانش‌آموز ثبت شد؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.');
+      setNotice(stuPhone.trim()
+        ? 'دانش‌آموز ثبت شد و حساب ورودش با شمارهٔ موبایل ساخته شد؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.'
+        : 'دانش‌آموز ثبت شد؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.');
     } catch (err) {
       setError(firstError(err, 'خطا در ثبت دانش‌آموز'));
     } finally {
@@ -667,6 +678,7 @@ export const UserManagementPage: React.FC = () => {
                   <tr className="border-b border-[#DCE3EE] dark:border-[#344257] text-[#526176] dark:text-[#B3C0D2]">
                     <th className="pb-3 pr-2 font-medium">نام دانش‌آموز</th>
                     <th className="pb-3 font-medium">کد دانش‌آموزی</th>
+                    <th className="pb-3 font-medium">شماره ورود</th>
                     <th className="pb-3 font-medium">تاریخ تولد</th>
                     <th className="pb-3 font-medium">وضعیت</th>
                     <th className="pb-3 font-medium">ثبت‌نام در کلاس</th>
@@ -677,6 +689,7 @@ export const UserManagementPage: React.FC = () => {
                     <tr key={student.ulid} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                       <td className="py-3 pr-2 font-bold text-[#202B3C] dark:text-[#F1F5FB] whitespace-nowrap">{student.fullName}</td>
                       <td className="py-3 font-mono tabular-nums text-slate-500">{student.code}</td>
+                      <td className="py-3 font-mono tabular-nums text-slate-500" dir="ltr">{student.phone ?? '—'}</td>
                       <td className="py-3 text-slate-500 whitespace-nowrap">{formatJalaliDate(student.birthDate)}</td>
                       <td className="py-3">
                         <Badge variant={student.status === 'active' ? 'success' : 'neutral'}>
@@ -1049,6 +1062,22 @@ export const UserManagementPage: React.FC = () => {
             </FormField>
           </div>
 
+          <FormField label="شماره موبایل (اختیاری — حساب ورود دانش‌آموز ساخته می‌شود)">
+            <input
+              type="text"
+              dir="ltr"
+              value={stuPhone}
+              onChange={(e) => setStuPhone(
+                e.target.value
+                  .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+                  .replace(/[^\d]/g, '')
+                  .slice(0, 11),
+              )}
+              placeholder="09121234567"
+              className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+            />
+          </FormField>
+
           <FormField label="تاریخ تولد (اختیاری)">
             <JalaliDatePicker value={stuBirth} onChange={setStuBirth} placeholder="انتخاب تاریخ تولد" />
           </FormField>
@@ -1236,8 +1265,8 @@ export const UserManagementPage: React.FC = () => {
             <FileSpreadsheet size={14} className="shrink-0 mt-0.5 text-[#2457C5]" />
             <div className="space-y-1">
               <p>ردیف اول باید سرستون باشد؛ ستون‌های لازم:</p>
-              <p className="font-mono" dir="ltr">student_code, first_name, last_name, national_code</p>
-              <p className="text-slate-400">ستون کد ملی اختیاری است. فایل حداکثر ۲ مگابایت و با کدگذاری UTF-8 ذخیره شود.</p>
+              <p className="font-mono" dir="ltr">student_code, first_name, last_name, national_code, phone</p>
+              <p className="text-slate-400">ستون‌های کد ملی و phone اختیاری‌اند؛ اگر phone (۱۱ رقم با ۰۹، ارقام فارسی هم قبول است) بدهید، حساب ورود دانش‌آموز همان لحظه ساخته می‌شود. فایل حداکثر ۲ مگابایت و با کدگذاری UTF-8 ذخیره شود.</p>
             </div>
           </div>
 
