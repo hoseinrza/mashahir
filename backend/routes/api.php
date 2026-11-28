@@ -75,6 +75,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'auth.context'])->group(functio
     Route::patch('/students/{student}', [StudentsApiController::class, 'update']);
     Route::post('/students/{student}/national-code', [StudentsApiController::class, 'nationalCode']);
     Route::post('/students/{student}/password', [StudentsApiController::class, 'setPassword']);
+    // Parents are added beside their student: account + guardian role + an
+    // active link in one call (the personnel role form no longer hands out
+    // the guardian role).
+    Route::get('/students/{student}/guardians', [StudentsApiController::class, 'guardians']);
+    Route::post('/students/{student}/guardians', [StudentsApiController::class, 'attachGuardian']);
     Route::delete('/students/{student}', [StudentsApiController::class, 'destroy']);
 
     // Academic structure

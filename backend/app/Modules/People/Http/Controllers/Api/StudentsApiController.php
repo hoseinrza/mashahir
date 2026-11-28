@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Services\AdminPasswordService;
+use App\Modules\People\Http\Resources\GuardianLinkResource;
 use App\Modules\People\Http\Resources\StudentResource;
+use App\Modules\People\Models\GuardianLink;
 use App\Modules\People\Models\Student;
+use App\Modules\People\Services\GuardianAccountService;
 use App\Modules\People\Services\StudentAccountService;
 use App\Support\Rbac\ScopeResolver;
 use Illuminate\Http\JsonResponse;
@@ -61,17 +64,36 @@ class StudentsApiController extends Controller
             'national_code' => ['nullable', 'digits:10'],
             // A phone mints/links the student's login account (OTP + panel).
             'phone' => ['nullable', 'string', 'max:20'],
+            // Parents registered in the same step: optional, and each one
+            // given here gets a login account, the guardian role, and an
+            // ACTIVE link to this student. A student without a parent is a
+            // perfectly valid registration.
+            'guardians' => ['sometimes', 'array', 'max:4'],
+            'guardians.*.first_name' => ['required', 'string', 'max:100'],
+            'guardians.*.last_name' => ['nullable', 'string', 'max:100'],
+            'guardians.*.phone' => ['required', 'string', 'max:20'],
+            'guardians.*.link_type' => ['nullable', Rule::in(array_keys(GuardianLink::typeLabels()))],
+            'guardians.*.can_pickup' => ['sometimes', 'boolean'],
         ]);
 
         if (Student::query()->where('student_code', $data['student_code'])->exists()) {
             throw ValidationException::withMessages(['student_code' => 'این کد دانش‌آموزی قبلاً ثبت شده است.']);
         }
 
-        // Create + account-linking are atomic: a rejected phone leaves no
-        // half-registered student behind.
-        $student = DB::transaction(function () use ($data) {
+        $guardians = $data['guardians'] ?? [];
+        unset($data['guardians']);
+
+        // Create + account-linking + guardians are atomic: a rejected phone
+        // leaves no half-registered student (and no orphan parent account)
+        // behind.
+        $student = DB::transaction(function () use ($data, $guardians, $request) {
             $student = Student::query()->create($data);
             app(StudentAccountService::class)->linkPhone($student, $data['phone'] ?? null);
+
+            $parents = app(GuardianAccountService::class);
+            foreach ($guardians as $guardian) {
+                $parents->attach($student, $guardian, $request->user());
+            }
 
             return $student;
         });
@@ -79,6 +101,55 @@ class StudentsApiController extends Controller
         // The recently-created model keeps 201 semantics AND carries the
         // linked user for the phone field of the response.
         return new StudentResource($student->load('user'));
+    }
+
+    /**
+     * Guardians of one student — the parents modal of the roster. School
+     * staff only: a guardian asking about his own child reads /my/children,
+     * never the other parent's row.
+     */
+    public function guardians(Request $request, Student $student): AnonymousResourceCollection
+    {
+        $this->authorize('manage', GuardianLink::class);
+
+        if (! $request->user()->can('view', $student)) {
+            abort(404);
+        }
+
+        return GuardianLinkResource::collection(
+            GuardianLink::query()
+                ->where('student_id', $student->id)
+                ->with(['guardian', 'student'])
+                ->orderByDesc('id')
+                ->get(),
+        );
+    }
+
+    /**
+     * A parent added to an already-registered student: account + guardian role
+     * + ACTIVE link in one call, so his panel opens on this student.
+     */
+    public function attachGuardian(Request $request, Student $student): JsonResponse
+    {
+        $this->authorize('manage', GuardianLink::class);
+
+        if (! $request->user()->can('view', $student)) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['nullable', 'string', 'max:100'],
+            'phone' => ['required', 'string', 'max:20'],
+            'link_type' => ['nullable', Rule::in(array_keys(GuardianLink::typeLabels()))],
+            'can_pickup' => ['sometimes', 'boolean'],
+        ]);
+
+        $link = app(GuardianAccountService::class)->attach($student, $data, $request->user());
+
+        return (new GuardianLinkResource($link))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(Request $request, Student $student): StudentResource

@@ -194,14 +194,6 @@ class GuardianLinksApiController extends Controller
 
     private function linkTypes(): array
     {
-        return [
-            GuardianLink::TYPE_PRIMARY => 'ولی اصلی',
-            GuardianLink::TYPE_SECOND => 'ولی دوم',
-            GuardianLink::TYPE_SEPARATED_JOINT => 'ولی جداشده (حضانت مشترک)',
-            GuardianLink::TYPE_SEPARATED_LIMITED => 'ولی جداشده (دسترسی محدود)',
-            GuardianLink::TYPE_LEGAL_GUARDIAN => 'قیم قانونی',
-            GuardianLink::TYPE_TEMPORARY => 'ولی موقت',
-            GuardianLink::TYPE_PICKUP_ONLY => 'فرد مجاز تحویل‌گیری',
-        ];
+        return GuardianLink::typeLabels();
     }
 }

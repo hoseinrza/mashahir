@@ -30,14 +30,16 @@ class UsersApiController extends Controller
         // is listed — other schools' staff and role-less accounts included —
         // so no school can be missing from the list and any role-less
         // account can receive its role from here. Each role is labeled with
-        // its school's name for the cross-school view. Students have their own
-        // tab, so an account that signs in as a student is never a staff row
-        // here — in either console. Guardians are not affected.
+        // its school's name for the cross-school view. Students and guardians
+        // have their own flow, so a pure student or pure guardian account is
+        // never a staff row here — in either console. An account that is also
+        // staff (a parent who teaches, say) stays listed.
         if ($isPlatformContext) {
             $users = User::query()
                 ->with(['userRoles' => fn ($q) => $q->active()->with(['role', 'school'])])
                 ->whereDoesntHave('userRoles', fn ($ur) => $ur->active()
                     ->whereHas('role', fn ($r) => $r->where('key', 'student')))
+                ->whereNot(fn ($q) => $this->onlyGuardianScope($q, null))
                 ->orderBy('last_name')
                 ->paginate(min($request->integer('per_page', 50), 100));
 
@@ -57,6 +59,9 @@ class UsersApiController extends Controller
             )
             ->whereDoesntHave('userRoles', fn ($ur) => $ur->where('school_id', $schoolId)->active()
                 ->whereHas('role', fn ($r) => $r->where('key', 'student')))
+            // Guardians are added next to their student, not to the personnel
+            // list: only a guardian who is also staff here keeps a row.
+            ->whereNot(fn ($q) => $this->onlyGuardianScope($q, $schoolId))
             ->with(['userRoles' => fn ($q) => $q->active()
                 ->where('school_id', $schoolId)
                 ->whereHas('role', fn ($r) => $r->whereNotIn('key', ['platform_admin', 'student']))
@@ -65,6 +70,27 @@ class UsersApiController extends Controller
             ->paginate(min($request->integer('per_page', 50), 100));
 
         return UserResource::collection($users);
+    }
+
+    /**
+     * Narrows a user query to accounts whose ONLY tie to the school (or to the
+     * whole platform, schoolId = null) is the guardian role — the rows the
+     * personnel list must not show, because the parent lives beside his
+     * student in the students tab. Used negated: `whereNot(...)`.
+     */
+    private function onlyGuardianScope($query, ?int $schoolId)
+    {
+        $inView = fn ($ur) => $ur->active()
+            ->when($schoolId !== null, fn ($q) => $q->where('school_id', $schoolId));
+
+        return $query
+            ->whereHas('userRoles', fn ($ur) => $inView($ur)
+                ->whereHas('role', fn ($r) => $r->where('key', 'guardian')))
+            ->whereDoesntHave('userRoles', fn ($ur) => $inView($ur)
+                ->whereHas('role', fn ($r) => $r->whereNotIn('key', ['guardian', 'student', 'platform_admin'])))
+            ->whereDoesntHave('staffProfiles', fn ($sp) => $schoolId !== null
+                ? $sp->where('school_id', $schoolId)
+                : $sp);
     }
 
     public function store(Request $request): UserResource
@@ -182,6 +208,15 @@ class UsersApiController extends Controller
         if ($data['role_key'] === 'student') {
             throw ValidationException::withMessages([
                 'role_key' => 'نقش «دانش‌آموز» از این فرم تخصیص داده نمی‌شود؛ دانش‌آموز را از تب دانش‌آموزان ثبت کنید.',
+            ]);
+        }
+
+        // Guardians are not personnel either: the guardian role is minted next
+        // to the student it belongs to, in the same modal, so the parent's
+        // panel opens on that student.
+        if ($data['role_key'] === 'guardian') {
+            throw ValidationException::withMessages([
+                'role_key' => 'نقش «ولی» از این فرم تخصیص داده نمی‌شود؛ ولی را همراه با دانش‌آموز در تب دانش‌آموزان ثبت کنید.',
             ]);
         }
 

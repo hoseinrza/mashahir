@@ -49,6 +49,13 @@ class UserPolicy
             return false;
         }
 
+        // The guardian role is minted only next to the student it belongs to
+        // (the student modal adds the parent and links it in one step), so a
+        // parent account is never a bare role assignment.
+        if ($targetRoleKey === 'guardian') {
+            return false;
+        }
+
         // The platform role is minted only from the platform context: a
         // school-scoped role can never create or hand out a platform admin.
         if ($targetRoleKey === 'platform_admin'

@@ -425,4 +425,24 @@ class UsersApiTest extends TestCase
             'role_key' => 'student', 'scope_type' => 'school',
         ])->assertStatus(422);
     }
+
+    public function test_the_guardian_role_can_never_be_assigned_from_the_role_form(): void
+    {
+        $this->actingWithRole('school_admin');
+        $target = $this->makeUser();
+
+        // Parents are added beside their student in the students tab, never
+        // role-assigned from the personnel form — even the platform admin.
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'guardian', 'scope_type' => 'school',
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.role_key.0', 'نقش «ولی» از این فرم تخصیص داده نمی‌شود؛ ولی را همراه با دانش‌آموز در تب دانش‌آموزان ثبت کنید.');
+
+        $this->app['auth']->forgetGuards();
+        $this->actingWithRole('platform_admin');
+
+        $this->postJson("/api/v1/users/{$target->ulid}/roles", [
+            'role_key' => 'guardian', 'scope_type' => 'school',
+        ])->assertStatus(422);
+    }
 }

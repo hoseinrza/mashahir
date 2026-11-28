@@ -64,6 +64,25 @@ class GuardianLink extends Model
     }
 
     /**
+     * link type key → the label the family office reads (one source for the
+     * controller, the student modal and the guardian service).
+     *
+     * @return array<string, string>
+     */
+    public static function typeLabels(): array
+    {
+        return [
+            self::TYPE_PRIMARY => 'ولی اصلی',
+            self::TYPE_SECOND => 'ولی دوم',
+            self::TYPE_SEPARATED_JOINT => 'ولی جداشده (حضانت مشترک)',
+            self::TYPE_SEPARATED_LIMITED => 'ولی جداشده (دسترسی محدود)',
+            self::TYPE_LEGAL_GUARDIAN => 'قیم قانونی',
+            self::TYPE_TEMPORARY => 'ولی موقت',
+            self::TYPE_PICKUP_ONLY => 'فرد مجاز تحویل‌گیری',
+        ];
+    }
+
+    /**
      * Link is usable today (active and not ended).
      */
     public function scopeUsable($query)

@@ -228,9 +228,27 @@ paths:
                 last_name: { type: string }
                 birth_date: { type: string, format: date, nullable: true }
                 national_code: { type: string, nullable: true }
+                phone: { type: string, nullable: true, description: "شمارهٔ دانش‌آموز — حساب ورودش ساخته/وصل می‌شود" }
+                guardians:
+                  type: array
+                  maxItems: 4
+                  description: اختیاری — هر ولی حساب ورود، نقش ولی و یک پیوند فعال با همین دانش‌آموز می‌گیرد (هر سه در یک تراکنش)
+                  items:
+                    type: object
+                    required: [first_name, phone]
+                    properties:
+                      first_name: { type: string }
+                      last_name: { type: string, nullable: true }
+                      phone: { type: string }
+                      link_type:
+                        type: string
+                        enum: [primary, second, separated_joint, separated_limited, legal_guardian, temporary, pickup_only]
+                        default: primary
+                      can_pickup: { type: boolean, default: true }
       responses:
         "201":
           description: ساخته شد؛ کد ملی در پاسخ هرگز برنمی‌گردد
+        "422": { description: شمارهٔ دانش‌آموز یا ولی نامعتبر است؛ تراکنش کامل برمی‌گردد }
 
   /v1/students/{student}:
     get:
@@ -268,6 +286,42 @@ paths:
         "200":
           description: کد ملی رمزگشایی‌شده + ردیف لاگ
         "404": { description: مجوز students.view_national_code ندارد }
+
+  /v1/students/{student}/guardians:
+    get:
+      tags: [students]
+      summary: اولیای یک دانش‌آموز (guardian_links.manage) — فقط کادر مدرسه
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      responses:
+        "200":
+          description: پیوندهای همین دانش‌آموز، جدیدترین اول؛ شمارهٔ ولی فقط برای کادر برمی‌گردد
+        "403": { description: مجوز guardian_links.manage ندارد }
+        "404": { description: خارج از محدوده یا مدرسه دیگر }
+    post:
+      tags: [students]
+      summary: افزودن ولی به دانش‌آموز (guardian_links.manage) — حساب ورود + نقش ولی + پیوند فعال در یک درخواست
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UlidPath" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, phone]
+              properties:
+                first_name: { type: string }
+                last_name: { type: string, nullable: true }
+                phone: { type: string, description: "۰۹xxxxxxxxx — ارقام فارسی هم پذیرفته می‌شود" }
+                link_type:
+                  type: string
+                  enum: [primary, second, separated_joint, separated_limited, legal_guardian, temporary, pickup_only]
+                  default: primary
+                can_pickup: { type: boolean, default: true }
+      responses:
+        "201": { description: پیوند فعال ساخته شد؛ پنل ولی روی همین دانش‌آموز باز می‌شود }
+        "422": { description: شماره نامعتبر یا از قبل به همین دانش‌آموز وصل است }
 
   /v1/academic/grade-levels:
     get: &gradeLevelsRead

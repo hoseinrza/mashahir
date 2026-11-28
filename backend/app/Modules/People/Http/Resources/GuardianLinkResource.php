@@ -27,6 +27,9 @@ class GuardianLinkResource extends JsonResource
             'guardian' => $this->when(! $isGuardianViewer, fn () => [
                 'ulid' => $this->guardian?->ulid,
                 'name' => $this->guardian?->fullName(),
+                // The office manages the parent's login account from the
+                // student's parents modal, so it needs the number.
+                'phone' => $this->guardian?->phone,
             ]),
             // Office-side verification material is staff-only too.
             'verification_file_ulid' => $this->when(! $isGuardianViewer, fn () => $this->verificationFile?->ulid),

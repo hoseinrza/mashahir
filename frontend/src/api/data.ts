@@ -48,6 +48,17 @@ export interface StudentRow {
   classroomTitle: string | null;
 }
 
+/**
+ * A parent typed beside his student. Optional: only filled rows are sent, and
+ * each one mints a login account linked to that student.
+ */
+export interface StudentGuardianInput {
+  firstName: string;
+  lastName?: string | null;
+  phone: string;
+  linkType: string;
+}
+
 /** Backend role keys → the titles the personnel office reads. */
 export const BACKEND_ROLE_LABELS: Record<string, string> = {
   school_admin: 'مدیر مدرسه',
@@ -176,6 +187,8 @@ export const ApiUserService = {
     nationalCode?: string | null;
     /** Given a phone, the backend mints/links the student's login account. */
     phone?: string | null;
+    /** Optional parents: each one gets an account + an active link to this student. */
+    guardians?: StudentGuardianInput[];
   }): Promise<void> {
     await api('/v1/students', {
       method: 'POST',
@@ -186,6 +199,16 @@ export const ApiUserService = {
         ...(payload.birthDate ? { birth_date: payload.birthDate } : {}),
         ...(payload.nationalCode ? { national_code: payload.nationalCode } : {}),
         ...(payload.phone ? { phone: payload.phone } : {}),
+        ...(payload.guardians && payload.guardians.length > 0
+          ? {
+              guardians: payload.guardians.map((g) => ({
+                first_name: g.firstName,
+                ...(g.lastName ? { last_name: g.lastName } : {}),
+                phone: g.phone,
+                link_type: g.linkType,
+              })),
+            }
+          : {}),
       },
     });
   },
@@ -255,6 +278,7 @@ function auditEntityType(action: string): AuditEvent['entityType'] {
 /** Specific Persian sentence for the actions the backend actually logs. */
 const ACTION_TITLES: Record<string, string> = {
   'guardian_link.requested': 'درخواست اتصال ولی ثبت شد',
+  'guardian_link.created': 'ولی همراه با دانش‌آموز ثبت و به او وصل شد',
   'guardian_link.approved': 'پیوند ولی تأیید و فعال شد',
   'guardian_link.updated': 'مجوزهای پیوند ولی تغییر کرد',
   'guardian_link.ended': 'پیوند ولی پایان یافت',
@@ -410,6 +434,8 @@ export interface GuardianLinkRow {
   studentName: string;
   guardianUlid: string | null;
   guardianName: string | null;
+  /** The parent's login number (staff view only) — null for a guardian viewer. */
+  guardianPhone: string | null;
   linkType: string;
   linkTypeLabel: string;
   status: 'pending' | 'active' | 'ended' | 'rejected' | string;
@@ -418,6 +444,23 @@ export interface GuardianLinkRow {
   verificationFileUlid: string | null;
   adminNote: string | null;
 }
+
+/** One server link row → the shape both the family page and the parents modal read. */
+const mapGuardianLink = (l: any): GuardianLinkRow => ({
+  id: l.id,
+  studentUlid: l.student_ulid ?? '',
+  studentName: l.student_name ?? '—',
+  guardianUlid: l.guardian?.ulid ?? null,
+  guardianName: l.guardian?.name ?? null,
+  guardianPhone: l.guardian?.phone ?? null,
+  linkType: l.link_type ?? '',
+  linkTypeLabel: GUARDIAN_LINK_TYPES[l.link_type] ?? l.link_type ?? '—',
+  status: l.status ?? 'pending',
+  endsOn: l.ends_on ?? null,
+  flags: mapFlags(l.effective_flags),
+  verificationFileUlid: l.verification_file_ulid ?? null,
+  adminNote: l.admin_note ?? null,
+});
 
 export interface CourtOrderRow {
   id: number;
@@ -490,20 +533,30 @@ export const ApiFamilyService = {
   /** Family-office view: every guardian link of the school. */
   async listAllLinks(): Promise<GuardianLinkRow[]> {
     const result = await api<{ data: any[] }>('/v1/guardian-links');
-    return (result.data ?? []).map((l) => ({
-      id: l.id,
-      studentUlid: l.student_ulid ?? '',
-      studentName: l.student_name ?? '—',
-      guardianUlid: l.guardian?.ulid ?? null,
-      guardianName: l.guardian?.name ?? null,
-      linkType: l.link_type ?? '',
-      linkTypeLabel: GUARDIAN_LINK_TYPES[l.link_type] ?? l.link_type ?? '—',
-      status: l.status ?? 'pending',
-      endsOn: l.ends_on ?? null,
-      flags: mapFlags(l.effective_flags),
-      verificationFileUlid: l.verification_file_ulid ?? null,
-      adminNote: l.admin_note ?? null,
-    }));
+    return (result.data ?? []).map(mapGuardianLink);
+  },
+
+  /** Guardians of one student — the parents modal inside the students tab. */
+  async listStudentGuardians(studentUlid: string): Promise<GuardianLinkRow[]> {
+    const result = await api<{ data: any[] }>(`/v1/students/${studentUlid}/guardians`);
+    return (result.data ?? []).map(mapGuardianLink);
+  },
+
+  /**
+   * A parent added to an already-registered student: the backend mints (or
+   * links) his account, hands him the guardian role and an ACTIVE link to
+   * this student, so his panel opens on this student.
+   */
+  async addStudentGuardian(studentUlid: string, payload: StudentGuardianInput): Promise<void> {
+    await api(`/v1/students/${studentUlid}/guardians`, {
+      method: 'POST',
+      body: {
+        first_name: payload.firstName,
+        ...(payload.lastName ? { last_name: payload.lastName } : {}),
+        phone: payload.phone,
+        link_type: payload.linkType,
+      },
+    });
   },
 
   /** sh15: school approval activates a pending link; the flags come from here. */

@@ -9,12 +9,37 @@ import { toPersianDigits, cn } from '../utils/persian';
 import { formatJalaliDate } from '../utils/jalali';
 import { JalaliDatePicker } from '../components/common/JalaliDatePicker';
 import {
-  ApiUserService, ApiClassroomAdminService, ApiImportService,
+  ApiUserService, ApiClassroomAdminService, ApiImportService, ApiFamilyService,
   UserRow, UserRoleAssignment, StudentRow, ClassroomAdminRow, IdTitleOption, ImportBatchResult, BACKEND_ROLE_LABELS,
+  GuardianLinkRow, GUARDIAN_LINK_TYPES, StudentGuardianInput,
 } from '../api/data';
 import { ApiError } from '../api/client';
 
 type TabId = 'users' | 'students' | 'classrooms';
+
+/**
+ * A parent row typed in the student modal. The block is optional: empty rows
+ * are dropped before sending, so a student can be registered alone.
+ */
+type GuardianDraft = { key: number; linkType: string; firstName: string; lastName: string; phone: string };
+
+let guardianDraftKey = 0;
+const emptyGuardianDraft = (linkType: string): GuardianDraft => ({
+  key: ++guardianDraftKey,
+  linkType,
+  firstName: '',
+  lastName: '',
+  phone: '',
+});
+
+/** ۰۹… → 09… so the API regex and the office both see one shape. */
+const digitsOnly = (raw: string): string => raw
+  .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+  .replace(/[^\d]/g, '')
+  .slice(0, 11);
+
+const isGuardianDraftEmpty = (g: GuardianDraft): boolean =>
+  !g.firstName.trim() && !g.lastName.trim() && !g.phone.trim();
 
 /** A login account owner whose password the office may (re)set. */
 type PasswordTarget = { ulid: string; fullName: string; kind: 'user' | 'student' };
@@ -78,6 +103,19 @@ export const UserManagementPage: React.FC = () => {
   const [stuNational, setStuNational] = useState('');
   // Phone = login: the backend mints/links the student's account from it.
   const [stuPhone, setStuPhone] = useState('');
+  // Optional parents, registered in the same step: each row mints a login
+  // account, the guardian role, and an active link to this student.
+  const [stuGuardians, setStuGuardians] = useState<GuardianDraft[]>(() => [emptyGuardianDraft('primary')]);
+
+  // Parents modal of one roster row: who is already linked, plus an optional
+  // add form (a student may have no parent registered at all).
+  const [guardianTarget, setGuardianTarget] = useState<StudentRow | null>(null);
+  const [guardianList, setGuardianList] = useState<GuardianLinkRow[] | null>(null);
+  const [guardianError, setGuardianError] = useState<string | null>(null);
+  const [gLinkType, setGLinkType] = useState('primary');
+  const [gFirst, setGFirst] = useState('');
+  const [gLast, setGLast] = useState('');
+  const [gPhone, setGPhone] = useState('');
 
   const [enrollTarget, setEnrollTarget] = useState<StudentRow | null>(null);
   const [enrollClassroom, setEnrollClassroom] = useState('');
@@ -149,6 +187,43 @@ export const UserManagementPage: React.FC = () => {
     if (years === null) ApiClassroomAdminService.years().then(setYears).catch(() => setYears([]));
     if (gradeLevels === null) ApiClassroomAdminService.gradeLevels().then(setGradeLevels).catch(() => setGradeLevels([]));
   };
+
+  /** A clean student form: the parents block starts with one empty row and is never required. */
+  const openCreateStudent = () => {
+    setStuFirst('');
+    setStuLast('');
+    setStuCode('');
+    setStuBirth('');
+    setStuNational('');
+    setStuPhone('');
+    setStuGuardians([emptyGuardianDraft('primary')]);
+    setIsCreateStudentOpen(true);
+  };
+
+  const openGuardians = (student: StudentRow) => {
+    setError(null);
+    setGuardianError(null);
+    setGuardianList(null);
+    setGLinkType('primary');
+    setGFirst('');
+    setGLast('');
+    setGPhone('');
+    setGuardianTarget(student);
+
+    ApiFamilyService.listStudentGuardians(student.ulid)
+      .then(setGuardianList)
+      .catch((e) => setGuardianError(firstError(e, 'خطا در دریافت اولیای دانش‌آموز')));
+  };
+
+  const addGuardianRow = () => setStuGuardians((rows) => (
+    rows.length >= 4 ? rows : [...rows, emptyGuardianDraft(rows.length === 0 ? 'primary' : 'second')]
+  ));
+
+  const removeGuardianRow = (key: number) =>
+    setStuGuardians((rows) => rows.filter((row) => row.key !== key));
+
+  const patchGuardianRow = (key: number, patch: Partial<GuardianDraft>) =>
+    setStuGuardians((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
   if (!isAuthorized) {
     return (
@@ -387,6 +462,28 @@ export const UserManagementPage: React.FC = () => {
       return;
     }
 
+    // Parents are optional: only the rows the office actually filled count,
+    // and an empty row is silently dropped.
+    const filledGuardians = stuGuardians.filter((g) => !isGuardianDraftEmpty(g));
+
+    for (const guardian of filledGuardians) {
+      if (!guardian.firstName.trim()) {
+        setError('نام ولی را کامل کنید؛ اگر این ردیف لازم نیست، آن را حذف کنید.');
+        return;
+      }
+      if (!/^09\d{9}$/.test(guardian.phone.trim())) {
+        setError(`شماره موبایل ${guardian.firstName.trim() || 'ولی'} باید ۱۱ رقم و با ۰۹ شروع شود.`);
+        return;
+      }
+    }
+
+    const guardians: StudentGuardianInput[] = filledGuardians.map((g) => ({
+      firstName: g.firstName.trim(),
+      lastName: g.lastName.trim() || null,
+      phone: g.phone.trim(),
+      linkType: g.linkType,
+    }));
+
     setIsSaving(true);
     setError(null);
     setNotice(null);
@@ -398,6 +495,7 @@ export const UserManagementPage: React.FC = () => {
         birthDate: stuBirth || null,
         nationalCode: stuNational.trim() || null,
         phone: stuPhone.trim() || null,
+        ...(guardians.length > 0 ? { guardians } : {}),
       });
       setIsCreateStudentOpen(false);
       setStuFirst('');
@@ -406,12 +504,41 @@ export const UserManagementPage: React.FC = () => {
       setStuBirth('');
       setStuNational('');
       setStuPhone('');
+      setStuGuardians([emptyGuardianDraft('primary')]);
       setStudentsReload((k) => k + 1);
-      setNotice(stuPhone.trim()
-        ? 'دانش‌آموز ثبت شد و حساب ورودش با شمارهٔ موبایل ساخته شد؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.'
-        : 'دانش‌آموز ثبت شد؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.');
+
+      const parentsNote = guardians.length > 0
+        ? ` و ${toPersianDigits(guardians.length)} ولی با حساب ورودش به او وصل شد`
+        : '';
+      setNotice(`${stuPhone.trim() ? 'دانش‌آموز ثبت شد و حساب ورودش با شمارهٔ موبایل ساخته شد' : 'دانش‌آموز ثبت شد'}${parentsNote}؛ برای شروع کلاس، او را در یک کلاس ثبت‌نام کنید.`);
     } catch (err) {
       setError(firstError(err, 'خطا در ثبت دانش‌آموز'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddGuardian = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guardianTarget || !gFirst.trim() || !/^09\d{9}$/.test(gPhone.trim())) return;
+
+    setIsSaving(true);
+    setGuardianError(null);
+    setNotice(null);
+    try {
+      await ApiFamilyService.addStudentGuardian(guardianTarget.ulid, {
+        firstName: gFirst.trim(),
+        lastName: gLast.trim() || null,
+        phone: gPhone.trim(),
+        linkType: gLinkType,
+      });
+      setGFirst('');
+      setGLast('');
+      setGPhone('');
+      setGuardianList(await ApiFamilyService.listStudentGuardians(guardianTarget.ulid));
+      setNotice(`ولی به ${guardianTarget.fullName} وصل شد و از همین حالا پنلش را با پروندهٔ او می‌بیند.`);
+    } catch (err) {
+      setGuardianError(firstError(err, 'خطا در افزودن ولی'));
     } finally {
       setIsSaving(false);
     }
@@ -517,11 +644,12 @@ export const UserManagementPage: React.FC = () => {
     { id: 'classrooms', label: 'کلاس‌ها و ثبت‌نام', badge: classrooms?.length ?? 0 },
   ];
 
-  // School actors never mint a platform admin, and nobody assigns the
-  // student role from the personnel form — students live in the students tab.
+  // School actors never mint a platform admin, and nobody assigns the student
+  // or guardian role from the personnel form — students live in the students
+  // tab and their parents are added next to them, in the same modal.
   const assignableRoleOptions = useMemo(
     () => Object.entries(BACKEND_ROLE_LABELS).filter(
-      ([key]) => key !== 'student' && (isPlatformAdmin || key !== 'platform_admin'),
+      ([key]) => key !== 'student' && key !== 'guardian' && (isPlatformAdmin || key !== 'platform_admin'),
     ),
     [isPlatformAdmin],
   );
@@ -530,7 +658,7 @@ export const UserManagementPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="مدیریت کاربران، دانش‌آموزان و ساختار کلاس"
-        subtitle="ساخت حساب، تخصیص نقش، تغییر شمارهٔ ورود با دلیل، ثبت دانش‌آموز و ثبت‌نام او در کلاس — همه بر پایهٔ دادهٔ زندهٔ سرور"
+        subtitle="ساخت حساب، تخصیص نقش، تغییر شمارهٔ ورود با دلیل، ثبت دانش‌آموز با اولیایش و ثبت‌نام او در کلاس — همه بر پایهٔ دادهٔ زندهٔ سرور"
         actions={
           <div className="flex items-center gap-2">
             {activeTab === 'users' && (
@@ -543,7 +671,7 @@ export const UserManagementPage: React.FC = () => {
                 <Button variant="outline" size="sm" icon={<Upload size={15} />} onClick={() => { setImportFile(null); setImportResult(null); setIsImportOpen(true); }}>
                   ورود گروهی (CSV/Excel)
                 </Button>
-                <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={() => setIsCreateStudentOpen(true)}>
+                <Button variant="primary" size="sm" icon={<Plus size={15} />} onClick={openCreateStudent}>
                   دانش‌آموز جدید
                 </Button>
               </>
@@ -726,6 +854,17 @@ export const UserManagementPage: React.FC = () => {
                 </div>
 
                 <div className="mt-1.5 flex items-center gap-1 border-t border-[#E8EDF5] pt-1 dark:border-[#2C3A4E]">
+                  {hasAccess('guardian_links:manage') && (
+                    <button
+                      type="button"
+                      title="اولیا و پیوند به این دانش‌آموز"
+                      aria-label="اولیا"
+                      onClick={() => openGuardians(student)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#526176] transition-colors hover:bg-black/5 hover:text-[#202B3C] dark:text-[#B3C0D2] dark:hover:bg-white/5 dark:hover:text-white"
+                    >
+                      <Users size={13} />
+                    </button>
+                  )}
                   <button
                     type="button"
                     title="ثبت‌نام در کلاس"
@@ -867,7 +1006,7 @@ export const UserManagementPage: React.FC = () => {
 
           <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl">
             <Info size={13} className="shrink-0 mt-0.5" />
-            <span>اگر نقش را همین‌جا انتخاب کنید، به محض ساخت حساب همان لحظه تخصیص می‌یابد؛ بدون نقش، کاربر به داشبورد راه پیدا نمی‌کند (بعداً هم می‌توانید از ردیف او در جدول نقش بدهید).</span>
+            <span>اگر نقش را همین‌جا انتخاب کنید، به محض ساخت حساب همان لحظه تخصیص می‌یابد؛ بدون نقش، کاربر به داشبورد راه پیدا نمی‌کند (بعداً هم می‌توانید از ردیف او در جدول نقش بدهید). نقش‌های «ولی» و «دانش‌آموز» در این فرم نیستند؛ دانش‌آموز و اولیایش از تب دانش‌آموزان ثبت می‌شوند.</span>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -1169,6 +1308,90 @@ export const UserManagementPage: React.FC = () => {
             <JalaliDatePicker value={stuBirth} onChange={setStuBirth} placeholder="انتخاب تاریخ تولد" />
           </FormField>
 
+          {/* Parents — optional, and linked to THIS student at the same moment. */}
+          <div className="rounded-xl border border-dashed border-[#DCE3EE] p-3 text-right dark:border-[#344257]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB]">
+                اولیا <span className="font-normal text-[#8B96A9]">(اختیاری)</span>
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                icon={<Plus size={13} />}
+                disabled={stuGuardians.length >= 4}
+                onClick={addGuardianRow}
+              >
+                افزودن ولی
+              </Button>
+            </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#8B96A9]">
+              الزامی نیست؛ ردیف خالی نادیده گرفته می‌شود. هر ولی که اینجا ثبت کنید با همان شماره حساب ورود می‌گیرد،
+              نقش «ولی» را در این مدرسه دارد و به همین دانش‌آموز وصل می‌شود — پس پنلش پروندهٔ همین دانش‌آموز را نشان می‌دهد.
+            </p>
+
+            <div className="mt-2 space-y-2">
+              {stuGuardians.map((guardian, index) => (
+                <div key={guardian.key} className="rounded-lg bg-[#F7F9FC] p-2 dark:bg-[#131C29]">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-[#526176] dark:text-[#B3C0D2]">
+                      {toPersianDigits(index + 1)}. {GUARDIAN_LINK_TYPES[guardian.linkType] ?? 'ولی'}
+                    </span>
+                    {stuGuardians.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeGuardianRow(guardian.key)}
+                        className="flex items-center gap-1 text-[10px] text-[#8B96A9] transition-colors hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        <Trash2 size={11} /> حذف ردیف
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <FormField label="نوع پیوند">
+                      <select
+                        value={guardian.linkType}
+                        onChange={(e) => patchGuardianRow(guardian.key, { linkType: e.target.value })}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                      >
+                        {Object.entries(GUARDIAN_LINK_TYPES).map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField label="نام ولی">
+                      <input
+                        type="text"
+                        value={guardian.firstName}
+                        onChange={(e) => patchGuardianRow(guardian.key, { firstName: e.target.value })}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                      />
+                    </FormField>
+                    <FormField label="نام خانوادگی ولی">
+                      <input
+                        type="text"
+                        value={guardian.lastName}
+                        onChange={(e) => patchGuardianRow(guardian.key, { lastName: e.target.value })}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                      />
+                    </FormField>
+                    <FormField label="موبایل ولی (همان نام کاربری ورود)">
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={guardian.phone}
+                        onChange={(e) => patchGuardianRow(guardian.key, { phone: digitsOnly(e.target.value) })}
+                        placeholder="09121234567"
+                        className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+                      />
+                    </FormField>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" type="button" onClick={() => setIsCreateStudentOpen(false)}>انصراف</Button>
             <Button variant="primary" type="submit" disabled={isSaving || !stuFirst.trim() || !stuLast.trim() || !stuCode.trim()}>
@@ -1176,6 +1399,134 @@ export const UserManagementPage: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Parents of one student ─────────────────────────────── */}
+      <Modal
+        isOpen={guardianTarget !== null}
+        onClose={() => setGuardianTarget(null)}
+        title={`اولیای ${guardianTarget?.fullName ?? ''}`}
+        maxWidth="md"
+      >
+        <div className="space-y-4 text-right">
+          <p className="rounded-xl bg-[#F7F9FC] p-2.5 text-[10px] leading-relaxed text-[#526176] dark:bg-[#131C29] dark:text-[#B3C0D2]">
+            هر ولی که به این دانش‌آموز وصل شود با شمارهٔ خودش وارد می‌شود و پنلش را روی پروندهٔ همین دانش‌آموز می‌گیرد؛
+            ولی دیگر هرگز شماره، پیام یا پروندهٔ او را نمی‌بیند. داشتن ولی اختیاری است.
+          </p>
+
+          {guardianError && (
+            <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-2.5 text-[11px] font-bold text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" /> <span>{guardianError}</span>
+            </div>
+          )}
+
+          {guardianList === null && !guardianError ? (
+            <div className="flex items-center justify-center gap-2 py-6 text-xs text-[#526176] dark:text-[#B3C0D2]">
+              <Loader2 size={16} className="animate-spin" /> در حال دریافت اولیا…
+            </div>
+          ) : (guardianList ?? []).length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#DCE3EE] p-3 text-center text-[11px] text-[#8B96A9] dark:border-[#344257]">
+              هنوز ولی برای این دانش‌آموز ثبت نشده است؛ الزامی هم نیست. اگر سرپرست دانش‌آموز باید پنل داشته باشد، از فرم پایین اضافه کنید.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(guardianList ?? []).map((link) => {
+                const status = link.status === 'active'
+                  ? { label: 'پیوند فعال', className: 'text-emerald-700 dark:text-emerald-400' }
+                  : link.status === 'pending'
+                    ? { label: 'در انتظار تأیید', className: 'text-amber-700 dark:text-amber-400' }
+                    : link.status === 'rejected'
+                      ? { label: 'رد شده', className: 'text-rose-700 dark:text-rose-400' }
+                      : { label: 'پایان یافته', className: 'text-[#8B96A9]' };
+
+                const granted = [
+                  link.flags.can_view_grades && 'نمرات',
+                  link.flags.can_view_attendance && 'حضور',
+                  link.flags.can_approve_consent && 'رضایت‌نامه',
+                  link.flags.can_pickup && 'تحویل دانش‌آموز',
+                  link.flags.can_receive_sms && 'پیامک',
+                ].filter(Boolean).join(' · ');
+
+                return (
+                  <div key={link.id} className="rounded-xl border border-[#DCE3EE] p-2 dark:border-[#344257]">
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB]">
+                        {link.guardianName ?? 'ولی بدون حساب کاربری'}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-[#8B96A9]" dir="ltr">
+                        {link.guardianPhone ?? '—'}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                      <span className="rounded-md bg-[#EAF1FB] px-1.5 py-0.5 text-[#2457C5] dark:bg-[#1D2B44] dark:text-[#8BAEFF]">
+                        {link.linkTypeLabel}
+                      </span>
+                      <span className={'font-bold ' + status.className}>{status.label}</span>
+                      {granted && <span className="text-[#8B96A9]">{granted}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <form onSubmit={handleAddGuardian} className="space-y-3 border-t border-[#E8EDF5] pt-3 dark:border-[#2C3A4E]">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#202B3C] dark:text-[#F1F5FB]">
+              <UserPlus size={14} /> افزودن ولی <span className="font-normal text-[#8B96A9]">(اختیاری)</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <FormField label="نوع پیوند">
+                <select
+                  value={gLinkType}
+                  onChange={(e) => setGLinkType(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                >
+                  {Object.entries(GUARDIAN_LINK_TYPES).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="نام ولی">
+                <input
+                  type="text"
+                  value={gFirst}
+                  onChange={(e) => setGFirst(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                />
+              </FormField>
+              <FormField label="نام خانوادگی ولی">
+                <input
+                  type="text"
+                  value={gLast}
+                  onChange={(e) => setGLast(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none"
+                />
+              </FormField>
+              <FormField label="موبایل ولی (همان نام کاربری ورود)">
+                <input
+                  type="text"
+                  dir="ltr"
+                  value={gPhone}
+                  onChange={(e) => setGPhone(digitsOnly(e.target.value))}
+                  placeholder="09121234567"
+                  className="w-full text-xs p-2.5 bg-white dark:bg-[#182231] border border-[#DCE3EE] dark:border-[#344257] rounded-xl focus:outline-none font-mono"
+                />
+              </FormField>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" type="button" onClick={() => setGuardianTarget(null)}>بستن</Button>
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={isSaving || !gFirst.trim() || !/^09\d{9}$/.test(gPhone)}
+              >
+                {isSaving ? 'در حال ثبت…' : 'ثبت و اتصال ولی'}
+              </Button>
+            </div>
+          </form>
+        </div>
       </Modal>
 
       {/* ── Enroll student ─────────────────────────────────────── */}
